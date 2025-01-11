@@ -9,9 +9,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from dash import html, dcc, Input, Output, State, callback
 import dash.dash_table as dt
 import plotly.graph_objects as go
-import numpy as np
 from plotly.subplots import make_subplots
-from helpers.calculating_stock_metrics import calculate_stock_metrics
+from helpers.calculating_stock_metrics import read_data
 
 # Register the page
 dash.register_page(__name__, path="/portfolio")
@@ -169,9 +168,6 @@ layout = html.Div(
                             row_deletable=True
                         ),
 
-                        # Hidden storage for shared state
-                        dcc.Store(id="portfolio-tickers"),
-
                         html.Div(
                             id='error-message',
                             style={
@@ -303,6 +299,8 @@ layout = html.Div(
 def update_dashboard(show_plot_clicks, add_stock_clicks, stock_ticker, portfolio_data):
     # Initialize empty plot and default error message
     empty_fig = go.Figure()
+    empty_fig.update_layout(template="plotly_dark")
+
     error_message = ""
 
     # Ensure portfolio data is initialized
@@ -315,7 +313,7 @@ def update_dashboard(show_plot_clicks, add_stock_clicks, stock_ticker, portfolio
 
     try:
         # Calculate stock metrics
-        metrics, hist, log_returns = calculate_stock_metrics(stock_ticker)
+        metrics, hist, log_returns = read_data(stock_ticker)
 
         # Prepare stock metrics display
         metrics_display = html.Div([
@@ -426,17 +424,15 @@ def update_dashboard(show_plot_clicks, add_stock_clicks, stock_ticker, portfolio
 
         return metrics_display, fig, portfolio_data, error_message
 
-    except Exception as e:
-        # Handle errors
+    except Exception as error:
         error_message = "No price data found. Check ticker."
         return html.Div(error_message), empty_fig, portfolio_data, error_message
 
 @callback(
     Output('portfolio-tickers', 'data'),
-    [Input('portfolio-table', 'data')],
+    [Input('portfolio-table', 'data')]
 )
-def store_portfolio_tickers(table_data):
+def update_portfolio_store(table_data):
     if not table_data:
         return []
-    # Extract just the tickers from the table data and return as a list
     return [row['ticker'] for row in table_data]

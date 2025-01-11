@@ -3,7 +3,7 @@ import yfinance as yf
 import numpy as np
 from scipy import stats
 
-def calculate_stock_metrics(ticker):
+def read_data(ticker):
     stock = yf.Ticker(ticker)
     hist = stock.history(period=f"2y")
 

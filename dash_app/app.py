@@ -18,7 +18,7 @@ app = dash.Dash(
 # App layout
 app.layout = html.Div(
     children=[
-        # Default URL path set to "/portfolio"
+        dcc.Store(id="portfolio-tickers"), 
         dcc.Location(id="url", refresh=True, pathname="/portfolio"),
         dash.page_container
     ]
