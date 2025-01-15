@@ -12,10 +12,9 @@ def read_data(ticker):
     
     metrics = {
         'current_price': hist['Close'][-1],
-        'total_return': ((hist['Close'][-1] / hist['Close'][0]) - 1) * 100,
-        'avg_log_return': log_returns.mean() * 252,  
-        'volatility': log_returns.std() * np.sqrt(252),  
-        'sharpe_ratio': (log_returns.mean() * 252) / (log_returns.std() * np.sqrt(252)),
+        'mean': np.mean(log_returns),
+        'std': np.std(log_returns),
+        'variance': np.var(log_returns),
         'skewness': stats.skew(log_returns),
         'kurtosis': stats.kurtosis(log_returns)
     }

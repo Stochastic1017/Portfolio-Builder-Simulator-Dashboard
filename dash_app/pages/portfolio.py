@@ -2,14 +2,17 @@
 import os
 import sys
 import dash
+import yfinance as yf
+import numpy as np
+import dash.dash_table as dt
+import plotly.graph_objects as go
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from dash import html, dcc, Input, Output, State, callback
-import dash.dash_table as dt
-import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from scipy.stats import gaussian_kde, norm
 from helpers.calculating_stock_metrics import read_data
 
 # Register the page
@@ -128,6 +131,7 @@ layout = html.Div(
                                         'fontWeight': 'bold',
                                     }
                                 ),
+
                                 html.Button(
                                     "Add to Portfolio",
                                     id="add-stock-button",
@@ -145,14 +149,19 @@ layout = html.Div(
                             ]
                         ),
 
-                        # Portfolio Table
+                        # Portfolio table of added tickers
                         dt.DataTable(
                             id='portfolio-table',
                             columns=[
                                 {'name': 'Number', 'id': 'number'},
                                 {'name': 'Ticker', 'id': 'ticker'},
+                                {'name': 'Full Name', 'id': 'full_name'},
                             ],
-                            style_table={'overflowX': 'auto'},
+                            style_table={
+                                'overflowY': 'auto',  # Enables vertical scrolling
+                                'height': '300px',   # Set height for the scrollable table
+                                'border': f'1px solid {PURPLE_PRIMARY}'
+                            },
                             style_cell={
                                 'backgroundColor': GRAY_DARK,
                                 'color': '#FFFFFF',
@@ -167,6 +176,7 @@ layout = html.Div(
                             editable=False,
                             row_deletable=True
                         ),
+
 
                         html.Div(
                             id='error-message',
@@ -185,8 +195,9 @@ layout = html.Div(
                             },
                             children=[
                                 html.Button(
-                                    dcc.Link(
-                                        "Go to Efficient Frontier",
+                                    id="efficient-frontier-button",
+                                    children=dcc.Link(
+                                        "Go to Portfolio Optimization",
                                         href="/efficient-frontier",
                                         style={
                                             "color": "white",
@@ -198,12 +209,12 @@ layout = html.Div(
                                         }
                                     ),
                                     style={
-                                        'backgroundColor': '#8B5CF6',
+                                        'backgroundColor': PURPLE_PRIMARY,
                                         'color': 'white',
                                         'padding': '10px 20px',
                                         'border': 'none',
                                         'borderRadius': '5px',
-                                        'cursor': 'pointer',
+                                        'cursor': 'not-allowed',
                                         'fontWeight': 'bold',
                                         'textAlign': 'center',
                                         'width': '100%',
@@ -269,7 +280,7 @@ layout = html.Div(
                         "GitHub Repository: ",
                         html.A(
                             "Portfolio Optimization and Visualization Dashboard",
-                            href="https://github.com/Stochastic1017/Spotify-Podcast-Clustering",
+                            href="https://github.com/Stochastic1017/Portfolio-Analysis-Dashboard",
                             target="_blank",
                             style={'color': PURPLE_PRIMARY, 'textDecoration': 'none'}
                         ),
@@ -300,34 +311,33 @@ def update_dashboard(show_plot_clicks, add_stock_clicks, stock_ticker, portfolio
     # Initialize empty plot and default error message
     empty_fig = go.Figure()
     empty_fig.update_layout(template="plotly_dark")
-
     error_message = ""
-
-    # Ensure portfolio data is initialized
     portfolio_data = portfolio_data or []
 
-    # Validate stock ticker
+    # Check if no ticker is provided
     if not stock_ticker:
-        error_message = ""
+        error_message = "Enter at least 2 valid stock ticker."
         return html.Div(error_message), empty_fig, portfolio_data, error_message
 
     try:
-        # Calculate stock metrics
+        # Fetch stock data and metrics
+        ticker = yf.Ticker(stock_ticker)
+        full_name = ticker.info.get("longName", "Name not available")
         metrics, hist, log_returns = read_data(stock_ticker)
 
         # Prepare stock metrics display
         metrics_display = html.Div([
-            html.P(f"Current Price: ${metrics['current_price']:.2f}"),
-            html.P(f"Total Return: {metrics['total_return']:.2f}%"),
-            html.P(f"Annualized Avg Log Return: {metrics['avg_log_return']:.2f}%"),
-            html.P(f"Annualized Volatility: {metrics['volatility']:.2f}%"),
-            html.P(f"Sharpe Ratio: {metrics['sharpe_ratio']:.2f}"),
-            html.P(f"Skewness: {metrics['skewness']:.2f}"),
-            html.P(f"Kurtosis: {metrics['kurtosis']:.2f}")
+            html.P(f"Current Price: ${metrics['current_price']:.5f}"),
+            html.P(f"Mean: {metrics['mean']:.5f}"),
+            html.P(f"Standard Deviation: {metrics['std']:.5f}"),
+            html.P(f"Variance: {metrics['variance']:.5f}"),
+            html.P(f"Skewness: {metrics['skewness']:.5f}"),
+            html.P(f"Kurtosis: {metrics['kurtosis']:.5f}")
         ])
 
         # Handle "Show Plot" button click
-        if show_plot_clicks:
+        ctx = dash.callback_context  # Get the context of the triggered callback
+        if ctx.triggered and "add-plot-button" in ctx.triggered[0]['prop_id']:
             # Create subplots
             fig = make_subplots(
                 rows=2, cols=2,
@@ -340,6 +350,12 @@ def update_dashboard(show_plot_clicks, add_stock_clicks, stock_ticker, portfolio
                 vertical_spacing=0.15,
                 horizontal_spacing=0.1
             )
+
+            # Add Bollinger Bands and other plots
+            rolling_mean = hist['Close'].rolling(window=20).mean()
+            rolling_std = hist['Close'].rolling(window=20).std()
+            bollinger_upper = rolling_mean + 2 * rolling_std
+            bollinger_lower = rolling_mean - 2 * rolling_std
 
             # Bollinger Bands
             rolling_mean = hist['Close'].rolling(window=20).mean()
@@ -373,66 +389,108 @@ def update_dashboard(show_plot_clicks, add_stock_clicks, stock_ticker, portfolio
                 ),
                 row=1, col=1
             )
-
-            # Log Returns
             fig.add_trace(
-                go.Scatter(
-                    x=hist.index, y=log_returns,
-                    mode='lines', name='Log Returns',
-                    line=dict(color='#79b9e7')
-                ),
+                go.Scatter(x=hist.index, y=log_returns, name='Log Returns'),
                 row=2, col=1
             )
 
-            # Histogram of Log Returns
+            # Histogram of Log Returns with KDE and Normal Distribution
             fig.add_trace(
                 go.Histogram(
-                    x=log_returns, histnorm='density',
-                    name='Log Returns Distribution',
-                    marker=dict(color='#8B5CF6')
+                    x=log_returns,
+                    name='Log Return Distribution',
+                    histnorm='probability density',
+                    marker=dict(color='#8B5CF6'),
                 ),
                 row=2, col=2
             )
 
-            fig.update_layout(
-                height=1000,
-                template="plotly_dark",
-                title_text=f"Analysis for {stock_ticker}",
-                showlegend=False,
-                autosize=True
+            # Calculate KDE
+            kde = gaussian_kde(log_returns)
+            x_kde = np.linspace(min(log_returns), max(log_returns), 500)
+            y_kde = kde(x_kde)
+
+            # Add KDE trace
+            fig.add_trace(
+                go.Scatter(
+                    x=x_kde,
+                    y=y_kde,
+                    mode='lines',
+                    name='KDE',
+                    line=dict(color='orange', width=2),
+                ),
+                row=2, col=2
             )
-        else:
-            fig = empty_fig
+
+            # Calculate Normal Distribution Curve
+            mean = metrics['mean']
+            std = metrics['std']
+            x_norm = np.linspace(min(log_returns), max(log_returns), 500)
+            y_norm = norm.pdf(x_norm, loc=mean, scale=std)
+
+            # Add Normal Distribution trace
+            fig.add_trace(
+                go.Scatter(
+                    x=x_norm,
+                    y=y_norm,
+                    mode='lines',
+                    name='Normal Distribution',
+                    line=dict(color='red', width=2),
+                ),
+                row=2, col=2
+            )
+            fig.update_layout(template="plotly_dark", title=f"Analysis for {stock_ticker}")
+            return metrics_display, fig, portfolio_data, error_message
 
         # Handle "Add to Portfolio" button click
-        if add_stock_clicks:
-            # Validate portfolio size
-            if len(portfolio_data) >= 10:
-                error_message = "Portfolio cannot contain more than 10 tickers."
-                return metrics_display, empty_fig, portfolio_data, error_message
-
-            # Check if ticker is already in portfolio
+        if ctx.triggered and "add-stock-button" in ctx.triggered[0]['prop_id']:
+            # Check if the ticker is already in the portfolio
             if any(row['ticker'] == stock_ticker for row in portfolio_data):
-                error_message = "Ticker is already in the portfolio."
+                error_message = f"{stock_ticker} is already in the portfolio."
                 return metrics_display, empty_fig, portfolio_data, error_message
 
-            # Add ticker to portfolio
+            # Add stock to portfolio
             portfolio_data.append({
                 'number': len(portfolio_data) + 1,
-                'ticker': stock_ticker
+                'ticker': stock_ticker,
+                'full_name': full_name
             })
+            return metrics_display, empty_fig, portfolio_data, error_message
 
-        return metrics_display, fig, portfolio_data, error_message
+        # Default response if no button is clicked
+        return metrics_display, empty_fig, portfolio_data, error_message
 
     except Exception as error:
-        error_message = "No price data found. Check ticker."
+        error_message = "Error retrieving data. Check the ticker."
         return html.Div(error_message), empty_fig, portfolio_data, error_message
+
 
 @callback(
     Output('portfolio-tickers', 'data'),
-    [Input('portfolio-table', 'data')]
+    [Input('portfolio-table', 'data')]  # Current portfolio_data from table
 )
 def update_portfolio_store(table_data):
     if not table_data:
         return []
-    return [row['ticker'] for row in table_data]
+    return [row['ticker'] for row in table_data]  # Extract tickers from portfolio_data
+
+@callback(
+    Output("efficient-frontier-button", "style"),
+    Input("portfolio-table", "data")
+)
+def update_button_style(portfolio_data):
+    # Ensure portfolio_data is initialized
+    portfolio_data = portfolio_data or []
+    is_enabled = len(portfolio_data) >= 2
+
+    return {
+        'backgroundColor': PURPLE_PRIMARY if is_enabled else GRAY_LIGHT,
+        'color': 'white',
+        'padding': '10px 20px',
+        'border': 'none',
+        'borderRadius': '5px',
+        'cursor': 'pointer' if is_enabled else 'not-allowed',
+        'fontWeight': 'bold',
+        'textAlign': 'center',
+        'width': '100%',
+    }

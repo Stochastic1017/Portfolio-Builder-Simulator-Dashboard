@@ -6,15 +6,19 @@ from helpers.calculating_stock_metrics import read_data
 
 def portfolio_performance(weights, expected_returns, cov_matrix):
     """Calculate portfolio return and volatility."""
-    portfolio_return = np.sum(expected_returns * weights)
-    portfolio_volatility = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+    portfolio_return = np.sum(expected_returns * weights)         # mu_p * w 
+    portfolio_volatility = np.sqrt(np.dot(weights.T, 
+                                   np.dot(cov_matrix, weights)))  # sqrt( wT * Sigma_p * w )
     return portfolio_return, portfolio_volatility
 
 def negative_sharpe_ratio(weights, expected_returns, cov_matrix, risk_free_rate=0.02):
     """Calculate negative Sharpe ratio for minimization."""
-    portfolio_return, portfolio_volatility = portfolio_performance(weights, expected_returns, cov_matrix)
-    sharpe_ratio = (portfolio_return - risk_free_rate) / portfolio_volatility
-    return -sharpe_ratio
+    portfolio_return, portfolio_volatility = portfolio_performance(weights, 
+                                                                   expected_returns, 
+                                                                   cov_matrix)
+    
+    # sharpe ratio: mu_p * w - Rf / sqrt( wT * Sigma_p * w ) 
+    return -(portfolio_return - risk_free_rate) / portfolio_volatility
 
 def optimize_portfolio(expected_returns, cov_matrix, risk_free_rate=0.02):
     """Find optimal portfolio weights."""
@@ -37,9 +41,37 @@ def optimize_portfolio(expected_returns, cov_matrix, risk_free_rate=0.02):
         constraints=constraints
     )
     
-    return result.x
+    return result.x # Return the optimal weights that maximize sharpe ratio
 
-def generate_efficient_frontier(expected_returns, cov_matrix, num_portfolios=1000):
+def optimize_min_variance(cov_matrix):
+    """
+    Optimize portfolio weights for the minimum variance portfolio.
+
+    Parameters:
+    - cov_matrix (numpy array): Covariance matrix of asset returns.
+
+    Returns:
+    - numpy array: Optimal weights for the minimum variance portfolio.
+    """
+    num_assets = cov_matrix.shape[0]
+    initial_weights = np.array([1/num_assets] * num_assets)
+    constraints = (
+        {'type': 'eq', 'fun': lambda x: np.sum(x) - 1}  # Weights sum to 1
+    )
+    bounds = tuple((0, 1) for _ in range(num_assets))  # Weights between 0 and 1
+
+    # Minimize the portfolio variance
+    result = minimize(
+        lambda x: np.dot(x.T, np.dot(cov_matrix, x)),  # Portfolio variance
+        initial_weights,
+        method='SLSQP',
+        bounds=bounds,
+        constraints=constraints
+    )
+
+    return result.x  # Return the optimal weights that minimize variance
+
+def generate_efficient_frontier(expected_returns, cov_matrix, num_portfolios=10000):
     """Generate efficient frontier points."""
     num_assets = len(expected_returns)
     returns = []

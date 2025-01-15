@@ -1,35 +1,31 @@
 
 import numpy as np
-import pandas as pd
-import yfinance as yf
 
-def compute_portfolio_var_es(tickers, weights, start_date, end_date, confidence_level=0.95, portfolio_value=1_000_000):
-    # Fetch historical prices
-    prices = yf.download(tickers, start=start_date, end=end_date)['Adj Close']
+def VaR_and_ES_log_returns(log_returns, confidence_level):
+    """
+    Calculate the Value at Risk (VaR) and Expected Shortfall (ES) using log-returns.
+
+    Parameters:
+    - prices (numpy array): Historical price data.
+    - confidence_level (float): The confidence level for VaR and ES (e.g., 0.95 for 95% confidence).
+
+    Returns:
+    - tuple: (VaR, ES), where:
+        - VaR (float): Value at Risk
+        - ES (float): Expected Shortfall
+    """
     
-    # Calculate daily returns
-    returns = prices.pct_change().dropna()
+    # Sort the log-returns in ascending order
+    sorted_log_returns = np.sort(log_returns)
     
-    # Compute portfolio returns
-    weights = np.array(weights)
-    portfolio_returns = returns.dot(weights)
-    
-    # Sort portfolio returns
-    sorted_returns = np.sort(portfolio_returns)
+    # Determine the percentile index for VaR
+    cutoff_index = int((1 - confidence_level) * len(sorted_log_returns))
     
     # Calculate VaR
-    alpha = 1 - confidence_level
-    var_index = int(alpha * len(sorted_returns))
-    var = sorted_returns[var_index]  # VaR in return terms
-    portfolio_var = var * portfolio_value  # VaR in monetary terms
+    var = -sorted_log_returns[cutoff_index]  # Negate to express as a positive loss
     
-    # Calculate Expected Shortfall (ES)
-    es = sorted_returns[sorted_returns <= var].mean()  # ES in return terms
-    portfolio_es = es * portfolio_value  # ES in monetary terms
+    # Calculate Expected Shortfall (average of returns below VaR)
+    tail_losses = sorted_log_returns[:cutoff_index]  # Losses below the VaR threshold
+    es = -np.mean(tail_losses) if len(tail_losses) > 0 else np.nan  # Handle edge case
     
-    return {
-        "VaR": portfolio_var,
-        "ES": portfolio_es,
-        "VaR (Return)": var,
-        "ES (Return)": es
-    }
+    return var, es
