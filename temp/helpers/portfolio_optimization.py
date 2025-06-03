@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
-from helpers.calculating_stock_metrics import read_data
+from dash_app.helpers.polygon_stock_api import read_data
 
 def portfolio_performance(weights, expected_returns, cov_matrix):
     """Calculate portfolio return and volatility."""

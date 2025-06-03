@@ -13,10 +13,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from dash import html, dcc, Input, Output, State, callback
 from plotly.subplots import make_subplots
 from scipy.stats import gaussian_kde, norm
-from helpers.calculating_stock_metrics import read_data
+from dash_app.helpers.polygon_stock_api import read_data
 
 # Register the page
-dash.register_page(__name__, path="/portfolio-management")
+# dash.register_page(__name__, path="/portfolio-management")
 
 # Define color constants
 COLORS = {

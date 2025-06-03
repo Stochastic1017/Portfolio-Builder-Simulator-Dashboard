@@ -18,8 +18,8 @@ app = dash.Dash(
 # App layout
 app.layout = html.Div(
     children=[
-        dcc.Store(id="portfolio-tickers"), 
-        dcc.Location(id="url", refresh=True, pathname="/portfolio-management"),
+        # dcc.Store(id="portfolio-tickers"), 
+        dcc.Location(id="url", refresh=True, pathname="/pages/stock-dashboard-api"),
         dash.page_container
     ]
 )
@@ -27,4 +27,4 @@ app.layout = html.Div(
 server = app.server
 
 if __name__ == "__main__":
-    app.run_server(host='0.0.0.0', port=8050)
+    app.run_server(host='0.0.0.0', port=8050, debug=True)

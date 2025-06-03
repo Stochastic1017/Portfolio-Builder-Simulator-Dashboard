@@ -17,7 +17,7 @@ from helpers.portfolio_optimization import (optimize_portfolio,
                                             optimize_min_variance, 
                                             get_expected_returns_covariance_matrix)
 
-dash.register_page(__name__, path="/portfolio-optimization-performance")
+#dash.register_page(__name__, path="/portfolio-optimization-performance")
 
 # Define color constants
 COLORS = {
