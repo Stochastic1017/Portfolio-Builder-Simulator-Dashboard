@@ -10,13 +10,15 @@ import plotly.graph_objects as go
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from dash import html, dcc, Input, Output, State, callback
-from plotly.subplots import make_subplots
-from scipy.stats import gaussian_kde, norm
-from helpers.polygon_stock_api import StockTickerInformation
-from helpers.polygon_stock_historic_plots import empty_placeholder_figure
+from dotenv import load_dotenv
+from helpers.polygon_stock_historic_plots import (empty_placeholder_figure, create_historic_plots)
 
 # Register the page
 dash.register_page(__name__, path="/pages/stock-dashboard-api")
+
+# Load .env to fetch api key
+load_dotenv()
+api_key = os.getenv("POLYGON_API_KEY")
 
 # Define color constants
 COLORS = {
@@ -25,21 +27,6 @@ COLORS = {
     'background': '#1A1A1A',   # Dark Background
     'card': '#2D2D2D',         # Card Background
     'text': '#FFFFFF'          # White Text
-}
-
-style_defaults_for_tab = {
-    'position': 'absolute',
-    'top': '20px',
-    'left': '0px',
-    'padding': '10px 12px',
-    'backgroundColor': COLORS['primary'],
-    'color': COLORS['background'],
-    'borderTopRightRadius': '8px',
-    'borderBottomRightRadius': '8px',
-    'fontWeight': 'bold',
-    'cursor': 'pointer',
-    'zIndex': '999',  # lower than sidebar
-    'transition': 'opacity 0.3s ease',
 }
 
 layout = html.Div(
@@ -80,10 +67,13 @@ layout = html.Div(
             ]
         ),
 
-        ###################
-        ### Grid + Content
-        ###################
+        #####################
+        ### Left console
+        ### Right content
+        ### Analytics button
+        #####################
 
+        # Left console + Right content
         html.Div(
             style={
                 'display': 'grid',
@@ -96,7 +86,7 @@ layout = html.Div(
             
             children=[
 
-            # left console
+            # Left console
             html.Div(
                 style={
                     'backgroundColor': COLORS['card'],
@@ -215,9 +205,9 @@ layout = html.Div(
                 ]
             ),
                 
-            # Right main content
+            # Right content
             html.Div(
-                id="output-section",
+                id="main-output-section",
                 style={
                     'backgroundColor': COLORS['card'],
                     'borderRadius': '10px',  # rounded edges
@@ -245,16 +235,16 @@ layout = html.Div(
             ]
         ),
 
-        # Go to Portfolio Analytics button
+        # Analytics button
         html.Div(
             style={
-        'display': 'flex',
-        'justifyContent': 'flex-end',
-        'marginTop': '20px',
-        'marginLeft': '320px',  # matches width of left console
-        'maxWidth': 'calc(100% - 320px)',  # align with right section
-        'paddingRight': '20px'
-    },
+                'display': 'flex',
+                'justifyContent': 'flex-end',
+                'marginTop': '20px',
+                'marginLeft': '320px',  # matches width of left console
+                'maxWidth': 'calc(100% - 320px)',  # align with right section
+                'paddingRight': '20px'
+            },
             children=[
                 html.Button(
                     "Go to Portfolio Analytics ➡️",
@@ -302,3 +292,22 @@ layout = html.Div(
         )
     ]
 )
+
+@callback(
+    [
+        Output('main-output-graph', 'figure'),
+    ],
+    [
+        Input('btn-performance', 'n_clicks'),
+    ],
+    [
+        State('inp-ticker', 'value'),
+    ],
+    prevent_initial_call=True
+)
+def update_dashboard(n_clicks, ticker):
+    if not ticker:
+        return (empty_placeholder_figure(), )
+    else:
+        historical_daily_plot = create_historic_plots(ticker, api_key)
+        return (historical_daily_plot, )

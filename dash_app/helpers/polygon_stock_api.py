@@ -2,7 +2,6 @@
 import requests
 import pandas as pd
 from datetime import datetime
-from scipy.stats import skew, kurtosis
 
 class StockTickerInformation():
 
@@ -116,45 +115,3 @@ class StockTickerInformation():
 
         except requests.RequestException as error:
             raise Exception(f"HTTP request failed: {error}")
-
-    def get_metrics(self):
-
-        """
-        Retrieve return metrics (total returns, mean returns, median returns, volatility, variance, skewness, 
-        and kurtosis).
-
-        Parameters:
-            start_date (str): The start date of the data range in 'YYYY-MM-DD' format.
-            end_date (str): The end date of the data range in 'YYYY-MM-DD' format.
-
-        Returns:
-            Dictionary containing daily return metrics.
-
-        Raises:
-            Exception: If the API response does not contain the expected 'results' key or if another error occurs.
-        """
-
-        df = self.get_all_data()
-        df = df.sort_values("date")
-        df["returns"] = df["close"].pct_change().dropna()
-
-        # Basic stats
-        total_return = (df["close"].iloc[-1] - df["close"].iloc[0]) / df["close"].iloc[0]
-        mean_daily_return = df["returns"].mean()
-        median_daily_return = df["returns"].median()
-        std_daily_return = df["returns"].std()
-        var_daily_return = df["returns"].var()
-
-        # Higher moments
-        return_skew = skew(df["returns"].dropna())
-        return_kurtosis = kurtosis(df["returns"].dropna(), fisher=False)
-
-        return {
-            "Total Return": round(total_return, 4),
-            "Mean Daily Return": round(mean_daily_return, 4),
-            "Median Daily Return": round(median_daily_return, 4),
-            "Daily Volatility (Std)": round(std_daily_return, 4),
-            "Daily Variance": round(var_daily_return, 4),
-            "Skewness": round(return_skew, 4),
-            "Kurtosis": round(return_kurtosis, 4),
-        }
