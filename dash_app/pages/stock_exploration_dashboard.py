@@ -2,16 +2,14 @@
 import os
 import sys
 import dash
-import numpy as np
 import dash.dash_table as dt
-import plotly.graph_objects as go
-from plotly.graph_objs import Figure
+import pandas as pd
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from dotenv import load_dotenv
-from dash import (html, dcc, Input, Output, State, callback, callback_context, no_update)
+from dash import (html, dcc, Input, Output, State, callback, ctx, no_update)
 from helpers.polygon_stock_api import StockTickerInformation
 from helpers.polygon_stock_historic_plots import (empty_placeholder_figure, create_historic_plots)
 from helpers.polygon_stock_metadata import company_metadata_layout
@@ -32,6 +30,92 @@ COLORS = {
     'text': '#FFFFFF'          # White Text
 }
 
+def validate_stock_ticker(ticker, api_key):
+    
+    """
+    Function to validate ticker input by user. 
+    """
+    
+    if not ticker or not ticker.strip():
+        return {'error': 'Ticker is empty or invalid.'}
+
+    try:
+        polygon_api = StockTickerInformation(ticker=ticker.upper().strip(), api_key=api_key)
+
+        # Metadata verification
+        metadata = polygon_api.get_metadata()
+        if not metadata or 'results' not in metadata:
+            return {'error': 'No metadata found for this ticker.'}
+        
+        company_info = metadata['results']
+        if not company_info or 'name' not in company_info:
+            return {'error': 'Company information is incomplete.'}
+
+        branding = company_info.get('branding', {})
+        if not branding.get('logo_url'):
+            return {'error': 'Branding/logo missing.'}
+
+        logo_url_with_key = f"{branding['logo_url']}?apiKey={api_key}"
+        address = company_info.get('address', {})
+        if not address:
+            return {'error': 'Company address is missing.'}
+
+        # News verification
+        news = polygon_api.get_news()
+        if not news or len(news)==0:
+            return {'error': 'No news found for this ticker.'}
+
+        # Historical performance verification
+        historical_df = polygon_api.get_all_data()
+        if historical_df is None or historical_df.empty:
+            return {'error': 'No historical data available.'}
+
+        return {
+            'verified': True,
+            'ticker': ticker,
+            'company_info': company_info,
+            'branding': branding,
+            'logo_url_with_key': logo_url_with_key,
+            'address': address,
+            'news': news,
+            'historical_json': historical_df.to_json(orient="records")
+        }
+
+    except Exception as e:
+        return {'error': f'Ticker verification failed: {str(e)}'}
+
+verified_button_style = {'padding': '10px', 
+                         'backgroundColor': COLORS['text'], 
+                         'border': 'none', 
+                         'borderRadius': '5px', 
+                         'color': COLORS['background'], 
+                         'fontWeight': 'bold', 
+                         'cursor': 'pointer'}
+
+unverified_button_style = {'padding': '10px', 
+                           'border': 'none', 
+                           'borderRadius': '5px', 
+                           'fontWeight': 'bold', 
+                           'cursor': 'pointer'}
+
+verified_button_portfolio = {'padding': '12px',
+                            'backgroundColor': COLORS['primary'],
+                            'border': 'none',
+                            'borderRadius': '8px',
+                            'color': '#000000',
+                            'fontWeight': 'bold',
+                            'fontSize': '1em',
+                            'cursor': 'pointer',
+                            'marginTop': '10px'}
+
+unverified_button_portfolio = {'padding': '12px',
+                               'border': 'none',
+                               'borderRadius': '8px',
+                               'fontWeight': 'bold',
+                               'fontSize': '1em',
+                               'cursor': 'pointer',
+                               'marginTop': '10px'}
+
 layout = html.Div(
     
     style={
@@ -43,13 +127,7 @@ layout = html.Div(
     },
 
     children=[
-
-        #################
-        ### Cache Memory
-        #################
-
-        dcc.Store(id='cached-ticker-data', storage_type='memory'),
-
+        
         ################
         ### Page Header
         ################
@@ -116,6 +194,7 @@ layout = html.Div(
                     dcc.Input(
                         id="inp-ticker",
                         type="text",
+                        debounce=True,
                         placeholder="Enter stock ticker...",
                         style={
                             'width': '92%',
@@ -128,66 +207,59 @@ layout = html.Div(
                         }
                     ),
 
-                    # Button for user to check metadata of stock ticker
-                    html.Button("Check Metadata", 
-                        id="btn-metadata", 
-                        n_clicks=0, 
-                        style={
-                            'padding': '10px',
-                            'backgroundColor': COLORS['text'],
-                            'border': 'none',
-                            'borderRadius': '5px',
-                            'color': COLORS['background'],
-                            'fontWeight': 'bold',
-                            'cursor': 'pointer'
-                        }
-                    ),
-
-                    # Button for user to check latest news on stock ticker
-                    html.Button("Check Latest News", 
-                        id="btn-news", 
-                        n_clicks=0, 
-                        style={
-                            'padding': '10px',
-                            'backgroundColor': COLORS['text'],
-                            'border': 'none',
-                            'borderRadius': '5px',
-                            'color': COLORS['background'],
-                            'fontWeight': 'bold',
-                            'cursor': 'pointer'
-                        }
-                    ),
-
-                    # Button for user to check historic performance of stock ticker
-                    html.Button("Check Historic Performance", 
-                        id="btn-performance", 
+                    # A stylized button to verify if user input ticker is correct
+                    html.Button("Verify Ticker",
+                        id="btn-verify",
                         n_clicks=0,
+                        disabled=False,
                         style={
-                            'padding': '10px',
-                            'backgroundColor': COLORS['text'],
-                            'border': 'none',
-                            'borderRadius': '5px',
-                            'color': COLORS['background'],
-                            'fontWeight': 'bold',
-                            'cursor': 'pointer'
+                            'padding': '6px 12px',
+                            'backgroundColor': COLORS['primary'],
+                            'color': 'black',
+                            'border': '1px solid #9370DB',
+                            'borderRadius': '20px',
+                            'fontWeight': '500',
+                            'fontSize': '0.75em',
+                            'cursor': 'pointer',
+                            'alignSelf': 'flex-start',
+                            'transition': 'all 0.2s ease-in-out'
                         }
+                    ),
+
+                    # Three buttons to explore stock ticker
+                    html.Div(
+                        style={
+                            'display': 'flex',
+                            'flexDirection': 'column',
+                            'gap': '10px'  
+                        },
+                        children=[
+                            
+                            # Button for user to check metadata of stock ticker
+                            html.Button("Check Metadata", 
+                                id="btn-metadata", 
+                                disabled=True, 
+                            ),
+                            
+                            # Button for user to check latest news on stock ticker
+                            html.Button("Check Latest News", 
+                                id="btn-news", 
+                                disabled=True, 
+                            ),                    
+
+                            # Button for user to check historic performance of stock ticker
+                            html.Button("Check Historic Performance", 
+                                id="btn-performance", 
+                                disabled=True,
+                            ),
+                        ],                    
                     ),
 
                     # A stylized button for users to add stock ticker to portfolio
                     html.Button("Add to Portfolio", 
                         id="btn-add", 
-                        n_clicks=0, 
-                        style={
-                            'padding': '12px',
-                            'backgroundColor': COLORS['primary'],
-                            'border': 'none',
-                            'borderRadius': '8px',
-                            'color': '#000000',
-                            'fontWeight': 'bold',
-                            'fontSize': '1em',
-                            'cursor': 'pointer',
-                            'marginTop': '10px'
-                        }
+                        n_clicks=0,
+                        disabled=True, 
                     ),
                 
                     # Scrollable portfolio table
@@ -211,21 +283,25 @@ layout = html.Div(
                             )
                         ]
                     ),
+
+                    # Store verify status in cache
+                    dcc.Store(id="verify-status", data={"verified": False}),
+
                 ]
             ),
                 
             # Right content
-            html.Div(
-                id="main-output-section",
-                style={
-                    'backgroundColor': COLORS['card'],
-                    'borderRadius': '10px',  # rounded edges
-                    'height': '100%',
-                    'width': '100%',
-                    'boxSizing': 'border-box',
-                    'overflow': 'hidden' # Prevent layout overflow
-                },
-                children=[]   
+            html.Div(id="main-output-section",
+                     style={
+                        'backgroundColor': COLORS['background'],
+                        'borderRadius': '10px',  # rounded edges
+                        'height': '100%',
+                        'width': '100%',
+                        'boxSizing': 'border-box',
+                        'position': 'relative',
+                        'overflow': 'hidden' # Prevent layout overflow
+                    },
+                     children=[dcc.Graph(figure=empty_placeholder_figure())]   
                 ),
 
             ]
@@ -290,89 +366,97 @@ layout = html.Div(
     ]
 )
 
+# Verify ticker API call and reset status if ticker changes
 @callback(
-    Output('cached-ticker-data', 'data'),
+    Output("verify-status", "data"),
     [
-        Input('btn-performance', 'n_clicks'),
-        Input('btn-metadata', 'n_clicks'),
-        Input('btn-news', 'n_clicks'),
+        Input("btn-verify", "n_clicks"),
+        Input("inp-ticker", "value")
     ],
-    State('inp-ticker', 'value'),
-    prevent_initial_call=True
+    prevent_initial_call=True,
 )
-def fetch_and_cache_api_data(*args):
+def handle_verify_and_input(n_clicks, ticker):
+    
+    trigger_id = ctx.triggered_id
+    
+    if trigger_id == "btn-verify":
+        result = validate_stock_ticker(ticker, api_key)
 
-    triggered_id = callback_context.triggered[0]['prop_id'].split('.')[0]
-    ticker = args[-1]  # last arg is the State input
+        if "error" in result:
+            return {"verified": False}
+        
+        return {"verified": True, **result}
 
-    if not ticker:
-        return dash.no_update
-
-    try:        
-
-        # Single API call one any button click and caching result
-        polygon_api = StockTickerInformation(ticker=ticker, api_key=api_key)
-
-        # Fetch and parse metadata
-        metadata = polygon_api.get_metadata()
-        company_info = metadata['results']
-        branding = company_info.get('branding', {})
-        logo_url_with_key = f"{branding['logo_url']}?apiKey={api_key}"
-        address = company_info.get('address', {})
-
-        # Fetch and parse news
-        news = polygon_api.get_news()
- 
-        # Fetch and create historical performance figures
-        historical_data = polygon_api.get_all_data()
-        historical_fig = create_historic_plots(company_info['name'],
-                                               historical_data)
-
-    except Exception as e:
-        return {'error': str(e)}
-
-    return {'triggered_id': triggered_id,
-            'ticker': ticker, 
-            'company_info': company_info,
-            'branding': branding,
-            'logo_url_with_key': logo_url_with_key,
-            'address': address, 
-            'news': news, 
-            'historical_fig': historical_fig.to_dict()}
-
-@callback(
-    Output('main-output-section', 'children'),
-    Input('cached-ticker-data', 'data'),
-    prevent_initial_call=True
-)
-def update_main_output(cached_data):
-    if not cached_data or 'error' in cached_data:
-        return dcc.Graph(
-            id="main-output-graph",
-            figure=empty_placeholder_figure(),
-            config={'responsive': True},
-            style={'height': '100%', 'width': '100%'}
-        )
-
-    triggered_id = cached_data.get('triggered_id')
-
-    if triggered_id == 'btn-metadata':
-        return company_metadata_layout(
-            company_info=cached_data.get('company_info', {}),
-            branding={'logo_url': cached_data.get('logo_url_with_key', '')},
-            logo_url_with_key=cached_data.get('logo_url_with_key', ''),
-            address=cached_data.get('address', {})
-        )
-
-    elif triggered_id == 'btn-news':
-        return html.Div("News section layout not implemented yet.")
-
-    elif triggered_id == 'btn-performance':
-        return dcc.Graph(
-            id="main-output-graph",
-            figure=go.Figure(cached_data['historical_fig']),
-            config={'responsive': True},
-            style={'height': '100%', 'width': '100%'}
-        )
+    elif trigger_id == "inp-ticker":
+        return {"verified": False}
 
     return no_update
+
+# Toggle styles between enabled/disabled status
+@callback(
+    [
+        Output("btn-metadata", "disabled"),
+        Output("btn-metadata", "style"),
+        Output("btn-news", "disabled"),
+        Output("btn-news", "style"),
+        Output("btn-performance", "disabled"),
+        Output("btn-performance", "style"),
+        Output("btn-add", "disabled"),
+        Output("btn-add", "style"),
+    ],
+    Input("verify-status", "data")
+)
+def toggle_button_states(verify_status):
+    is_verified = verify_status.get("verified", False)
+
+    if is_verified:
+        return (
+            False, verified_button_style,
+            False, verified_button_style,
+            False, verified_button_style,
+            False, verified_button_portfolio
+        )
+    else:
+        return (
+            True, unverified_button_style,
+            True, unverified_button_style,
+            True, unverified_button_style,
+            True, unverified_button_portfolio
+        )
+
+@callback(
+    Output("main-output-section", "children"),
+    [
+        Input("btn-metadata", "n_clicks"),
+        Input("btn-news", "n_clicks"),
+        Input("btn-performance", "n_clicks"),
+        Input("btn-add", "n_clicks"),
+    ],
+    State("verify-status", "data"),
+    prevent_initial_call=True
+)
+def update_main_output(verify_clicks, metadata_clicks, news_clicks, hist_clicks, data):
+    
+    # Recovering cached data from API call
+    company_info = data['company_info']
+    branding = data['branding']
+    logo_url_with_key = data['logo_url_with_key']
+    address = data['address']
+    news = data['news']
+
+    historical_df = pd.read_json(data['historical_json'], orient="records")
+
+    button_id = ctx.triggered_id
+    if button_id == "btn-metadata":
+        return (company_metadata_layout(company_info, branding, logo_url_with_key, address), )
+
+    elif button_id == "btn-news":
+        return html.Div([html.H4("News"), html.Pre(data.get("news", []))])
+
+    elif button_id == "btn-performance":
+        return (create_historic_plots(company_info['name'], historical_df), ) 
+    
+    elif button_id == "btn-add":
+        return html.Div("Ticker added to portfolio!")  # Replace with actual logic
+
+    return "No data selected."

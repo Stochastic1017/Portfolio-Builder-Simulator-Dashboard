@@ -15,15 +15,14 @@ def company_metadata_layout(company_info, branding, logo_url_with_key, address):
 
     return html.Div(
         style={
-            'backgroundColor': COLORS['card'],
-            'color': COLORS['text'],
             'padding': '30px',
-            'borderRadius': '15px',
+            'height': '100%',
+            'width': '100%',
+            'boxSizing': 'border-box',
+            'overflowY': 'auto',
             'display': 'flex',
             'flexDirection': 'column',
-            'gap': '20px',
-            'maxWidth': '900px',
-            'margin': '0 auto'
+            'gap': '20px'
         },
         children=[
 

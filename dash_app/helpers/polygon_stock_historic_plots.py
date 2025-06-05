@@ -3,16 +3,13 @@ import os
 import sys
 import numpy as np
 import plotly.graph_objects as go
-from scipy.stats import skew, kurtosis
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from dash import html
-from dotenv import load_dotenv
+from dash import dcc
 from plotly.subplots import make_subplots
 from scipy.stats import gaussian_kde, norm
-from polygon_stock_api import StockTickerInformation
 
 # Define color constants
 COLORS = {
@@ -32,7 +29,7 @@ def empty_placeholder_figure():
     empty_fig = go.Figure()
 
     empty_fig.add_annotation(
-        text="Please input stock ticker",
+        text="Please input stock ticker and verify it.",
         xref="paper", yref="paper",
         x=0.5, y=0.5, showarrow=False,
         font=dict(size=20, color=COLORS['primary']))
@@ -240,4 +237,9 @@ def create_historic_plots(full_name, historical_data):
         showlegend=False,
     )
 
-    return historical_daily_plot
+    return dcc.Graph(
+            id="main-output-graph",
+            figure=historical_daily_plot,
+            config={'responsive': True},
+            style={'height': '100%', 'width': '100%'}
+        )

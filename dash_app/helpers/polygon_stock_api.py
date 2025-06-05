@@ -18,18 +18,6 @@ class StockTickerInformation():
         self.ticker = ticker
         self.api_key = api_key
 
-    def _validate_time_stamp_(self, date_str):
-        
-        """ 
-        Helper function used to validate date-time input.
-        """
-        
-        try:
-            datetime.strptime(date_str, '%Y-%m-%d')
-        
-        except ValueError:
-            raise ValueError(f"Date '{date_str}' is not in the format YYYY-MM-DD")
-
     def get_metadata(self):
 
         """ 
