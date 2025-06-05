@@ -235,12 +235,6 @@ layout = html.Div(
                         },
                         children=[
                             
-                            # Button for user to check metadata of stock ticker
-                            html.Button("Check Metadata", 
-                                id="btn-metadata", 
-                                disabled=True, 
-                            ),
-                            
                             # Button for user to check latest news on stock ticker
                             html.Button("Check Latest News", 
                                 id="btn-news", 
@@ -395,8 +389,6 @@ def handle_verify_and_input(n_clicks, ticker):
 # Toggle styles between enabled/disabled status
 @callback(
     [
-        Output("btn-metadata", "disabled"),
-        Output("btn-metadata", "style"),
         Output("btn-news", "disabled"),
         Output("btn-news", "style"),
         Output("btn-performance", "disabled"),
@@ -413,21 +405,34 @@ def toggle_button_states(verify_status):
         return (
             False, verified_button_style,
             False, verified_button_style,
-            False, verified_button_style,
             False, verified_button_portfolio
         )
     else:
         return (
             True, unverified_button_style,
             True, unverified_button_style,
-            True, unverified_button_style,
             True, unverified_button_portfolio
         )
 
 @callback(
+    Output("main-output-section", "children", allow_duplicate=True),
+    Input("verify-status", "data"),
+    prevent_initial_call=True
+)
+def display_metadata_on_verify(data):
+    if not data or not data.get("verified"):
+        return dash.no_update
+
+    company_info = data['company_info']
+    branding = data['branding']
+    logo_url_with_key = data['logo_url_with_key']
+    address = data['address']
+
+    return company_metadata_layout(company_info, branding, logo_url_with_key, address)
+
+@callback(
     Output("main-output-section", "children"),
     [
-        Input("btn-metadata", "n_clicks"),
         Input("btn-news", "n_clicks"),
         Input("btn-performance", "n_clicks"),
         Input("btn-add", "n_clicks"),
@@ -435,7 +440,7 @@ def toggle_button_states(verify_status):
     State("verify-status", "data"),
     prevent_initial_call=True
 )
-def update_main_output(verify_clicks, metadata_clicks, news_clicks, hist_clicks, data):
+def update_main_output(verify_clicks, news_clicks, hist_clicks, data):
     
     # Recovering cached data from API call
     company_info = data['company_info']
@@ -447,10 +452,10 @@ def update_main_output(verify_clicks, metadata_clicks, news_clicks, hist_clicks,
     historical_df = pd.read_json(data['historical_json'], orient="records")
 
     button_id = ctx.triggered_id
-    if button_id == "btn-metadata":
+    if (data['verified'] == True) and (button_id is None):
         return (company_metadata_layout(company_info, branding, logo_url_with_key, address), )
 
-    elif button_id == "btn-news":
+    if button_id == "btn-news":
         return html.Div([html.H4("News"), html.Pre(data.get("news", []))])
 
     elif button_id == "btn-performance":
