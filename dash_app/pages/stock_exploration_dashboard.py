@@ -212,13 +212,14 @@ layout = html.Div(
                         id="btn-verify",
                         n_clicks=0,
                         disabled=False,
+                        className='special',
                         style={
                             'padding': '6px 12px',
                             'backgroundColor': COLORS['primary'],
                             'color': 'black',
                             'border': '1px solid #9370DB',
                             'borderRadius': '20px',
-                            'fontWeight': '500',
+                            'fontWeight': 'bold',
                             'fontSize': '0.75em',
                             'cursor': 'pointer',
                             'alignSelf': 'flex-start',
@@ -226,13 +227,14 @@ layout = html.Div(
                         }
                     ),
 
-                    # Three buttons to explore stock ticker
+                    # Two buttons to explore stock ticker
                     html.Div(
                         style={
                             'display': 'flex',
                             'flexDirection': 'column',
                             'gap': '10px'  
                         },
+                        
                         children=[
                             
                             # Button for user to check latest news on stock ticker
@@ -253,7 +255,7 @@ layout = html.Div(
                     html.Button("Add to Portfolio", 
                         id="btn-add", 
                         n_clicks=0,
-                        disabled=True, 
+                        disabled=True,
                     ),
                 
                     # Scrollable portfolio table
@@ -311,6 +313,7 @@ layout = html.Div(
                 'maxWidth': 'calc(100% - 320px)',  # align with right section
                 'paddingRight': '20px'
             },
+            
             children=[
                 html.Button(
                     "Go to Portfolio Analytics ➡️",
@@ -329,6 +332,7 @@ layout = html.Div(
                     }
                 )
             ]
+        
         ),
 
         ################
@@ -358,6 +362,7 @@ layout = html.Div(
         )
     
     ]
+
 )
 
 # Verify ticker API call and reset status if ticker changes
@@ -391,10 +396,15 @@ def handle_verify_and_input(n_clicks, ticker):
     [
         Output("btn-news", "disabled"),
         Output("btn-news", "style"),
+        Output("btn-news", "className"),
+
         Output("btn-performance", "disabled"),
         Output("btn-performance", "style"),
+        Output("btn-performance", "className"),
+
         Output("btn-add", "disabled"),
         Output("btn-add", "style"),
+        Output("btn-add", "className"),
     ],
     Input("verify-status", "data")
 )
@@ -403,17 +413,18 @@ def toggle_button_states(verify_status):
 
     if is_verified:
         return (
-            False, verified_button_style,
-            False, verified_button_style,
-            False, verified_button_portfolio
+            False, verified_button_style, "simple",
+            False, verified_button_style, "simple",
+            False, verified_button_portfolio, "special",
         )
     else:
         return (
-            True, unverified_button_style,
-            True, unverified_button_style,
-            True, unverified_button_portfolio
+            True, unverified_button_style, "",
+            True, unverified_button_style, "",
+            True, unverified_button_portfolio, "",
         )
 
+# Upon successful verification, display metadata
 @callback(
     Output("main-output-section", "children", allow_duplicate=True),
     Input("verify-status", "data"),
@@ -452,9 +463,6 @@ def update_main_output(verify_clicks, news_clicks, hist_clicks, data):
     historical_df = pd.read_json(data['historical_json'], orient="records")
 
     button_id = ctx.triggered_id
-    if (data['verified'] == True) and (button_id is None):
-        return (company_metadata_layout(company_info, branding, logo_url_with_key, address), )
-
     if button_id == "btn-news":
         return html.Div([html.H4("News"), html.Pre(data.get("news", []))])
 

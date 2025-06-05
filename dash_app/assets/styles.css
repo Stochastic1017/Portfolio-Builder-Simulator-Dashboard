@@ -1,0 +1,45 @@
+
+/* General button base style */
+button {
+  transition: all 0.3s ease-in-out;
+  border-radius: 10px;
+  cursor: pointer;
+  border: none;
+  font-size: 16px;
+  padding: 10px 20px;
+}
+
+/* Disabled Button Styles */
+button:disabled {
+  background-color: #ddd;
+  color: #aaa;
+  cursor: not-allowed;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* Special: Verify & Add buttons */
+button.special {
+  background-color: #FFD700;
+  color: white;
+  box-shadow: 0 4px 15px rgba(106, 90, 205, 0.3);
+}
+
+button.special:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 20px rgba(106, 90, 205, 0.5);
+  background: linear-gradient(45deg, #efe5ac, #edd81c);
+}
+
+/* Simple: News & Performance buttons */
+button.simple {
+  background-color: #ffffff;
+  color: #333;
+  border: 2px solid #ccc;
+}
+
+button.simple:hover {
+  background-color: #f0f0f0;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+}
