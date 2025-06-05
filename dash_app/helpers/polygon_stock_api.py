@@ -110,8 +110,14 @@ class StockTickerInformation():
 
             df = pd.DataFrame(data["results"])
             df["t"] = pd.to_datetime(df["t"], unit="ms")  # timestamp to datetime
-            df = df.rename(columns={"t": "date", "c": "close", "o": "open", "h": "high", "l": "low", "v": "volume"})
-            return df[["date", "open", "high", "low", "close", "volume"]]
+            df = df.rename(columns={"t": "date", 
+                                    "c": "close", 
+                                    "o": "open", 
+                                    "h": "high", 
+                                    "l": "low", 
+                                    "v": "volume"})
+            
+            return df.sort_values(by="date")
 
         except requests.RequestException as error:
             raise Exception(f"HTTP request failed: {error}")

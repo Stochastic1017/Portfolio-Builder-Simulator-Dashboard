@@ -46,55 +46,12 @@ def empty_placeholder_figure():
 
     return empty_fig
 
-def compute_metrics_from_historical(returns):
-
-        """
-        Retrieve return metrics (total returns, mean returns, median returns, volatility, variance, skewness, 
-        and kurtosis).
-
-        Parameters:
-            returns : np.ndarray of daily returns
-
-        Returns:
-            Dictionary containing daily return metrics.
-        """
-
-        # Basic stats
-        mean_daily_return = np.mean(returns)
-        median_daily_return = np.median(returns)
-        std_daily_return = np.std(returns)
-        var_daily_return = np.var(returns)
-
-        # Higher moments
-        skew_daily_return = skew(returns)
-        kurt_daily_return = kurtosis(returns, fisher=False)
-
-        return {
-            "daily_mean": round(mean_daily_return, 4),
-            "daily_median": round(median_daily_return, 4),
-            "daily_std": round(std_daily_return, 4),
-            "daily_variance": round(var_daily_return, 4),
-            "daily_skewness": round(skew_daily_return, 4),
-            "daily_kurtosis": round(kurt_daily_return, 4),
-        }
-
-def create_historic_plots(stock_ticker, api_key):
-
-    # Set up API call to fetch metadata and historical daily data
-    polygon_api = StockTickerInformation(ticker=stock_ticker, api_key=api_key)
+def create_historic_plots(full_name, historical_data):
     
-    # Fetch metadata
-    full_name = polygon_api.get_metadata()['results']['name']
-    
-    # Fetch historical daily data
-    hist = polygon_api.get_all_data()
-    hist = hist.sort_values('date')
-
     # Compute return metrics
-    dates = np.asarray(hist['date'])
-    daily_prices = np.asarray(hist['close'])
-    daily_returns = np.asarray(hist['close'].pct_change().dropna())
-    metrics = compute_metrics_from_historical(daily_returns)
+    dates = np.asarray(historical_data['date'])
+    daily_prices = np.asarray(historical_data['close'])
+    daily_returns = np.asarray(historical_data['close'].pct_change().dropna())
 
     ######################
     ### Defining Subplots
@@ -135,10 +92,10 @@ def create_historic_plots(stock_ticker, api_key):
     #################################
 
     # Calculate the two-sided 95% confidence bounds
-    mean = metrics['daily_mean']
-    std = metrics['daily_std']
-    lower_bound = mean - 1.96 * std
-    upper_bound = mean + 1.96 * std
+    mean_return = np.mean(daily_returns)
+    std_return = np.std(daily_returns)
+    lower_bound = mean_return - 1.96 * std_return
+    upper_bound = mean_return + 1.96 * std_return
 
     # Add shaded rectangle for the two-sided 95% confidence interval
     historical_daily_plot.add_shape(
@@ -215,7 +172,7 @@ def create_historic_plots(stock_ticker, api_key):
             y=y_kde,
             mode='lines',
             name='Kernel Density Estimator',
-            line=dict(color='green', width=2),
+            line=dict(color='magenta', width=2),
         ),
         row=2, col=2
     )
@@ -223,8 +180,8 @@ def create_historic_plots(stock_ticker, api_key):
     # Calculate Normal Distribution Curve
     x_norm = np.linspace(min(daily_returns), max(daily_returns), 500)
     y_norm = norm.pdf(x_norm, 
-                      loc=metrics['daily_mean'], 
-                      scale=metrics['daily_std'])
+                      loc = mean_return, 
+                      scale = std_return)
 
     # Add Normal Distribution trace
     historical_daily_plot.add_trace(
@@ -241,12 +198,12 @@ def create_historic_plots(stock_ticker, api_key):
     # Add shaded rectangle for 95% confidence interval
     historical_daily_plot.add_shape(
         type="rect",
-        x0=lower_bound,  # Lower bound
-        x1=upper_bound,  # Upper bound
-        y0=0,            # Start of the y-axis
-        y1=max(y_kde) * 1.1,  # Extend slightly above the KDE
-        fillcolor="rgba(255, 255, 255, 0.2)",  # Semi-transparent white
-        layer="below",  # Behind other elements
+        x0=lower_bound,  
+        x1=upper_bound,  
+        y0=0,            
+        y1=max(y_kde) * 1.1,  
+        fillcolor="rgba(255, 255, 255, 0.2)",  
+        layer="below",  
         line_width=0,
         row=2, col=2
     )
@@ -257,7 +214,7 @@ def create_historic_plots(stock_ticker, api_key):
         x0=lower_bound,
         x1=lower_bound,
         y0=0,
-        y1=max(y_kde) * 1.1,  # Align with rectangle height
+        y1=max(y_kde) * 1.1,  
         line=dict(color="white", dash="dash", width=2),
         row=2, col=2
     )
@@ -280,7 +237,7 @@ def create_historic_plots(stock_ticker, api_key):
         plot_bgcolor=COLORS['background'],
         font=dict(color=COLORS['text']),
         title_font=dict(color=COLORS['primary']),
-        showlegend=False
+        showlegend=False,
     )
 
     return historical_daily_plot

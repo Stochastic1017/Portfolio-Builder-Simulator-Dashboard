@@ -5,16 +5,19 @@ import dash
 import numpy as np
 import dash.dash_table as dt
 import plotly.graph_objects as go
+from plotly.graph_objs import Figure
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from dash import html, dcc, Input, Output, State, callback
 from dotenv import load_dotenv
+from dash import (html, dcc, Input, Output, State, callback, callback_context, no_update)
+from helpers.polygon_stock_api import StockTickerInformation
 from helpers.polygon_stock_historic_plots import (empty_placeholder_figure, create_historic_plots)
+from helpers.polygon_stock_metadata import company_metadata_layout
 
 # Register the page
-dash.register_page(__name__, path="/pages/stock-dashboard-api")
+dash.register_page(__name__, path="/pages/stock-exploration-dashboard")
 
 # Load .env to fetch api key
 load_dotenv()
@@ -40,6 +43,12 @@ layout = html.Div(
     },
 
     children=[
+
+        #################
+        ### Cache Memory
+        #################
+
+        dcc.Store(id='cached-ticker-data', storage_type='memory'),
 
         ################
         ### Page Header
@@ -216,20 +225,7 @@ layout = html.Div(
                     'boxSizing': 'border-box',
                     'overflow': 'hidden' # Prevent layout overflow
                 },
-                children=[
-
-                    # Placeholder empty graph
-                    dcc.Graph(
-                        id="main-output-graph",
-                        style={
-                            'height': '100%',
-                            'width': '100%'
-                        },
-                        config={
-                            'responsive': True
-                        },
-                        figure=empty_placeholder_figure())
-                    ]   
+                children=[]   
                 ),
 
             ]
@@ -290,24 +286,93 @@ layout = html.Div(
                 ]),
             ]
         )
+    
     ]
 )
 
 @callback(
-    [
-        Output('main-output-graph', 'figure'),
-    ],
+    Output('cached-ticker-data', 'data'),
     [
         Input('btn-performance', 'n_clicks'),
+        Input('btn-metadata', 'n_clicks'),
+        Input('btn-news', 'n_clicks'),
     ],
-    [
-        State('inp-ticker', 'value'),
-    ],
+    State('inp-ticker', 'value'),
     prevent_initial_call=True
 )
-def update_dashboard(n_clicks, ticker):
+def fetch_and_cache_api_data(*args):
+
+    triggered_id = callback_context.triggered[0]['prop_id'].split('.')[0]
+    ticker = args[-1]  # last arg is the State input
+
     if not ticker:
-        return (empty_placeholder_figure(), )
-    else:
-        historical_daily_plot = create_historic_plots(ticker, api_key)
-        return (historical_daily_plot, )
+        return dash.no_update
+
+    try:        
+
+        # Single API call one any button click and caching result
+        polygon_api = StockTickerInformation(ticker=ticker, api_key=api_key)
+
+        # Fetch and parse metadata
+        metadata = polygon_api.get_metadata()
+        company_info = metadata['results']
+        branding = company_info.get('branding', {})
+        logo_url_with_key = f"{branding['logo_url']}?apiKey={api_key}"
+        address = company_info.get('address', {})
+
+        # Fetch and parse news
+        news = polygon_api.get_news()
+ 
+        # Fetch and create historical performance figures
+        historical_data = polygon_api.get_all_data()
+        historical_fig = create_historic_plots(company_info['name'],
+                                               historical_data)
+
+    except Exception as e:
+        return {'error': str(e)}
+
+    return {'triggered_id': triggered_id,
+            'ticker': ticker, 
+            'company_info': company_info,
+            'branding': branding,
+            'logo_url_with_key': logo_url_with_key,
+            'address': address, 
+            'news': news, 
+            'historical_fig': historical_fig.to_dict()}
+
+@callback(
+    Output('main-output-section', 'children'),
+    Input('cached-ticker-data', 'data'),
+    prevent_initial_call=True
+)
+def update_main_output(cached_data):
+    if not cached_data or 'error' in cached_data:
+        return dcc.Graph(
+            id="main-output-graph",
+            figure=empty_placeholder_figure(),
+            config={'responsive': True},
+            style={'height': '100%', 'width': '100%'}
+        )
+
+    triggered_id = cached_data.get('triggered_id')
+
+    if triggered_id == 'btn-metadata':
+        return company_metadata_layout(
+            company_info=cached_data.get('company_info', {}),
+            branding={'logo_url': cached_data.get('logo_url_with_key', '')},
+            logo_url_with_key=cached_data.get('logo_url_with_key', ''),
+            address=cached_data.get('address', {})
+        )
+
+    elif triggered_id == 'btn-news':
+        return html.Div("News section layout not implemented yet.")
+
+    elif triggered_id == 'btn-performance':
+        return dcc.Graph(
+            id="main-output-graph",
+            figure=go.Figure(cached_data['historical_fig']),
+            config={'responsive': True},
+            style={'height': '100%', 'width': '100%'}
+        )
+
+    return no_update
