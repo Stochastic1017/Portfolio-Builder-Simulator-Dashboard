@@ -5,10 +5,7 @@ import dash_bootstrap_components as dbc
 # Function to render each card
 def news_article_card_layout(article, COLORS):
     
-    sentiment_color = {'positive': 'success', 
-                       'neutral': 'secondary', 
-                       'negative': 'danger'}
-    
+    sentiment_color = {'positive': 'success', 'neutral': 'secondary', 'negative': 'danger'}
     sentiment = article['insights'][0]['sentiment']
 
     return dbc.Card(
@@ -47,17 +44,30 @@ def news_article_card_layout(article, COLORS):
                 # Article title
                 dbc.CardBody(
                     [
-                        html.H5(html.A(article['title'], href=article['article_url'], target="_blank"),
-                                className="card-title",
-                                style={'color': COLORS['primary']}
+                        html.Div(
+                            [
+                                html.Span(article["title"], className="card-title"),
+                                html.A(" 🔗", href=article["article_url"], target="_blank", 
+                                       style={'textDecoration': 'none'}),
+                            ],
+                            style={
+                                'color': COLORS['primary'],
+                                'textAlign': 'center',
+                                'display': 'flex',
+                                'fontWeight': 'bold',
+                                'fontSize': 25,
+                                'justifyContent': 'center',
+                                'alignItems': 'center',
+                                'gap': '5px',
+                            }
                         ),
-                    
-                        html.Small(f"By {article['author']} | Published: {article['published_utc'][:10]}",
-                                className='text-muted',
-                                style={'color': COLORS['secondary']}
+                
+                        html.P(f"By {article['author']} | Published: {article['published_utc'][:10]}",
+                                style={'color': 'white',
+                                        'textAlign': 'center',
+                                        'display': 'block',
+                                        'width': '100%'}
                         ),
-                    
-                        html.Br(),
                     
                         html.Img(src=article['image_url'], 
                                  style={'width': '100%', 

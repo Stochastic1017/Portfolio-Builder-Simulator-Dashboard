@@ -2,17 +2,21 @@
 import os
 import sys
 import dash
-import dash.dash_table as dt
 import pandas as pd
+import dash.dash_table as dt
+import dash_bootstrap_components as dbc
+
+from datetime import timedelta, date
+from dotenv import load_dotenv
+from dash import (html, dcc, Input, Output, State, callback, ctx, no_update)
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from dotenv import load_dotenv
-from dash import (html, dcc, Input, Output, State, callback, ctx, no_update)
-import dash_bootstrap_components as dbc
 from helpers.polygon_stock_api import StockTickerInformation
-from helpers.polygon_stock_historic_plots import (empty_placeholder_figure, create_historic_plots)
+from helpers.polygon_stock_historic_plots import (empty_placeholder_figure, 
+                                                  dash_range_selector, 
+                                                  create_historic_plots)
 from helpers.polygon_stock_metadata import (company_metadata_layout)
 from helpers.polygon_stock_news import (news_article_card_layout)
 
@@ -119,6 +123,28 @@ unverified_button_portfolio = {'padding': '12px',
                                'cursor': 'pointer',
                                'marginTop': '10px'}
 
+default_style_time_range = {
+    'padding': '4px 12px',  # smaller pill-style padding
+    'backgroundColor': COLORS['card'],
+    'color': COLORS['text'],
+    'border': f'1px solid {COLORS["primary"]}',
+    'borderRadius': '999px',  # makes it pill-shaped
+    'cursor': 'pointer',
+    'fontSize': '0.85rem',
+    'marginRight': '8px',  # spacing between buttons
+    'display': 'inline-block',
+    'transition': 'all 0.2s ease-in-out',
+}
+
+active_style_time_range = {
+    **default_style_time_range,
+    'backgroundColor': COLORS['primary'],
+    'color': COLORS['background'],
+    'fontWeight': '600',
+    'boxShadow': '0 0 6px rgba(0, 0, 0, 0.15)',
+    'transform': 'scale(1.05)',
+}
+
 layout = html.Div(
     
     style={
@@ -193,41 +219,52 @@ layout = html.Div(
 
                 children=[
 
-                    # Takes user input for stock ticker
-                    dcc.Input(
-                        id="inp-ticker",
-                        type="text",
-                        debounce=True,
-                        placeholder="Enter stock ticker...",
+                    html.Div(
                         style={
-                            'width': '92%',
-                            'padding': '10px',
-                            'backgroundColor': COLORS['background'],
-                            'border': f'1px solid {COLORS["primary"]}',
-                            'borderRadius': '5px',
-                            'color': COLORS['text'],
-                            'fontSize': '1em'
-                        }
-                    ),
+                            'display': 'flex',
+                            'flexDirection': 'row',
+                            'alignItems': 'center'
+                        },
+                        children=[
+                            # Takes user input for stock ticker
+                            dcc.Input(
+                                id="inp-ticker",
+                                type="text",
+                                debounce=True,
+                                placeholder="Enter stock ticker...",
+                                style={
+                                    'width': '200px',
+                                    'padding': '10px',
+                                    'backgroundColor': COLORS['background'],
+                                    'border': f'1px solid {COLORS["primary"]}',
+                                    'borderRadius': '5px',
+                                    'color': COLORS['text'],
+                                    'fontSize': '1em',
+                                    'marginRight': '10px'
+                                }
+                            ),
 
-                    # A stylized button to verify if user input ticker is correct
-                    html.Button("Verify Ticker",
-                        id="btn-verify",
-                        n_clicks=0,
-                        disabled=False,
-                        className='special',
-                        style={
-                            'padding': '6px 12px',
-                            'backgroundColor': COLORS['primary'],
-                            'color': 'black',
-                            'border': '1px solid #9370DB',
-                            'borderRadius': '20px',
-                            'fontWeight': 'bold',
-                            'fontSize': '0.75em',
-                            'cursor': 'pointer',
-                            'alignSelf': 'flex-start',
-                            'transition': 'all 0.2s ease-in-out'
-                        }
+                            # A stylized button to verify if user input ticker is correct
+                            html.Button("Verify Ticker",
+                                id="btn-verify",
+                                n_clicks=0,
+                                disabled=False,
+                                className='special',
+                                style={
+                                    'padding': '6px 12px',
+                                    'backgroundColor': COLORS['primary'],
+                                    'color': 'black',
+                                    'border': '1px solid #9370DB',
+                                    'borderRadius': '20px',
+                                    'fontWeight': 'bold',
+                                    'fontSize': '0.75em',
+                                    'cursor': 'pointer',
+                                    'alignSelf': 'flex-start',
+                                    'transition': 'all 0.2s ease-in-out',
+                                    'marginTop': '10px'
+                                }
+                            ),
+                        ]
                     ),
 
                     # Two buttons to explore stock ticker
@@ -260,7 +297,7 @@ layout = html.Div(
                         n_clicks=0,
                         disabled=True,
                     ),
-                
+
                     # Scrollable portfolio table
                     html.Div(
                         style={
@@ -476,6 +513,7 @@ def display_metadata_on_verify(data):
 
     return company_metadata_layout(company_info, branding, logo_url_with_key, address, COLORS)
 
+# Update main output section depending on what is chosen by user
 @callback(
     Output("main-output-section", "children"),
     [
@@ -508,14 +546,80 @@ def update_main_output(verify_clicks, news_clicks, hist_clicks, data):
                         "paddingRight": "10px"
                     }
                 )
-            ])
-        ], fluid=True)
+            ]
+        )
+    ], fluid=True)
 
     elif button_id == "btn-performance":
-        return (create_historic_plots(company_info['name'], historical_df, COLORS), ) 
+        return html.Div(
+            id="main-output-section",
+            style={
+                'display': 'flex',
+                'flexDirection': 'column',
+                'height': '100%',
+                'width': '100%',
+                'overflow': 'hidden',
+            },
+            children=[
+                dash_range_selector(default_style=default_style_time_range),
+                html.Div(
+                    style={"flex": "1", "overflow": "hidden"},
+                    children=[
+                        create_historic_plots(company_info['name'], historical_df, COLORS),
+                    ]
+                ),
+                dcc.Store(id="selected-range", data="1Y"),
+            ]
+        )
     
     elif button_id == "btn-add":
         return no_update
+
+# Update historic daily plot based on range selected
+@callback(
+    [
+        Output("range-1M", "style"),
+        Output("range-3M", "style"),
+        Output("range-6M", "style"),
+        Output("range-1Y", "style"),
+        Output("range-5Y", "style"),
+        Output("range-all", "style"),
+        Output("selected-range", "data")
+    ],
+    [
+        Input("range-1M", "n_clicks"),
+        Input("range-3M", "n_clicks"),
+        Input("range-6M", "n_clicks"),
+        Input("range-1Y", "n_clicks"),
+        Input("range-5Y", "n_clicks"),
+        Input("range-all", "n_clicks")
+    ],
+    prevent_initial_call=True
+)
+def update_range_styles(*btn_clicks):
+    triggered = ctx.triggered_id
+
+    style_map = {
+        "range-1M": default_style_time_range,
+        "range-3M": default_style_time_range,
+        "range-6M": default_style_time_range,
+        "range-1Y": default_style_time_range,
+        "range-5Y": default_style_time_range,
+        "range-all": default_style_time_range
+    }
+
+    if triggered:
+        style_map[triggered] = active_style_time_range
+
+    return (
+        style_map["range-1M"],
+        style_map["range-3M"],
+        style_map["range-6M"],
+        style_map["range-1Y"],
+        style_map["range-5Y"],
+        style_map["range-all"],
+        triggered.split("-")[1] if triggered else "1Y"
+    )
 
 # Upon "add to portfolio" click, append to table
 @callback(

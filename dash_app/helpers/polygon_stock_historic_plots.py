@@ -4,12 +4,14 @@ import sys
 import numpy as np
 import plotly.graph_objects as go
 
-# Append the current directory to the system path for imports
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from dash import dcc
+from dash import dcc, html
+from datetime import date
 from plotly.subplots import make_subplots
 from scipy.stats import gaussian_kde, norm
+from dateutil.relativedelta import relativedelta
+
+# Append the current directory to the system path for imports
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 def empty_placeholder_figure(COLORS):
 
@@ -34,6 +36,32 @@ def empty_placeholder_figure(COLORS):
 
     return empty_fig
 
+def dash_range_selector(default_style):
+    
+    return html.Div(
+        id="range-selector-container",
+        children=[
+            html.Div(
+                style={"display": "flex", 
+                       "justifyContent": "start", 
+                       "flexWrap": "wrap",
+                       "gap": "10px",
+                       "paddingTop": "10px", 
+                       "marginBottom": "10px"},
+
+                children=[
+                    html.Button("1M", id="range-1M", n_clicks=0, style=default_style, className="simple"),
+                    html.Button("3M", id="range-3M", n_clicks=0, style=default_style, className="simple"),
+                    html.Button("6M", id="range-6M", n_clicks=0, style=default_style, className="simple"),
+                    html.Button("1Y", id="range-1Y", n_clicks=0, style=default_style, className="simple"),
+                    html.Button("5Y", id="range-5Y", n_clicks=0, style=default_style, className="simple"),
+                    html.Button("All", id="range-all", n_clicks=0, style=default_style, className="simple"),
+                ],
+
+            )
+        ]
+    )
+
 def create_historic_plots(full_name, historical_data, COLORS):
     
     # Compute return metrics
@@ -55,7 +83,8 @@ def create_historic_plots(full_name, historical_data, COLORS):
             "Daily Returns Distribution"
         ],
         vertical_spacing=0.15,
-        horizontal_spacing=0.1
+        horizontal_spacing=0.1,
+        shared_xaxes=True
     )
 
     ################
@@ -133,11 +162,11 @@ def create_historic_plots(full_name, historical_data, COLORS):
     )
 
     ##############################
-    ### Histogram of Log Returns
+    ### Histogram of Returns
     ### with KDE + Gaussian Curve
     ##############################
 
-    # Histogram of Log Returns
+    # Histogram of Returns
     historical_daily_plot.add_trace(
         go.Histogram(
             x=daily_returns,
@@ -229,8 +258,9 @@ def create_historic_plots(full_name, historical_data, COLORS):
     )
 
     return dcc.Graph(
-            id="main-output-graph",
-            figure=historical_daily_plot,
-            config={'responsive': True},
-            style={'height': '100%', 'width': '100%'}
-        )
+
+        id="main-output-graph",
+        figure=historical_daily_plot,
+        config={'responsive': True},
+        style={'height': '100%', 'width': '100%'}
+    )
