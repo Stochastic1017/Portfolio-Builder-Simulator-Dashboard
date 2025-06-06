@@ -11,16 +11,7 @@ from dash import dcc
 from plotly.subplots import make_subplots
 from scipy.stats import gaussian_kde, norm
 
-# Define color constants
-COLORS = {
-    'primary': '#FFD700',      # Golden Yellow
-    'secondary': '#FFF4B8',    # Light Yellow
-    'background': '#1A1A1A',   # Dark Background
-    'card': '#2D2D2D',         # Card Background
-    'text': '#FFFFFF'          # White Text
-}
-
-def empty_placeholder_figure():
+def empty_placeholder_figure(COLORS):
 
     """
     Placeholder figure before any potential user input. 
@@ -43,7 +34,7 @@ def empty_placeholder_figure():
 
     return empty_fig
 
-def create_historic_plots(full_name, historical_data):
+def create_historic_plots(full_name, historical_data, COLORS):
     
     # Compute return metrics
     dates = np.asarray(historical_data['date'])

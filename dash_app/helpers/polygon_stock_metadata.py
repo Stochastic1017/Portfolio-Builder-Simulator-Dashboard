@@ -2,17 +2,7 @@
 from dash import html
 from polygon_stock_api import StockTickerInformation
 
-# Define color constants
-COLORS = {
-    'primary': '#FFD700',      # Golden Yellow
-    'secondary': '#FFF4B8',    # Light Yellow
-    'background': '#1A1A1A',   # Dark Background
-    'card': '#2D2D2D',         # Card Background
-    'text': '#FFFFFF'          # White Text
-}
-
-def company_metadata_layout(company_info, branding, logo_url_with_key, address):
-
+def company_metadata_layout(company_info, branding, logo_url_with_key, address, COLORS):
     return html.Div(
         style={
             'padding': '30px',

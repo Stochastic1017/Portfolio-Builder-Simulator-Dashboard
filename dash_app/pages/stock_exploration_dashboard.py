@@ -10,9 +10,11 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from dotenv import load_dotenv
 from dash import (html, dcc, Input, Output, State, callback, ctx, no_update)
+import dash_bootstrap_components as dbc
 from helpers.polygon_stock_api import StockTickerInformation
 from helpers.polygon_stock_historic_plots import (empty_placeholder_figure, create_historic_plots)
-from helpers.polygon_stock_metadata import company_metadata_layout
+from helpers.polygon_stock_metadata import (company_metadata_layout)
+from helpers.polygon_stock_news import (news_article_card_layout)
 
 # Register the page
 dash.register_page(__name__, path="/pages/stock-exploration-dashboard")
@@ -30,6 +32,7 @@ COLORS = {
     'text': '#FFFFFF'          # White Text
 }
 
+# Stock ticker validation procedure
 def validate_stock_ticker(ticker, api_key):
     
     """
@@ -262,21 +265,51 @@ layout = html.Div(
                     html.Div(
                         style={
                             'flexGrow': 1,
-                            'overflowY': 'auto',
                             'minHeight': 0,
                             'marginTop': '10px',
                             'marginBottom': '10px',
                         },
+                        
                         children=[
                             dt.DataTable(
                                 id='portfolio-table',
                                 columns=[
-                                    {'id': 'ticker', 'name': 'fullname'}
+                                    {'id': 'ticker', 'name': 'Ticker'},
+                                    {'id': 'fullname', 'name': 'Company Name'}
                                 ],
+                                style_table={
+                                    'overflowY': 'auto',
+                                    'maxHeight': '300px',
+                                    'border': '1px solid #ccc',
+                                    'borderRadius': '10px',
+                                },
+                                style_cell={
+                                    'padding': '10px',
+                                    'textAlign': 'left',
+                                    'backgroundColor': '#f9f9f9',
+                                    'color': '#333',
+                                    'fontFamily': 'Arial',
+                                },
+                                style_header={
+                                    'backgroundColor': '#0E1117',
+                                    'color': 'white',
+                                    'fontWeight': 'bold',
+                                    'border': '1px solid #ccc'
+                                },
+                                editable=False,           # Disable editing
+                                row_deletable=True,       # Disable row deletion
+                                sort_action="none",       # Disable sorting
+                                filter_action="none",     # Disable filtering
+                                page_action="none",       # Disable pagination
+                                style_as_list_view=True,  # Remove any default interactivity styling
+                                selected_rows=[],         # Prevent row selection
+                                active_cell=None,         # Prevent active cell highlighting
+                                row_selectable=None,      # Disable row selection
                                 data=[],
-                                style_table={'overflowY': 'auto', 'maxHeight': '100%'},
-                                style_cell={'textAlign': 'left'},
-                            )
+                            ),
+
+                            # caching users stocks added to portfolio
+                            dcc.Store(id='portfolio-store', data=[]),
                         ]
                     ),
 
@@ -297,7 +330,7 @@ layout = html.Div(
                         'position': 'relative',
                         'overflow': 'hidden' # Prevent layout overflow
                     },
-                     children=[dcc.Graph(figure=empty_placeholder_figure())]   
+                     children=[dcc.Graph(figure=empty_placeholder_figure(COLORS))]   
                 ),
 
             ]
@@ -309,9 +342,10 @@ layout = html.Div(
                 'display': 'flex',
                 'justifyContent': 'flex-end',
                 'marginTop': '20px',
-                'marginLeft': '320px',  # matches width of left console
-                'maxWidth': 'calc(100% - 320px)',  # align with right section
-                'paddingRight': '20px'
+                'marginLeft': '320px',
+                'maxWidth': 'calc(100% - 320px)',
+                'paddingRight': '20px',
+                'overflowY': 'auto',
             },
             
             children=[
@@ -417,6 +451,7 @@ def toggle_button_states(verify_status):
             False, verified_button_style, "simple",
             False, verified_button_portfolio, "special",
         )
+    
     else:
         return (
             True, unverified_button_style, "",
@@ -439,7 +474,7 @@ def display_metadata_on_verify(data):
     logo_url_with_key = data['logo_url_with_key']
     address = data['address']
 
-    return company_metadata_layout(company_info, branding, logo_url_with_key, address)
+    return company_metadata_layout(company_info, branding, logo_url_with_key, address, COLORS)
 
 @callback(
     Output("main-output-section", "children"),
@@ -455,21 +490,61 @@ def update_main_output(verify_clicks, news_clicks, hist_clicks, data):
     
     # Recovering cached data from API call
     company_info = data['company_info']
-    branding = data['branding']
-    logo_url_with_key = data['logo_url_with_key']
-    address = data['address']
-    news = data['news']
-
     historical_df = pd.read_json(data['historical_json'], orient="records")
+
+    # Recovering news articles from API call
+    news_articles = data['news']['results']
 
     button_id = ctx.triggered_id
     if button_id == "btn-news":
-        return html.Div([html.H4("News"), html.Pre(data.get("news", []))])
+
+        return dbc.Container([html.H2(f"News Feed for {company_info['name']}", className="my-4"),
+            dbc.Container([
+                html.Div(
+                    children=[news_article_card_layout(article, COLORS) for article in news_articles],
+                    style={
+                        "maxHeight": "80vh",
+                        "overflowY": "scroll",
+                        "paddingRight": "10px"
+                    }
+                )
+            ])
+        ], fluid=True)
 
     elif button_id == "btn-performance":
-        return (create_historic_plots(company_info['name'], historical_df), ) 
+        return (create_historic_plots(company_info['name'], historical_df, COLORS), ) 
     
     elif button_id == "btn-add":
-        return html.Div("Ticker added to portfolio!")  # Replace with actual logic
+        return no_update
 
-    return "No data selected."
+# Upon "add to portfolio" click, append to table
+@callback(
+    Output("portfolio-store", "data"),
+    Input("btn-add", "n_clicks"),
+    State("verify-status", "data"),
+    State("portfolio-store", "data"),
+    prevent_initial_call=True
+)
+def add_to_portfolio(n_clicks, verify_data, portfolio_data):
+    
+    if not verify_data.get("verified"):
+        return portfolio_data
+
+    new_entry = {
+        "ticker": verify_data.get("ticker", "N/A"),
+        "fullname": verify_data["company_info"]["name"]
+    }
+
+    # Avoid duplicates
+    if new_entry not in portfolio_data:
+        portfolio_data.append(new_entry)
+
+    return portfolio_data
+
+# Update table visual
+@callback(
+    Output("portfolio-table", "data"),
+    Input("portfolio-store", "data")
+)
+def update_portfolio_table(data):
+    return data
