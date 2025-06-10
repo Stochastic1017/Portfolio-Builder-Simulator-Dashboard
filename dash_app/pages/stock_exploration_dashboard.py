@@ -6,7 +6,8 @@ import pandas as pd
 import dash.dash_table as dt
 import dash_bootstrap_components as dbc
 
-from datetime import timedelta, date
+from datetime import timedelta
+from io import StringIO
 from dotenv import load_dotenv
 from dash import (html, dcc, Input, Output, State, callback, ctx, no_update)
 
@@ -218,7 +219,8 @@ layout = html.Div(
                 },
 
                 children=[
-
+                    
+                    # Stock ticker input + verify ticker button
                     html.Div(
                         style={
                             'display': 'flex',
@@ -260,8 +262,7 @@ layout = html.Div(
                                     'fontSize': '0.75em',
                                     'cursor': 'pointer',
                                     'alignSelf': 'flex-start',
-                                    'transition': 'all 0.2s ease-in-out',
-                                    'marginTop': '10px'
+                                    'transition': 'all 0.2s ease-in-out'
                                 }
                             ),
                         ]
@@ -308,6 +309,7 @@ layout = html.Div(
                         },
                         
                         children=[
+                            
                             dt.DataTable(
                                 id='portfolio-table',
                                 columns=[
@@ -345,13 +347,8 @@ layout = html.Div(
                                 data=[],
                             ),
 
-                            # caching users stocks added to portfolio
-                            dcc.Store(id='portfolio-store', data=[]),
                         ]
                     ),
-
-                    # Store verify status in cache
-                    dcc.Store(id="verify-status", data={"verified": False}),
 
                 ]
             ),
@@ -436,7 +433,7 @@ layout = html.Div(
 
 )
 
-# Verify ticker API call and reset status if ticker changes
+# Verify ticker API call and reset status if ticker input changes
 @callback(
     Output("verify-status", "data"),
     [
@@ -520,62 +517,70 @@ def display_metadata_on_verify(data):
         Input("btn-news", "n_clicks"),
         Input("btn-performance", "n_clicks"),
         Input("btn-add", "n_clicks"),
+        Input("selected-range", "data"),
     ],
     State("verify-status", "data"),
     prevent_initial_call=True
 )
-def update_main_output(verify_clicks, news_clicks, hist_clicks, data):
+def update_main_output(verify_clicks, news_clicks, hist_clicks, selected_range, data):
     
     # Recovering cached data from API call
     company_info = data['company_info']
-    historical_df = pd.read_json(data['historical_json'], orient="records")
-
-    # Recovering news articles from API call
     news_articles = data['news']['results']
 
+    # Button clicked by user, one of the fllowing:
     button_id = ctx.triggered_id
+    if button_id == "selected-range":
+        raise dash.exceptions.PreventUpdate # Prevent caallback overlap
+    
+    # 1. Check Latest News
     if button_id == "btn-news":
+        return  dbc.Container(
+                    
+                    children=[
+                        
+                        html.H2(f"News Feed for {company_info['name']}", 
+                                className="my-4"),
+                        dbc.Container(
+                            
+                            children=[
+                            
+                            html.Div(
+                            style={
+                                        "maxHeight": "80vh",
+                                        "overflowY": "scroll",
+                                        "paddingRight": "10px"
+                                    },
+                            children=[news_article_card_layout(article, COLORS) for article in news_articles],
+                                )
+                            ]
+                        )
+                ], fluid=True)
 
-        return dbc.Container([html.H2(f"News Feed for {company_info['name']}", className="my-4"),
-            dbc.Container([
-                html.Div(
-                    children=[news_article_card_layout(article, COLORS) for article in news_articles],
-                    style={
-                        "maxHeight": "80vh",
-                        "overflowY": "scroll",
-                        "paddingRight": "10px"
-                    }
-                )
-            ]
-        )
-    ], fluid=True)
-
+    # 2. Check Historic Performance
     elif button_id == "btn-performance":
         return html.Div(
-            id="main-output-section",
-            style={
-                'display': 'flex',
-                'flexDirection': 'column',
-                'height': '100%',
-                'width': '100%',
-                'overflow': 'hidden',
-            },
-            children=[
-                dash_range_selector(default_style=default_style_time_range),
-                html.Div(
-                    style={"flex": "1", "overflow": "hidden"},
-                    children=[
-                        create_historic_plots(company_info['name'], historical_df, COLORS),
-                    ]
-                ),
-                dcc.Store(id="selected-range", data="1Y"),
-            ]
-        )
+                id="main-output-section",
+                style={
+                    'display': 'flex',
+                    'flexDirection': 'column',
+                    'height': '100%',
+                    'width': '100%',
+                    'overflow': 'hidden',
+                },
+                
+                children=[
+                    
+                    dash_range_selector(default_style=default_style_time_range),
+                    html.Div(id="historical-plot-container", style={"flex": "1", "overflow": "hidden"}),
+                ]
+            )
     
+    # 3. Add to Portfolio
     elif button_id == "btn-add":
         return no_update
 
-# Update historic daily plot based on range selected
+# Highlight buttons based on time-range selected
 @callback(
     [
         Output("range-1M", "style"),
@@ -592,24 +597,23 @@ def update_main_output(verify_clicks, news_clicks, hist_clicks, data):
         Input("range-6M", "n_clicks"),
         Input("range-1Y", "n_clicks"),
         Input("range-5Y", "n_clicks"),
-        Input("range-all", "n_clicks")
-    ],
-    prevent_initial_call=True
+        Input("range-all", "n_clicks"),
+    ]
 )
 def update_range_styles(*btn_clicks):
-    triggered = ctx.triggered_id
+    button_ids = [
+        "range-1M", "range-3M", "range-6M",
+        "range-1Y", "range-5Y", "range-all"
+    ]
 
-    style_map = {
-        "range-1M": default_style_time_range,
-        "range-3M": default_style_time_range,
-        "range-6M": default_style_time_range,
-        "range-1Y": default_style_time_range,
-        "range-5Y": default_style_time_range,
-        "range-all": default_style_time_range
-    }
+    # If no button has been clicked yet, fall back to "All"
+    if not any(click and click > 0 for click in btn_clicks):
+        selected = "range-all"
+    else:
+        selected = ctx.triggered_id or "range-all"
 
-    if triggered:
-        style_map[triggered] = active_style_time_range
+    style_map = {btn_id: default_style_time_range for btn_id in button_ids}
+    style_map[selected] = active_style_time_range
 
     return (
         style_map["range-1M"],
@@ -618,8 +622,41 @@ def update_range_styles(*btn_clicks):
         style_map["range-1Y"],
         style_map["range-5Y"],
         style_map["range-all"],
-        triggered.split("-")[1] if triggered else "1Y"
+        selected.split("-")[1]  # "1M", "3M", ..., "all"
     )
+
+# Update historic daily plot based on range selected
+@callback(
+    Output("historical-plot-container", "children"),
+    Input("selected-range", "data"),
+    State("verify-status", "data"),
+    prevent_initial_call=True
+)
+def update_plot_on_range_change(selected_range, data):
+
+    historical_df = pd.read_json(StringIO(data['historical_json']), orient="records")
+    historical_df['date'] = pd.to_datetime(historical_df['date'])
+
+    today = pd.Timestamp.today()
+    time_deltas = {
+        "1M": timedelta(days=30),
+        "3M": timedelta(days=90),
+        "6M": timedelta(days=180),
+        "1Y": timedelta(days=365),
+        "5Y": timedelta(days=1825),
+        "all": None
+    }
+
+    cutoff = time_deltas.get(selected_range.upper(), None)
+
+    if cutoff:
+        start_date = today - cutoff
+        filtered_df = historical_df[historical_df['date'] >= start_date]
+    
+    else:
+        filtered_df = historical_df
+
+    return create_historic_plots(data['company_info']['name'], historical_df, filtered_df, COLORS)
 
 # Upon "add to portfolio" click, append to table
 @callback(

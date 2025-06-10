@@ -62,12 +62,13 @@ def dash_range_selector(default_style):
         ]
     )
 
-def create_historic_plots(full_name, historical_data, COLORS):
+def create_historic_plots(full_name, historical_df, filtered_df, COLORS):
     
-    # Compute return metrics
-    dates = np.asarray(historical_data['date'])
-    daily_prices = np.asarray(historical_data['close'])
-    daily_returns = np.asarray(historical_data['close'].pct_change().dropna())
+    # Extract relevant metrics (filtered)
+    dates = np.asarray(filtered_df['date'])
+    daily_prices = np.asarray(filtered_df['close'])
+    daily_returns = np.asarray(filtered_df['close'].pct_change().dropna())
+    long_run_returns = np.asarray(historical_df['close'].pct_change().dropna())
 
     ######################
     ### Defining Subplots
@@ -84,7 +85,8 @@ def create_historic_plots(full_name, historical_data, COLORS):
         ],
         vertical_spacing=0.15,
         horizontal_spacing=0.1,
-        shared_xaxes=True
+        shared_xaxes=True,
+        shared_yaxes=False
     )
 
     ################
@@ -166,87 +168,68 @@ def create_historic_plots(full_name, historical_data, COLORS):
     ### with KDE + Gaussian Curve
     ##############################
 
-    # Histogram of Returns
+    # Red histogram for all data
+    historical_daily_plot.add_trace(
+        go.Histogram(
+            x=long_run_returns,
+            name="Long-run Daily Returns Distribution",
+            histnorm="probability density",
+            marker=dict(color="red", opacity=0.4),
+            nbinsx=60,
+        ),
+        row=2, col=2
+    )
+   
+    # Yellow histogram for filtered data
     historical_daily_plot.add_trace(
         go.Histogram(
             x=daily_returns,
-            name='Daily Return Distribution',
-            histnorm='probability density',
-            marker=dict(color=COLORS['primary']),
+            name="Short-Run Daily Returns Distribution",
+            histnorm="probability density",
+            marker=dict(color="yellow", opacity=0.4),
+            nbinsx=60,
         ),
         row=2, col=2
     )
 
-    # Calculate KDE
-    kde = gaussian_kde(daily_returns)
-    x_kde = np.linspace(min(daily_returns), max(daily_returns), 500)
-    y_kde = kde(x_kde)
+    # Calculate KDE for Long-Run
+    kde_all = gaussian_kde(long_run_returns)
+    x_vals = np.linspace(min(long_run_returns.min(), daily_returns.min()), 
+                         max(long_run_returns.max(), daily_returns.max()), 
+                         500)
+    y_kde_all = kde_all(x_vals)
 
-    # Add KDE trace
+    # Add KDE trace (Long-Run)
     historical_daily_plot.add_trace(
         go.Scatter(
-            x=x_kde,
-            y=y_kde,
-            mode='lines',
-            name='Kernel Density Estimator',
-            line=dict(color='magenta', width=2),
+            x=x_vals,
+            y=y_kde_all,
+            mode="lines",
+            name="KDE (Long-Run)",
+            line=dict(color="red", width=2)
         ),
         row=2, col=2
     )
 
-    # Calculate Normal Distribution Curve
-    x_norm = np.linspace(min(daily_returns), max(daily_returns), 500)
-    y_norm = norm.pdf(x_norm, 
-                      loc = mean_return, 
-                      scale = std_return)
-
-    # Add Normal Distribution trace
-    historical_daily_plot.add_trace(
-        go.Scatter(
-            x=x_norm,
-            y=y_norm,
-            mode='lines',
-            name='Normal Distribution',
-            line=dict(color='red', width=2),
-        ),
-        row=2, col=2
-    )
-
-    # Add shaded rectangle for 95% confidence interval
-    historical_daily_plot.add_shape(
-        type="rect",
-        x0=lower_bound,  
-        x1=upper_bound,  
-        y0=0,            
-        y1=max(y_kde) * 1.1,  
-        fillcolor="rgba(255, 255, 255, 0.2)",  
-        layer="below",  
-        line_width=0,
-        row=2, col=2
-    )
-
-    # Add vertical dashed line for the lower bound
-    historical_daily_plot.add_shape(
-        type="line",
-        x0=lower_bound,
-        x1=lower_bound,
-        y0=0,
-        y1=max(y_kde) * 1.1,  
-        line=dict(color="white", dash="dash", width=2),
-        row=2, col=2
-    )
-
-    # Add vertical dashed line for the upper bound
-    historical_daily_plot.add_shape(
-        type="line",
-        x0=upper_bound,
-        x1=upper_bound,
-        y0=0,
-        y1=max(y_kde) * 1.1,  # Align with rectangle height
-        line=dict(color="white", dash="dash", width=2),
-        row=2, col=2
-    )
+    # Calculate KDE for Short-Run
+    kde_filtered = gaussian_kde(daily_returns)
+    y_kde_filtered = kde_filtered(x_vals)
     
+    # Add KDE trace (Short-Run)
+    historical_daily_plot.add_trace(
+        go.Scatter(
+            x=x_vals,
+            y=y_kde_filtered,
+            mode="lines",
+            name="KDE (Short-Run)",
+            line=dict(color="yellow", width=2)
+        ),
+        row=2, col=2
+    )
+
+        # Vertical dashed upper bound line
+    
+    # Final layout matching dash color theme
     historical_daily_plot.update_layout(
         template="plotly_dark",
         title=f"Historical Daily Performance Analysis for {full_name}",
@@ -258,9 +241,54 @@ def create_historic_plots(full_name, historical_data, COLORS):
     )
 
     return dcc.Graph(
+                id="main-output-graph",
+                figure=historical_daily_plot,
+                config={'responsive': True},
+                style={'height': '100%', 'width': '100%'}
+            )
 
-        id="main-output-graph",
-        figure=historical_daily_plot,
-        config={'responsive': True},
-        style={'height': '100%', 'width': '100%'}
+"""
+    # Shaded confidence interval box
+    historical_daily_plot.add_shape(
+        type="rect",
+        x0=lower_bound,  
+        x1=upper_bound,  
+        y0=y_lower_limit - 2,  # go a bit below for visual extension
+        y1=y_upper_limit + 5,  # go above actual peak
+        xref="x2",
+        yref="y2",
+        fillcolor="rgba(255, 255, 255, 0.2)",  
+        layer="below",  # make sure this sits under histogram
+        line_width=0,
     )
+
+    # Vertical dashed lower bound line
+    historical_daily_plot.add_shape(
+        type="line",
+        x0=lower_bound,
+        x1=lower_bound,
+        y0=y_lower_limit - 2,
+        y1=y_upper_limit + 5,
+        xref="x2",
+        yref="y2",
+        line=dict(color="white", dash="dash", width=2)
+    )
+
+    # Vertical dashed upper bound line
+    historical_daily_plot.add_shape(
+        type="line",
+        x0=upper_bound,
+        x1=upper_bound,
+        y0=y_lower_limit - 2,
+        y1=y_upper_limit + 5,
+        xref="x2",
+        yref="y2",
+        line=dict(color="white", dash="dash", width=2)
+    )
+
+    # Histogram plot (KDE + histogram)
+    historical_daily_plot.update_yaxes(
+        row=2, col=2,
+        range=[0, y_upper_limit + 5]
+    )
+"""
