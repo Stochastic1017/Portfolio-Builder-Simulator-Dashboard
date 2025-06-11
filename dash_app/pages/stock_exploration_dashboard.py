@@ -15,9 +15,7 @@ from dash import (html, dcc, Input, Output, State, callback, ctx, no_update)
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from helpers.polygon_stock_api import StockTickerInformation
-from helpers.polygon_stock_historic_plots import (empty_placeholder_figure, 
-                                                  dash_range_selector, 
-                                                  create_historic_plots)
+from helpers.polygon_stock_historic_plots import (dash_range_selector, create_historic_plots)
 from helpers.polygon_stock_metadata import (company_metadata_layout)
 from helpers.polygon_stock_news import (news_article_card_layout)
 
@@ -354,18 +352,65 @@ layout = html.Div(
             ),
                 
             # Right content
-            html.Div(id="main-output-section",
-                     style={
-                        'backgroundColor': COLORS['background'],
-                        'borderRadius': '10px',  # rounded edges
-                        'height': '100%',
-                        'width': '100%',
-                        'boxSizing': 'border-box',
-                        'position': 'relative',
-                        'overflow': 'hidden' # Prevent layout overflow
-                    },
-                     children=[dcc.Graph(figure=empty_placeholder_figure(COLORS))]   
-                ),
+            html.Div(
+                id="main-output-section",
+                style={
+                    'backgroundColor': COLORS['background'],
+                    'borderRadius': '10px',
+                    'height': '100%',
+                    'width': '100%',
+                    'boxSizing': 'border-box',
+                    'display': 'flex',
+                    'flexDirection': 'column',
+                    'justifyContent': "center",
+                    'alignItems': 'center',
+                    'textAlign': 'center',
+                    'padding': '2rem',
+                    'overflow': 'hidden'
+                },
+                children=[
+                    html.Div([
+                        html.H3("Welcome!", style={'color': COLORS['primary'], 'marginBottom': '1rem'}),
+
+                        html.Br(),
+
+                        html.Div([
+                            html.P("This application was built by a single individual with a passion for coding, finance, mathematics, and statistics. " \
+                                   "It is a personal project and does not represent the views or interests of any company or institution.",
+                                style={'color': COLORS['text'], 'fontSize': '0.95rem', 'marginBottom': '0.5rem'}),
+
+                            html.P("The insights provided are grounded in classical statistical theory, but rest on strong assumptions that often do not reflect real-world markets. " \
+                                   "Please exercise caution and do not rely solely on this tool for financial decisions.",
+                                style={'color': COLORS['text'], 'fontSize': '0.95rem', 'marginBottom': '0.5rem'}),
+
+                            html.P("All market data is sourced from the Polygon.io API. " \
+                                   "The free tier limits requests to 10 API calls per minute, which allows approximately 3 tickers to be analyzed every 60 seconds.",
+                                style={'color': COLORS['text'], 'fontSize': '0.95rem'}),
+
+                        html.Br(),
+
+                        html.P("To get started, please follow the steps below:", 
+                               style={'color': COLORS['text'], 
+                                      'fontSize': '1.1rem'}),
+
+                        html.Ol([
+                            html.Li("Input a stock ticker and click 'Verify Ticker'.", 
+                                    style={'color': COLORS['text']}),
+                            html.Li("Explore the stock's recent news and historical performance.", 
+                                    style={'color': COLORS['text']}),
+                            html.Li("Choose to add it to your portfolio.", 
+                                    style={'color': COLORS['text']}),
+                            html.Li("Enter at least two tickers in portfolio before proceeding.", 
+                                    style={'color': COLORS['text']}),], 
+                            style={'textAlign': 'left', 
+                                   'color': COLORS['text'], 
+                                   'maxWidth': '600px', 
+                                   'margin': 
+                                   '1rem auto'}),
+                            ], style={'maxWidth': '700px'})
+                        ])
+                    ]
+                )
 
             ]
         ),
