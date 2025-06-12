@@ -2,13 +2,12 @@
 import os
 import sys
 import numpy as np
+import pandas as pd
 import plotly.graph_objects as go
 
-from dash import dcc, html
-from datetime import date
+from scipy import stats
+from dash import dcc, html, dash_table
 from plotly.subplots import make_subplots
-from scipy.stats import gaussian_kde, norm
-from dateutil.relativedelta import relativedelta
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -39,14 +38,8 @@ def dash_range_selector(default_style):
         ]
     )
 
-def create_historic_plots(full_name, historical_df, filtered_df, COLORS):
+def create_historic_plots(full_name, dates, daily_prices, daily_returns, COLORS):
     
-    # Extract relevant metrics (filtered)
-    dates = np.asarray(filtered_df['date'])
-    daily_prices = np.asarray(filtered_df['close'])
-    daily_returns = np.asarray(filtered_df['close'].pct_change().dropna())
-    long_run_returns = np.asarray(historical_df['close'].pct_change().dropna())
-
     ######################
     ### Defining Subplots
     ######################
@@ -56,13 +49,13 @@ def create_historic_plots(full_name, historical_df, filtered_df, COLORS):
         rows=2, cols=2,
         specs=[[{"colspan": 2}, None], [{}, {}]],
         subplot_titles=[
-            "Daily Prices",
-            "Daily Returns",
-            "Daily Returns Distribution"
+            "Daily Prices with Bollinger Bands (Rolling Window = 5 days)",
+            "Daily Returns with 95% Confidence Intervals",
+            "Histogram of Daily Returns with 95% Confidence Intervals"
         ],
         vertical_spacing=0.15,
         horizontal_spacing=0.1,
-        shared_xaxes=True,
+        shared_xaxes=False,
         shared_yaxes=False,
         column_widths=[0.7, 0.3]
     )
@@ -83,6 +76,40 @@ def create_historic_plots(full_name, historical_df, filtered_df, COLORS):
         row=1, col=1
     )
 
+    # Calculate 5-day rolling statistics
+    rolling_mean = pd.Series(daily_prices).rolling(window=5).mean().to_numpy()
+    rolling_std = pd.Series(daily_prices).rolling(window=5).std().to_numpy()
+
+    # Compute Bollinger Bands
+    upper_band = rolling_mean + 1.96 * rolling_std
+    lower_band = rolling_mean - 1.96 * rolling_std
+
+    # Upper Bollinger Band
+    historical_daily_plot.add_trace(
+        go.Scatter(
+            x=dates,
+            y=upper_band,
+            mode='lines',
+            name='Upper Bollinger Bound',
+            line=dict(color="rgba(255,255,255,0.5)"),
+        ),
+        row=1, col=1
+    )
+
+    # Lower Bollinger Band
+    historical_daily_plot.add_trace(
+        go.Scatter(
+            x=dates,
+            y=lower_band,
+            mode='lines',
+            name='Lower Bollinger Bound',
+            line=dict(color="rgba(255,255,255,0.5)"),
+            fill='tonexty', 
+            fillcolor="rgba(255,255,255,0.05)",
+        ),
+        row=1, col=1
+    )
+
     #################################
     ### Line Plot for Daily Returns
     ### with 95% Confidence Interval
@@ -93,19 +120,6 @@ def create_historic_plots(full_name, historical_df, filtered_df, COLORS):
     std_return = np.std(daily_returns)
     lower_bound = mean_return - 1.96 * std_return
     upper_bound = mean_return + 1.96 * std_return
-
-    # Add shaded rectangle for the two-sided 95% confidence interval
-    historical_daily_plot.add_shape(
-        type="rect",
-        x0=min(dates),  
-        x1=max(dates),  
-        y0=lower_bound,      
-        y1=upper_bound,      
-        fillcolor="rgba(255, 255, 255, 0.3)", 
-        layer="below", 
-        line_width=0,
-        row=2, col=1
-    )
 
     # Add the line plot for daily returns vs day
     historical_daily_plot.add_trace(
@@ -119,55 +133,91 @@ def create_historic_plots(full_name, historical_df, filtered_df, COLORS):
         row=2, col=1
     )
 
-    # Add horizontal line for the lower bound
-    historical_daily_plot.add_shape(
-        type="line",
-        x0=min(dates),  
-        x1=max(dates),  
-        y0=lower_bound, 
-        y1=lower_bound,
-        line=dict(color="white", dash="dash", width=2),
-        row=2, col=1
-    )
-
     # Add horizontal line for the upper bound
-    historical_daily_plot.add_shape(
-        type="line",
-        x0=min(dates),  
-        x1=max(dates),  
-        y0=upper_bound, 
-        y1=upper_bound,
-        line=dict(color="white", dash="dash", width=2),
+    historical_daily_plot.add_trace(
+            go.Scatter(
+                    x=dates,  
+                    y=[upper_bound] * len(dates),
+                    mode='lines',
+                    name='Upper 95% Confidence Bound',
+                    line=dict(color="rgba(255,255,255,0.5)")
+                ),
+        row=2, col=1
+    )
+
+    # Add horizontal line for the lower bound
+    historical_daily_plot.add_trace(
+            go.Scatter(
+                    x=dates,  
+                    y=[lower_bound] * len(dates),
+                    mode='lines',
+                    name='Upper 95% Confidence Bound',
+                    line=dict(color="rgba(255,255,255,0.5)"),
+                    fill='tonexty',
+                    fillcolor="rgba(255,255,255,0.05)",
+                ),
         row=2, col=1
     )
 
     ##############################
-    ### Histogram of Returns
-    ### with KDE + Gaussian Curve
+    ### Histogram + Gaussian Fit
     ##############################
 
-    # Red histogram for all data
-    historical_daily_plot.add_trace(
-        go.Histogram(
-            y=long_run_returns,
-            name="Long-run Daily Returns Distribution",
-            histnorm="probability density",
-            marker=dict(color="red", opacity=0.4),
-            orientation='h',
-            nbinsy=50
-        ),
-        row=2, col=2
-    )
-   
-    # Yellow histogram for filtered data
+    # Combined range to align both histogram and normal PDF
+    return_range = np.linspace(daily_returns.min(), daily_returns.max(), 500)
+    hist_counts, bin_edges = np.histogram(daily_returns, bins=50, density=True)
+
+    # Histogram of daily returns
     historical_daily_plot.add_trace(
         go.Histogram(
             y=daily_returns,
-            name="Short-Run Daily Returns Distribution",
-            histnorm="probability density",
-            marker=dict(color="yellow", opacity=0.4),
-            orientation='h',
+            name="Daily Returns Histogram",
+            marker_color=COLORS['primary'],
             nbinsy=50,
+            orientation='h',
+            opacity=0.6,
+            histnorm='probability density'
+        ),
+        row=2, col=2
+    )
+
+    # Gaussian fit using sample estimates
+    historical_daily_plot.add_trace(
+        go.Scatter(
+            x=stats.norm.pdf(return_range, mean_return, std_return),           
+            y=return_range,         
+            mode="lines",
+            name=f"Gaussian fit with sample estimates",
+            line=dict(color="#E0E0E0", width=4),
+            showlegend=True
+        ),
+        row=2, col=2
+    )
+
+    # Horizontal line for upper bound of 95% confidence
+    historical_daily_plot.add_trace(
+        go.Scatter(
+            x=[0, hist_counts.max()],
+            y=[upper_bound] * len(dates),
+            mode='lines',
+            name='Upper 95% Bound',
+            line=dict(color="rgba(255,255,255,0.5)"),
+            showlegend=True
+        ),
+        row=2, col=2
+    )
+
+    # Horizontal line for lower bound of 95% confidence
+    historical_daily_plot.add_trace(
+        go.Scatter(
+            x=[0, hist_counts.max()],
+            y=[lower_bound] * len(dates),
+            mode='lines',
+            name='Lower 95% Bound',
+            line=dict(color="rgba(255,255,255,0.5)"),
+            fill='tonexty',
+            fillcolor="rgba(255,255,255,0.05)",
+            showlegend=True
         ),
         row=2, col=2
     )
@@ -180,7 +230,7 @@ def create_historic_plots(full_name, historical_df, filtered_df, COLORS):
         plot_bgcolor=COLORS['background'],
         font=dict(color=COLORS['text']),
         title_font=dict(color=COLORS['primary']),
-        showlegend=False,
+        showlegend=False
     )
 
     return dcc.Graph(
@@ -189,3 +239,109 @@ def create_historic_plots(full_name, historical_df, filtered_df, COLORS):
                 config={'responsive': True},
                 style={'height': '100%', 'width': '100%'}
             )
+
+def summarize_daily_returns(daily_returns):
+    
+    daily_returns = pd.Series(daily_returns).dropna()
+
+    # Basic stats
+    mean = daily_returns.mean()
+    median = daily_returns.median()
+    std = daily_returns.std()
+    skew = daily_returns.skew()
+    kurt = daily_returns.kurt()
+    min_val = daily_returns.min()
+    max_val = daily_returns.max()
+
+    # Hypothesis test: mean = 0
+    t_stat, p_val = stats.ttest_1samp(daily_returns, popmean=0)
+
+    # Normality test (Shapiro-Wilk is good for <5000 samples)
+    normality_test = stats.shapiro(daily_returns)
+    normal_stat, normal_pval = normality_test
+
+    return {
+        "Mean": mean,
+        "Median": median,
+        "Standard Deviation": std,
+        "Skewness": skew,
+        "Kurtosis": kurt,
+        "Minimum": min_val,
+        "Maximum": max_val,
+        "t-Statistic (mean = 0)": t_stat,
+        "p-Value (mean = 0)": p_val,
+        f"Shapiro-Wilk Test Statistic": normal_stat,
+        f"Shapiro-Wilk Test p-Value": normal_pval
+    }
+
+def create_statistics_table(daily_returns, COLORS):
+    stats_dict = summarize_daily_returns(daily_returns)
+    
+    sections = {
+        "Sample Statistics": ["Mean", "Median", "Standard Deviation", "Skewness", "Kurtosis", 
+                              "Minimum", "Maximum"],
+        "Hypothesis Test (Mean = 0)": ["t-Statistic (mean = 0)", "p-Value (mean = 0)"],
+        "Normality Test": [key for key in stats_dict.keys() if "Test" in key],
+    }
+
+    table_rows = []
+    for section, metrics in sections.items():
+        # Add section header as a row
+        table_rows.append({
+            "Metric": f"{section}",
+            "Value": ""
+        })
+        # Add each metric under the section
+        for metric in metrics:
+            table_rows.append({
+                "Metric": metric,
+                "Value": stats_dict.get(metric, "")
+            })
+
+    # Now render a single DataTable
+    return html.Div([
+        dash_table.DataTable(
+            data=table_rows,
+            columns=[
+                {"name": "Metric", "id": "Metric"},
+                {"name": "Value", "id": "Value"}
+            ],
+            style_cell={
+                'textAlign': 'left',
+                'padding': '8px',
+                'color': 'white',
+                'border': 'none',
+                'backgroundColor': COLORS['background'],
+                'fontFamily': 'monospace'
+            },
+            style_data_conditional=[
+                {
+                    'if': {'filter_query': '{Value} = ""'},
+                    'fontWeight': 'bold',
+                    'backgroundColor': COLORS['background'],
+                    'color': COLORS['primary'],
+                }
+            ],
+            style_header={
+                'display': 'none',
+            },
+            style_table={
+                "marginTop": "30px",
+                "padding": "10px 20px",
+                "borderTop": "2px solid #ddd",
+                "maxHeight": "500px",
+                "overflowY": "auto",
+            },
+
+            # Disable all interactivity
+            editable=False,
+            row_selectable=False,
+            selected_rows=[],
+            active_cell=None,
+            cell_selectable=False,
+            sort_action="none",
+            filter_action="none",
+            page_action="none",
+            style_as_list_view=True,
+        )
+    ])

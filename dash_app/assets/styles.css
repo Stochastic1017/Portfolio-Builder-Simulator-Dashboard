@@ -1,4 +1,8 @@
 
+.button-container {
+  overflow: visible;
+}
+
 /* General button base style */
 button {
   transition: all 0.3s ease-in-out;
@@ -26,7 +30,9 @@ button.special {
 }
 
 button.special:hover {
-  transform: scale(1.08);
+  transform: scale(1.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transform-origin: center;
   box-shadow: 0 6px 20px rgba(106, 90, 205, 0.5);
   background: linear-gradient(45deg, #efe5ac, #edd81c);
 }

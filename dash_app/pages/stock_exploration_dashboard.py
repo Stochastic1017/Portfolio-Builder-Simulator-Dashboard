@@ -2,6 +2,7 @@
 import os
 import sys
 import dash
+import numpy as np
 import pandas as pd
 import dash.dash_table as dt
 import dash_bootstrap_components as dbc
@@ -15,7 +16,7 @@ from dash import (html, dcc, Input, Output, State, callback, ctx, no_update)
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from helpers.polygon_stock_api import StockTickerInformation
-from helpers.polygon_stock_historic_plots import (dash_range_selector, create_historic_plots)
+from helpers.polygon_stock_historic_plots import (dash_range_selector, create_historic_plots, create_statistics_table)
 from helpers.polygon_stock_metadata import (company_metadata_layout)
 from helpers.polygon_stock_news import (news_article_card_layout)
 
@@ -424,28 +425,24 @@ layout = html.Div(
                 'marginLeft': '320px',
                 'maxWidth': 'calc(100% - 320px)',
                 'paddingRight': '20px',
-                'overflowY': 'auto',
+                'overflow': 'hidden',
             },
             
             children=[
-                html.Button(
-                    "Go to Portfolio Analytics ➡️",
-                    id="btn-portfolio-analytics",
-                    n_clicks=0,
-                    style={
-                        'padding': '12px 15px',
-                        'backgroundColor': COLORS['primary'],
-                        'border': 'none',
-                        'borderRadius': '8px',
-                        'color': '#000000',
-                        'fontWeight': 'bold',
-                        'fontSize': '1.1em',
-                        'cursor': 'pointer',
-                        'boxShadow': '0 4px 12px rgba(0, 0, 0, 0.1)',
-                    }
+
+                html.Div(
+                    className='button-container', 
+                    children=[
+                        # Go to Portfolio Analytics Page
+                        html.Button(
+                            "Go to Portfolio Analytics",
+                            id="btn-portfolio-analytics",
+                            n_clicks=0,
+                            disabled=True,
+                        )
+                    ]
                 )
             ]
-        
         ),
 
         ################
@@ -617,6 +614,74 @@ def update_main_output(verify_clicks, news_clicks, hist_clicks, selected_range, 
                 children=[
                     
                     dash_range_selector(default_style=default_style_time_range),
+                    dcc.Tabs(
+                        id="performance-tabs",
+                        value='tab-plot',
+                        style={
+                            "marginTop": "10px",
+                            "backgroundColor": COLORS['card'],
+                            "color": COLORS['text'],
+                            "height": "42px",
+                            "borderRadius": "5px",
+                            "overflow": "hidden",
+                        },
+                        colors={
+                            "border": COLORS['background'],
+                            "primary": COLORS['primary'],
+                            "background": COLORS['card'],
+                        },
+                        
+                        children=[
+                            
+                            dcc.Tab(
+                                label="Price & Returns Plot",
+                                value='tab-plot',
+                                style={
+                                    "backgroundColor": COLORS['background'],
+                                    "color": COLORS['text'],
+                                    "padding": "6px 18px",
+                                    "fontSize": "14px",
+                                    "fontWeight": "bold",
+                                    "border": "none",
+                                    "borderBottom": f"2px solid transparent",
+                                },
+                                selected_style={
+                                    "backgroundColor": COLORS['background'],
+                                    "color": COLORS['primary'],
+                                    "padding": "6px 18px",
+                                    "fontSize": "14px",
+                                    "fontWeight": "bold",
+                                    "border": "none",
+                                    "borderBottom": f"2px solid {COLORS['primary']}",
+                                },
+                            ),
+                            
+                            dcc.Tab(
+                                label="Statistical Summary",
+                                value='tab-stats',
+                                style={
+                                    "backgroundColor": COLORS['background'],
+                                    "color": COLORS['text'],
+                                    "padding": "6px 18px",
+                                    "fontWeight": "bold",
+                                    "fontSize": "14px",
+                                    "border": "none",
+                                    "borderBottom": f"2px solid transparent",
+                                },
+                                selected_style={
+                                    "backgroundColor": COLORS['background'],
+                                    "color": COLORS['primary'],
+                                    "padding": "6px 18px",
+                                    "fontWeight": "bold",
+                                    "fontSize": "14px",
+                                    "border": "none",
+                                    "borderBottom": f"2px solid {COLORS['primary']}",
+                                },
+                            ),
+                        
+                        ]
+                    ),
+
                     html.Div(id="historical-plot-container", style={"flex": "1", "overflow": "hidden"}),
                 ]
             )
@@ -673,11 +738,12 @@ def update_range_styles(*btn_clicks):
 # Update historic daily plot based on range selected
 @callback(
     Output("historical-plot-container", "children"),
+    Input("performance-tabs", "value"),
     Input("selected-range", "data"),
     State("verify-status", "data"),
     prevent_initial_call=True
 )
-def update_plot_on_range_change(selected_range, data):
+def update_plot_on_range_change(active_tab, selected_range, data):
 
     historical_df = pd.read_json(StringIO(data['historical_json']), orient="records")
     historical_df['date'] = pd.to_datetime(historical_df['date'])
@@ -701,7 +767,16 @@ def update_plot_on_range_change(selected_range, data):
     else:
         filtered_df = historical_df
 
-    return create_historic_plots(data['company_info']['name'], historical_df, filtered_df, COLORS)
+    # Extract relevant metrics (filtered)
+    dates = np.asarray(filtered_df['date'])
+    daily_prices = np.asarray(filtered_df['close'])
+    daily_returns = np.asarray(filtered_df['close'].pct_change().dropna())
+
+    if active_tab == "tab-plot":
+        return create_historic_plots(data['company_info']['name'], dates, daily_prices, daily_returns, COLORS)
+    
+    elif active_tab == "tab-stats":
+        return create_statistics_table(daily_returns, COLORS)
 
 # Upon "add to portfolio" click, append to table
 @callback(
@@ -734,3 +809,17 @@ def add_to_portfolio(n_clicks, verify_data, portfolio_data):
 )
 def update_portfolio_table(data):
     return data
+
+# Allow users to navigate to portfolio analytics page
+# Provided at least two tickers were selected
+@callback(
+    Output("btn-portfolio-analytics", "disabled"),
+    Output("btn-portfolio-analytics", "style"),
+    Output("btn-portfolio-analytics", "className"),
+    Input("portfolio-store", "data")
+)
+def update_portfolio_analytics_button(tickers):
+    if tickers is None or len(tickers) < 2:
+        return True, unverified_button_portfolio, ""
+    
+    return False, verified_button_portfolio, "special"

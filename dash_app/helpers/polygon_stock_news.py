@@ -78,7 +78,10 @@ def news_article_card_layout(article, COLORS):
                     
                         html.Div(
                             [
-                                dbc.Badge(keyword, color="warning", className="me-1 mb-1", style={'backgroundColor': COLORS['primary'], 'color': COLORS['background']})
+                                dbc.Badge(keyword, color="warning", className="me-1 mb-1", 
+                                          style={'backgroundColor': COLORS['primary'], 
+                                                 'color': COLORS['background']})
+                                
                                 for keyword in article['keywords']
                             ]
                         )
