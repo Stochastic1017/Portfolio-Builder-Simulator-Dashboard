@@ -240,14 +240,20 @@ def create_historic_plots(full_name, dates, daily_prices, daily_returns, COLORS)
                 style={'height': '100%', 'width': '100%'}
             )
 
-def summarize_daily_returns(daily_returns):
+def summarize_daily_returns(dates, daily_prices, daily_returns):
     
+    dates = pd.Series(dates).dropna()
+    daily_prices = pd.Series(daily_prices).dropna()
     daily_returns = pd.Series(daily_returns).dropna()
-
+    
     # Basic stats
+    latest_date = dates.iloc[-1]
+    latest_price = daily_prices.iloc[-1]
+    latest_returns = daily_returns.iloc[-1]
     mean = daily_returns.mean()
     median = daily_returns.median()
     std = daily_returns.std()
+    var = daily_returns.var()
     skew = daily_returns.skew()
     kurt = daily_returns.kurt()
     min_val = daily_returns.min()
@@ -261,9 +267,13 @@ def summarize_daily_returns(daily_returns):
     normal_stat, normal_pval = normality_test
 
     return {
+        "Latest Date": latest_date.strftime("%A, %d %B %Y"),
+        "Latest Price": latest_price,
+        "Latest Return": latest_returns,
         "Mean": mean,
         "Median": median,
         "Standard Deviation": std,
+        "Variance": var,
         "Skewness": skew,
         "Kurtosis": kurt,
         "Minimum": min_val,
@@ -274,11 +284,15 @@ def summarize_daily_returns(daily_returns):
         f"Shapiro-Wilk Test p-Value": normal_pval
     }
 
-def create_statistics_table(daily_returns, COLORS):
-    stats_dict = summarize_daily_returns(daily_returns)
+def create_statistics_table(dates, daily_prices, daily_returns, COLORS):
+    
+    stats_dict = summarize_daily_returns(dates, daily_prices, daily_returns)
     
     sections = {
-        "Sample Statistics": ["Mean", "Median", "Standard Deviation", "Skewness", "Kurtosis", 
+        "Current Price and Returns": ["Latest Date", "Latest Price", "Latest Return"],
+        "Sample Statistics": ["Mean", "Median", 
+                              "Standard Deviation", "Variance",
+                              "Skewness", "Kurtosis", 
                               "Minimum", "Maximum"],
         "Hypothesis Test (Mean = 0)": ["t-Statistic (mean = 0)", "p-Value (mean = 0)"],
         "Normality Test": [key for key in stats_dict.keys() if "Test" in key],
@@ -326,9 +340,8 @@ def create_statistics_table(daily_returns, COLORS):
                 'display': 'none',
             },
             style_table={
-                "marginTop": "30px",
+                "marginTop": "10px",
                 "padding": "10px 20px",
-                "borderTop": "2px solid #ddd",
                 "maxHeight": "500px",
                 "overflowY": "auto",
             },

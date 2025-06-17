@@ -14,6 +14,7 @@ def company_metadata_layout(company_info, branding, logo_url_with_key, address, 
             'flexDirection': 'column',
             'gap': '20px'
         },
+        
         children=[
 
         # Company name and logo

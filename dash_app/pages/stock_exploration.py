@@ -21,7 +21,7 @@ from helpers.polygon_stock_metadata import (company_metadata_layout)
 from helpers.polygon_stock_news import (news_article_card_layout)
 
 # Register the page
-dash.register_page(__name__, path="/pages/stock-exploration-dashboard")
+dash.register_page(__name__, path="/pages/stock-exploration")
 
 # Load .env to fetch api key
 load_dotenv()
@@ -186,7 +186,7 @@ layout = html.Div(
         #####################
         ### Left console
         ### Right content
-        ### Analytics button
+        ### Portfolio Builder
         #####################
 
         # Left console + Right content
@@ -416,7 +416,7 @@ layout = html.Div(
             ]
         ),
 
-        # Analytics button
+        # Portfolio Builder
         html.Div(
             style={
                 'display': 'flex',
@@ -433,13 +433,17 @@ layout = html.Div(
                 html.Div(
                     className='button-container', 
                     children=[
-                        # Go to Portfolio Analytics Page
-                        html.Button(
-                            "Go to Portfolio Analytics",
-                            id="btn-portfolio-analytics",
-                            n_clicks=0,
-                            disabled=True,
+                        # Go to Portfolio Builder Page
+                        dcc.Link(
+                            html.Button(
+                                "Go to Portfolio Builder",
+                                id="btn-portfolio-builder",
+                                n_clicks=0,
+                            ),
+                            href="/pages/portfolio-builder",
+                            refresh=False  # Set to True if you want full page reload
                         )
+
                     ]
                 )
             ]
@@ -776,9 +780,9 @@ def update_plot_on_range_change(active_tab, selected_range, data):
         return create_historic_plots(data['company_info']['name'], dates, daily_prices, daily_returns, COLORS)
     
     elif active_tab == "tab-stats":
-        return create_statistics_table(daily_returns, COLORS)
+        return create_statistics_table(dates, daily_prices, daily_returns, COLORS)
 
-# Upon "add to portfolio" click, append to table
+# Upon "add to portfolio" click, append to table and cache data
 @callback(
     Output("portfolio-store", "data"),
     Input("btn-add", "n_clicks"),
@@ -792,8 +796,11 @@ def add_to_portfolio(n_clicks, verify_data, portfolio_data):
         return portfolio_data
 
     new_entry = {
-        "ticker": verify_data.get("ticker", "N/A"),
-        "fullname": verify_data["company_info"]["name"]
+        "ticker": verify_data["company_info"]["ticker"],
+        "fullname": verify_data["company_info"]["name"],
+        "sic_description": verify_data["company_info"]["sic_description"],
+        "market_cap": verify_data["company_info"]["market_cap"],
+        "historical_json": verify_data["historical_json"]
     }
 
     # Avoid duplicates
@@ -813,9 +820,9 @@ def update_portfolio_table(data):
 # Allow users to navigate to portfolio analytics page
 # Provided at least two tickers were selected
 @callback(
-    Output("btn-portfolio-analytics", "disabled"),
-    Output("btn-portfolio-analytics", "style"),
-    Output("btn-portfolio-analytics", "className"),
+    Output("btn-portfolio-builder", "disabled"),
+    Output("btn-portfolio-builder", "style"),
+    Output("btn-portfolio-builder", "className"),
     Input("portfolio-store", "data")
 )
 def update_portfolio_analytics_button(tickers):

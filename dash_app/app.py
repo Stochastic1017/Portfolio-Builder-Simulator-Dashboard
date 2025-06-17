@@ -18,7 +18,8 @@ app = dash.Dash(
 
 # App layout
 app.layout = html.Div(
-    children=[
+    
+     children=[
 
         ################
         ### Cache store
@@ -26,14 +27,14 @@ app.layout = html.Div(
 
         # Stock exploration dashboard page
         dcc.Store(id="verify-status", data={"verified": False}), # verify status 
-        dcc.Store(id="selected-range", data="range-all"),              # selected range
+        dcc.Store(id="selected-range", data="range-all"),        # selected range
         dcc.Store(id='portfolio-store', data=[]),                # portfolio table
         
         #################
         ### Landing Page
         #################
 
-        dcc.Location(id="url", refresh=True, pathname="/pages/stock-exploration-dashboard"),
+        dcc.Location(id="url", refresh=True, pathname="/pages/stock-exploration"),
         dash.page_container
     ]
 )
