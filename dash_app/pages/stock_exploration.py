@@ -16,9 +16,19 @@ from dash import (html, dcc, Input, Output, State, callback, ctx, no_update)
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from helpers.polygon_stock_api import StockTickerInformation
-from helpers.polygon_stock_historic_plots import (dash_range_selector, create_historic_plots, create_statistics_table)
+
+from helpers.polygon_stock_historic_plots import (dash_range_selector, 
+                                                  create_historic_plots, 
+                                                  create_statistics_table)
+
 from helpers.polygon_stock_metadata import (company_metadata_layout)
+
 from helpers.polygon_stock_news import (news_article_card_layout)
+
+from helpers.button_styles import (COLORS, 
+                                   verified_button_portfolio, unverified_button_portfolio,
+                                   verified_button_style, unverified_button_style, 
+                                   default_style_time_range, active_style_time_range)
 
 # Register the page
 dash.register_page(__name__, path="/pages/stock-exploration")
@@ -26,15 +36,6 @@ dash.register_page(__name__, path="/pages/stock-exploration")
 # Load .env to fetch api key
 load_dotenv()
 api_key = os.getenv("POLYGON_API_KEY")
-
-# Define color constants
-COLORS = {
-    'primary': '#FFD700',      # Golden Yellow
-    'secondary': '#FFF4B8',    # Light Yellow
-    'background': '#1A1A1A',   # Dark Background
-    'card': '#2D2D2D',         # Card Background
-    'text': '#FFFFFF'          # White Text
-}
 
 # Stock ticker validation procedure
 def validate_stock_ticker(ticker, api_key):
@@ -91,60 +92,6 @@ def validate_stock_ticker(ticker, api_key):
     except Exception as e:
         return {'error': f'Ticker verification failed: {str(e)}'}
 
-verified_button_style = {'padding': '10px', 
-                         'backgroundColor': COLORS['text'], 
-                         'border': 'none', 
-                         'borderRadius': '5px', 
-                         'color': COLORS['background'], 
-                         'fontWeight': 'bold', 
-                         'cursor': 'pointer'}
-
-unverified_button_style = {'padding': '10px', 
-                           'border': 'none', 
-                           'borderRadius': '5px', 
-                           'fontWeight': 'bold', 
-                           'cursor': 'pointer'}
-
-verified_button_portfolio = {'padding': '12px',
-                            'backgroundColor': COLORS['primary'],
-                            'border': 'none',
-                            'borderRadius': '8px',
-                            'color': '#000000',
-                            'fontWeight': 'bold',
-                            'fontSize': '1em',
-                            'cursor': 'pointer',
-                            'marginTop': '10px'}
-
-unverified_button_portfolio = {'padding': '12px',
-                               'border': 'none',
-                               'borderRadius': '8px',
-                               'fontWeight': 'bold',
-                               'fontSize': '1em',
-                               'cursor': 'pointer',
-                               'marginTop': '10px'}
-
-default_style_time_range = {
-    'padding': '4px 12px',  # smaller pill-style padding
-    'backgroundColor': COLORS['card'],
-    'color': COLORS['text'],
-    'border': f'1px solid {COLORS["primary"]}',
-    'borderRadius': '999px',  # makes it pill-shaped
-    'cursor': 'pointer',
-    'fontSize': '0.85rem',
-    'marginRight': '8px',  # spacing between buttons
-    'display': 'inline-block',
-    'transition': 'all 0.2s ease-in-out',
-}
-
-active_style_time_range = {
-    **default_style_time_range,
-    'backgroundColor': COLORS['primary'],
-    'color': COLORS['background'],
-    'fontWeight': '600',
-    'boxShadow': '0 0 6px rgba(0, 0, 0, 0.15)',
-    'transform': 'scale(1.05)',
-}
-
 layout = html.Div(
     
     style={
@@ -186,7 +133,6 @@ layout = html.Div(
         #####################
         ### Left console
         ### Right content
-        ### Portfolio Builder
         #####################
 
         # Left console + Right content
@@ -204,6 +150,7 @@ layout = html.Div(
 
             # Left console
             html.Div(
+                id="stock-exploration-console",
                 style={
                     'backgroundColor': COLORS['card'],
                     'borderRadius': '10px',  # rounded edges
@@ -354,7 +301,7 @@ layout = html.Div(
                 
             # Right content
             html.Div(
-                id="main-output-section",
+                id="stock-exploration-main-content",
                 style={
                     'backgroundColor': COLORS['background'],
                     'borderRadius': '10px',
@@ -369,6 +316,7 @@ layout = html.Div(
                     'padding': '2rem',
                     'overflow': 'hidden'
                 },
+                
                 children=[
                     html.Div([
                         html.H3("Welcome!", style={'color': COLORS['primary'], 'marginBottom': '1rem'}),
@@ -541,7 +489,7 @@ def toggle_button_states(verify_status):
 
 # Upon successful verification, display metadata
 @callback(
-    Output("main-output-section", "children", allow_duplicate=True),
+    Output("stock-exploration-main-content", "children", allow_duplicate=True),
     Input("verify-status", "data"),
     prevent_initial_call=True
 )
@@ -558,7 +506,7 @@ def display_metadata_on_verify(data):
 
 # Update main output section depending on what is chosen by user
 @callback(
-    Output("main-output-section", "children"),
+    Output("stock-exploration-main-content", "children"),
     [
         Input("btn-news", "n_clicks"),
         Input("btn-performance", "n_clicks"),
@@ -593,9 +541,9 @@ def update_main_output(verify_clicks, news_clicks, hist_clicks, selected_range, 
                             
                             html.Div(
                             style={
-                                        "maxHeight": "80vh",
-                                        "overflowY": "scroll",
-                                        "paddingRight": "10px"
+                                    "maxHeight": "80vh",
+                                    "overflowY": "scroll",
+                                    "paddingRight": "10px"
                                     },
                             children=[news_article_card_layout(article, COLORS) for article in news_articles],
                                 )
@@ -606,7 +554,7 @@ def update_main_output(verify_clicks, news_clicks, hist_clicks, selected_range, 
     # 2. Check Historic Performance
     elif button_id == "btn-performance":
         return html.Div(
-                id="main-output-section",
+                id="stock-exploration-main-content",
                 style={
                     'display': 'flex',
                     'flexDirection': 'column',

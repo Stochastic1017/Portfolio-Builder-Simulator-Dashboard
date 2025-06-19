@@ -4,25 +4,21 @@ import sys
 import dash
 import pandas as pd
 import dash.dash_table as dt
+import dash_bootstrap_components as dbc
 
 from io import StringIO
-from dash import html, Input, Output, callback
+from dash import (html, dcc, Input, Output, State, callback, ctx, no_update)
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from helpers.markowitz_portfolio_theory import plot_efficient_frontier
+from helpers.markowitz_portfolio_theory import plot_efficient_frontier, summary_table
+from helpers.button_styles import (COLORS, 
+                                   verified_button_portfolio, unverified_button_portfolio,
+                                   verified_button_style, unverified_button_style, 
+                                   default_style_time_range, active_style_time_range)
 
 dash.register_page(__name__, path="/pages/portfolio-builder")
-
-# Define color constants
-COLORS = {
-    'primary': '#FFD700',      # Golden Yellow
-    'secondary': '#FFF4B8',    # Light Yellow
-    'background': '#1A1A1A',   # Dark Background
-    'card': '#2D2D2D',         # Card Background
-    'text': '#FFFFFF'          # White Text
-}
 
 layout = html.Div(
     
@@ -62,84 +58,243 @@ layout = html.Div(
             ]
         ),
 
-        html.Div(id="portfolio-summary"),
-        html.Div(id="portfolio-table-output"),
-        html.Div(id="efficient-frontier")
+        #####################
+        ### Left console
+        ### Right content
+        #####################
+
+        # Left console + Right content
+        html.Div(
+            style={
+                'display': 'grid',
+                'gridTemplateColumns': '320px 1fr',
+                'gap': '20px',
+                'height': '100vh',
+                'padding': '20px',
+                'boxSizing': 'border-box',
+            },
+            
+            children=[
+
+            # Left console
+            html.Div(
+                id="portfolio-builder-console",
+                style={
+                    'backgroundColor': COLORS['card'],
+                    'borderRadius': '10px',  # rounded edges
+                    'padding': '20px',
+                    'display': 'flex',
+                    'flexDirection': 'column',
+                    'gap': '15px',
+                    'height': '100%',
+                    'boxSizing': 'border-box',
+                    'boxShadow': '0 4px 12px rgba(0, 0, 0, 0.1)',  # subtle shadow
+                    'overflow': 'hidden', # Prevent layout overflow
+                },
+
+                children=[
+                    
+                    # Budget (in $) input
+                    html.Div(
+                        style={
+                            'display': 'flex',
+                            'flexDirection': 'row',
+                            'alignItems': 'center'
+                        },
+                        
+                        children=[
+
+                            html.Div(
+                                style={
+                                    'display': 'flex',
+                                    'flexDirection': 'column',
+                                    'gap': '5px',
+                                    'marginTop': '10px'
+                                },
+                                
+                                children=[
+                                    html.Label("Enter Budget ($)", style={
+                                        'color': COLORS['primary'],
+                                        'fontWeight': '600',
+                                        'fontSize': '0.9rem',
+                                    }),
+                                    dcc.Input(
+                                        id="budget-input",
+                                        type="number",
+                                        min=1000,           # Optional: minimum value ($1k)
+                                        max=100_000_000,    # Cap at $100 million
+                                        step=1000,          # Increment in thousands
+                                        placeholder="e.g., 50000",
+                                        debounce=True,
+                                        style={
+                                            'width': '200px',
+                                            'padding': '10px',
+                                            'backgroundColor': COLORS['background'],
+                                            'border': f'1px solid {COLORS["primary"]}',
+                                            'borderRadius': '6px',
+                                            'color': COLORS['text'],
+                                            'fontSize': '1em',
+                                            'textAlign': 'right',
+                                            'boxShadow': '0 1px 3px rgba(0,0,0,0.2)'
+                                        }
+                                    ),
+                                    html.Div(id='budget-error-message', style={
+                                        'color': 'red',
+                                        'fontSize': '0.85rem',
+                                        'marginTop': '4px',
+                                        'display': 'none'
+                                    })
+                                ]
+                            ),
+
+                        ]
+                    ),
+
+                    # Two buttons to explore stock ticker
+                    html.Div(
+                        style={
+                            'display': 'flex',
+                            'flexDirection': 'column',
+                            'gap': '10px'  
+                        },
+                        
+                        children=[
+                            
+                            # Button for user to check latest news on stock ticker
+                            html.Button("Get Portfolio Summary", 
+                                id="portfolio-summary", 
+                                disabled=False, 
+                            ),                    
+
+                            # Button for user to check historic performance of stock ticker
+                            html.Button("Get Efficient Frontier", 
+                                id="efficient-frontier", 
+                                disabled=False,
+                            ),
+                        
+                        ],                    
+                    ),
+
+                ]
+            ),
+                
+            # Right content
+            html.Div(
+                id="portfolio-builder-main-content",
+                style={
+                    'backgroundColor': COLORS['background'],
+                    'borderRadius': '10px',
+                    'height': '100%',
+                    'width': '100%',
+                    'boxSizing': 'border-box',
+                    'display': 'flex',
+                    'flexDirection': 'column',
+                    'justifyContent': "center",
+                    'alignItems': 'center',
+                    'textAlign': 'center',
+                    'padding': '2rem',
+                    'overflow': 'hidden'
+                },
+                
+                children=[
+                    html.Div([
+                        html.H3("Welcome to Portfolio Builder!", style={'color': COLORS['primary'], 'marginBottom': '1rem'}),
+
+                        html.Br(),
+
+                        html.Div([
+
+                        html.P("Given list of stock tickers chosen in Stock Exploration page:", 
+                               style={'color': COLORS['text'], 
+                                      'fontSize': '1.1rem'}),
+
+                        html.Ol([
+                            html.Li("Input Budget (in USD).", 
+                                    style={'color': COLORS['text']}),
+                            html.Li("Get a summary table of portfolio.", 
+                                    style={'color': COLORS['text']}),
+                            html.Li("Get efficient frontier to find build portfolio according to specified risk/return ratios.", 
+                                    style={'color': COLORS['text']}),
+                            ], 
+                            style={'textAlign': 'left', 
+                                   'color': COLORS['text'], 
+                                   'maxWidth': '600px', 
+                                   'margin': 
+                                   '1rem auto'}),
+                            ], style={'maxWidth': '700px'})
+                        ])
+                    ]
+                )
+
+            ]
+        ),
+
     ]
 
 )
 
 @callback(
-    Output("portfolio-summary", "children"),
-    Output("portfolio-table-output", "children"),
-    Input("portfolio-store", "data")
+    Output("budget-error-message", "children"),
+    Output("budget-error-message", "style"),
+    Input("budget-input", "value")
 )
-def load_portfolio(data):
+def validate_budget(budget):
+    if budget is None:
+        return "", {'display': 'none'}
 
-    # Prepare rows for the table
-    table_data = []
-    for entry in data:
-        hist_df = pd.read_json(StringIO(entry["historical_json"]), orient="records")
-        hist_df['date'] = pd.to_datetime(hist_df['date'])
+    if not isinstance(budget, (int, float)):
+        return "Please enter a numeric value.", {'display': 'block'}
+    
+    if budget <= 0:
+        return "Budget must be greater than $0.", {'display': 'block'}
 
-        # Get latest price from most recent record
-        latest_price = hist_df['close'].iloc[-1]
-        table_data.append({
-            "Ticker": entry["ticker"],
-            "Full Name": entry["fullname"],
-            "Latest Price": latest_price,
-            "SIC": entry["sic_description"],
-            "Market Cap": entry["market_cap"],
-            "Weight (%)": 0.0
-        })
+    if budget > 100_000_000:
+        return "Budget cannot exceed $100 million.", {'display': 'block'}
 
-    # Column formatting and properties
-    columns = [
-        {"name": "Ticker", "id": "Ticker", "type": "text"},
-        {"name": "Full Name", "id": "Full Name", "type": "text"},
-        {"name": "SIC", "id": "SIC", "type": "text"},
-        {"name": "Latest Price", "id": "Latest Price", "type": "numeric", "format": dt.FormatTemplate.money(0)},
-        {"name": "Market Cap", "id": "Market Cap", "type": "numeric", "format": dt.FormatTemplate.money(0)},
-        {"name": "Weight (%)", "id": "Weight (%)", "type": "numeric", "editable": True}
-    ]
+    return "", {'display': 'none'}
 
-    # Create DataTable
-    table = dt.DataTable(
-        data=table_data,
-        columns=columns,
-        style_table={
-            "maxHeight": "200px",
-            "overflowY": "auto",
-            "border": "1px solid #444"
-        },
-        style_cell={
-            "padding": "10px",
-            "backgroundColor": COLORS["background"],
-            "color": COLORS["text"],
-            "border": "1px solid #555",
-            "textAlign": "left",
-            "minWidth": "100px",
-            "maxWidth": "200px",
-            "whiteSpace": "normal"
-        },
-        style_header={
-            "backgroundColor": COLORS["card"],
-            "color": COLORS["primary"],
-            "fontWeight": "bold"
-        },
-        row_deletable=False
-    )
+@callback(
+    Output("portfolio-builder-main-content", "children"),
+    [
+        Input("portfolio-summary", "n_clicks"),
+        Input("efficient-frontier", "n_clicks")
+    ],
+    State("portfolio-store", "data"),
+    prevent_initial_call=True
+)
+def update_main_content(n_summary, n_frontier, data):
+    if not data:
+        return html.Div("No portfolio data found.", style={'color': 'red'})
 
-    summary = html.Div(
-        f"{len(data)} stock(s) loaded into portfolio."
+    triggered_id = ctx.triggered_id if ctx.triggered_id else None
+
+    if triggered_id == "portfolio-summary":
+        return html.Div([
+            html.H3(f"{len(data)} stock(s) loaded into portfolio.", style={'color': COLORS['primary']}),
+            html.Div(summary_table(data, COLORS), 
+                     id="portfolio-table-output", 
+                     style={'marginTop': '20px'})
+        ])
+    
+    elif triggered_id == "efficient-frontier":
+        return html.Div(
+                id="portfolio-builder-main-content",
+                style={
+                    'display': 'flex',
+                    'flexDirection': 'column',
+                    'height': '100%',
+                    'width': '100%',
+                    'overflow': 'hidden',
+                },
+
+                children=[
+                    html.Div(
+                        style={
+                            "flex": "1", 
+                            "overflow": "hidden"
+                        },
+                        children=[plot_efficient_frontier(data, COLORS)]
+                    ),
+                          
+                ]
         )
-
-    return summary, table
-
-@callback(
-    Output("efficient-frontier", "children"),
-    Input("portfolio-store", "data")
-)
-def markowitz_portfolio_theory_plot(data):
-
-    return plot_efficient_frontier(data, COLORS)

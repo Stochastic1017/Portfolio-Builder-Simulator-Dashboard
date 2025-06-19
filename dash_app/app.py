@@ -16,6 +16,24 @@ app = dash.Dash(
     suppress_callback_exceptions=True
 )
 
+##################
+### Dev Only !!!
+##################
+
+if os.getenv("DEV_ONLY", "0").strip().lower() in {"1", "true", "yes"}:
+    import json
+    try:
+        with open("temp.json") as f:
+            temp = json.load(f)
+    except FileNotFoundError:
+        temp = []
+else:
+    temp = []
+
+##################
+### Dev Only !!!
+##################
+
 # App layout
 app.layout = html.Div(
     
@@ -28,8 +46,8 @@ app.layout = html.Div(
         # Stock exploration dashboard page
         dcc.Store(id="verify-status", data={"verified": False}), # verify status 
         dcc.Store(id="selected-range", data="range-all"),        # selected range
-        dcc.Store(id='portfolio-store', data=[]),                # portfolio table
-        
+        dcc.Store(id='portfolio-store', data=temp),              # portfolio table
+                    
         #################
         ### Landing Page
         #################

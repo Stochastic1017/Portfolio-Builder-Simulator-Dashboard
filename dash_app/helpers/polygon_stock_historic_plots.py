@@ -234,7 +234,7 @@ def create_historic_plots(full_name, dates, daily_prices, daily_returns, COLORS)
     )
 
     return dcc.Graph(
-                id="main-output-graph",
+                id="historic-performance-plot",
                 figure=historical_daily_plot,
                 config={'responsive': True},
                 style={'height': '100%', 'width': '100%'}
