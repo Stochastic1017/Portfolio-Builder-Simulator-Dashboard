@@ -1,5 +1,6 @@
 
 import os
+import uuid
 import sys
 import dash
 import numpy as np
@@ -153,19 +154,19 @@ layout = html.Div(
                 id="stock-exploration-console",
                 style={
                     'backgroundColor': COLORS['card'],
-                    'borderRadius': '10px',  # rounded edges
-                    'padding': '20px',
+                    'borderRadius': '10px',  
+                    'padding': '20px 20px 40px 20px',
                     'display': 'flex',
                     'flexDirection': 'column',
                     'gap': '15px',
                     'height': '100%',
                     'boxSizing': 'border-box',
-                    'boxShadow': '0 4px 12px rgba(0, 0, 0, 0.1)',  # subtle shadow
-                    'overflow': 'hidden', # Prevent layout overflow
+                    'boxShadow': '0 4px 12px rgba(0, 0, 0, 0.1)', 
+                    'overflow': 'hidden', 
                 },
 
                 children=[
-                    
+
                     # Stock ticker input + verify ticker button
                     html.Div(
                         style={
@@ -173,18 +174,24 @@ layout = html.Div(
                             'flexDirection': 'row',
                             'alignItems': 'center'
                         },
+                        
                         children=[
-                            # Takes user input for stock ticker
-                            dcc.Input(
+                            
+                            # Input for stock ticker
+                            dbc.Input(
                                 id="inp-ticker",
                                 type="text",
                                 debounce=True,
-                                placeholder="Enter stock ticker...",
+                                valid=False,
+                                invalid=False,
+                                key="input-key",
+                                placeholder="Enter Stock Ticker",
+                                className="custom-input",
                                 style={
                                     'width': '200px',
                                     'padding': '10px',
                                     'backgroundColor': COLORS['background'],
-                                    'border': f'1px solid {COLORS["primary"]}',
+                                    'border': f'1px solid {COLORS['primary']}',
                                     'borderRadius': '5px',
                                     'color': COLORS['text'],
                                     'fontSize': '1em',
@@ -194,7 +201,7 @@ layout = html.Div(
 
                             # A stylized button to verify if user input ticker is correct
                             html.Button("Verify Ticker",
-                                id="btn-verify",
+                                id="btn-verify-ticker",
                                 n_clicks=0,
                                 disabled=False,
                                 className='special',
@@ -248,10 +255,10 @@ layout = html.Div(
                     # Scrollable portfolio table
                     html.Div(
                         style={
-                            'flexGrow': 1,
+                            'flex': '1 1 auto',
+                            'display': 'flex',
                             'minHeight': 0,
                             'marginTop': '10px',
-                            'marginBottom': '10px',
                         },
                         
                         children=[
@@ -264,9 +271,11 @@ layout = html.Div(
                                 ],
                                 style_table={
                                     'overflowY': 'auto',
-                                    'maxHeight': '300px',
+                                    'overflowX': 'auto',
+                                    'height': '100%',
                                     'border': '1px solid #ccc',
                                     'borderRadius': '10px',
+                                    'marginBottom': '20px',
                                 },
                                 style_cell={
                                     'padding': '10px',
@@ -274,6 +283,11 @@ layout = html.Div(
                                     'backgroundColor': '#f9f9f9',
                                     'color': '#333',
                                     'fontFamily': 'Arial',
+                                    'minWidth': '100px',
+                                    'maxWidth': '250px',       # ✅ prevents extra-wide cells
+                                    'whiteSpace': 'normal',    # ✅ allow wrapping if needed
+                                    'overflow': 'hidden',
+                                    'textOverflow': 'ellipsis',
                                 },
                                 style_header={
                                     'backgroundColor': '#0E1117',
@@ -282,7 +296,7 @@ layout = html.Div(
                                     'border': '1px solid #ccc'
                                 },
                                 editable=False,           # Disable editing
-                                row_deletable=True,       # Disable row deletion
+                                row_deletable=True,       # Enable row deletion
                                 sort_action="none",       # Disable sorting
                                 filter_action="none",     # Disable filtering
                                 page_action="none",       # Disable pagination
@@ -292,10 +306,8 @@ layout = html.Div(
                                 row_selectable=None,      # Disable row selection
                                 data=[],
                             ),
-
                         ]
                     ),
-
                 ]
             ),
                 
@@ -318,6 +330,7 @@ layout = html.Div(
                 },
                 
                 children=[
+                    
                     html.Div([
                         html.H3("Welcome!", style={'color': COLORS['primary'], 'marginBottom': '1rem'}),
 
@@ -358,6 +371,7 @@ layout = html.Div(
                                    '1rem auto'}),
                             ], style={'maxWidth': '700px'})
                         ])
+                    
                     ]
                 )
 
@@ -429,18 +443,18 @@ layout = html.Div(
 
 # Verify ticker API call and reset status if ticker input changes
 @callback(
-    Output("verify-status", "data"),
+    Output("verify-ticker", "data"),
     [
-        Input("btn-verify", "n_clicks"),
+        Input("btn-verify-ticker", "n_clicks"),
         Input("inp-ticker", "value")
     ],
     prevent_initial_call=True,
 )
-def handle_verify_and_input(n_clicks, ticker):
+def handle_verify_ticker(_, ticker):
     
     trigger_id = ctx.triggered_id
     
-    if trigger_id == "btn-verify":
+    if trigger_id == "btn-verify-ticker":
         result = validate_stock_ticker(ticker, api_key)
 
         if "error" in result:
@@ -452,6 +466,22 @@ def handle_verify_and_input(n_clicks, ticker):
         return {"verified": False}
 
     return no_update
+
+# Change validation symbol upon successful verification
+@callback(
+    Output("inp-ticker", "valid"),
+    Output("inp-ticker", "invalid"),
+    Output("inp-ticker", "key"),
+    Input("verify-ticker", "data"),
+    prevent_initial_call=True
+)
+def set_ticker_validation(verify_ticker):
+    is_verified = verify_ticker.get("verified", False)
+    
+    # Change the key so Dash forces a component refresh
+    dynamic_key = f"key-{uuid.uuid4()}"
+    
+    return is_verified, not is_verified, dynamic_key
 
 # Toggle styles between enabled/disabled status
 @callback(
@@ -468,7 +498,7 @@ def handle_verify_and_input(n_clicks, ticker):
         Output("btn-add", "style"),
         Output("btn-add", "className"),
     ],
-    Input("verify-status", "data")
+    Input("verify-ticker", "data")
 )
 def toggle_button_states(verify_status):
     is_verified = verify_status.get("verified", False)
@@ -490,7 +520,7 @@ def toggle_button_states(verify_status):
 # Upon successful verification, display metadata
 @callback(
     Output("stock-exploration-main-content", "children", allow_duplicate=True),
-    Input("verify-status", "data"),
+    Input("verify-ticker", "data"),
     prevent_initial_call=True
 )
 def display_metadata_on_verify(data):
@@ -513,10 +543,10 @@ def display_metadata_on_verify(data):
         Input("btn-add", "n_clicks"),
         Input("selected-range", "data"),
     ],
-    State("verify-status", "data"),
+    State("verify-ticker", "data"),
     prevent_initial_call=True
 )
-def update_main_output(verify_clicks, news_clicks, hist_clicks, selected_range, data):
+def update_main_output(_, __, ___, ____, data):
     
     # Recovering cached data from API call
     company_info = data['company_info']
@@ -692,7 +722,7 @@ def update_range_styles(*btn_clicks):
     Output("historical-plot-container", "children"),
     Input("performance-tabs", "value"),
     Input("selected-range", "data"),
-    State("verify-status", "data"),
+    State("verify-ticker", "data"),
     prevent_initial_call=True
 )
 def update_plot_on_range_change(active_tab, selected_range, data):
@@ -734,11 +764,11 @@ def update_plot_on_range_change(active_tab, selected_range, data):
 @callback(
     Output("portfolio-store", "data"),
     Input("btn-add", "n_clicks"),
-    State("verify-status", "data"),
+    State("verify-ticker", "data"),
     State("portfolio-store", "data"),
     prevent_initial_call=True
 )
-def add_to_portfolio(n_clicks, verify_data, portfolio_data):
+def add_to_portfolio(_, verify_data, portfolio_data):
     
     if not verify_data.get("verified"):
         return portfolio_data

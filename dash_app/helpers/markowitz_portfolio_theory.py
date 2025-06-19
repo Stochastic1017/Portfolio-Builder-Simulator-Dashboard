@@ -13,38 +13,46 @@ from scipy.optimize import minimize
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-def summary_table(cache_data, COLORS):
-    # Prepare rows for the table
+def summary_table(cache_data, COLORS, weights=None, budget=None):
     table_data = []
-    for entry in cache_data:
+
+    for i, entry in enumerate(cache_data):
         hist_df = pd.read_json(StringIO(entry["historical_json"]), orient="records")
         hist_df['date'] = pd.to_datetime(hist_df['date'])
 
-        # Get latest price from most recent record
         latest_price = hist_df['close'].iloc[-1]
+        
+        weight_pct = weights[i] if weights else 0
+        dollar_alloc = weight_pct * budget if budget else 0
+        shares = dollar_alloc / latest_price if latest_price else 0
+
         table_data.append({
             "Ticker": entry["ticker"],
             "Full Name": entry["fullname"],
-            "Latest Price": latest_price,
             "SIC": entry["sic_description"],
-            "Market Cap": entry["market_cap"]
+            "Latest Price": latest_price,
+            "Market Cap": entry["market_cap"],
+            "Weight (%)": round(weight_pct * 100, 2),
+            "Weight ($)": round(dollar_alloc, 2),
+            "Shares to Buy": round(shares, 3)
         })
 
-    # Column formatting and properties
     columns = [
-        {"name": "Ticker", "id": "Ticker", "type": "text"},
-        {"name": "Full Name", "id": "Full Name", "type": "text"},
-        {"name": "SIC", "id": "SIC", "type": "text"},
+        {"name": "Ticker", "id": "Ticker"},
+        {"name": "Full Name", "id": "Full Name"},
+        {"name": "SIC", "id": "SIC"},
         {"name": "Latest Price", "id": "Latest Price", "type": "numeric", "format": dt.FormatTemplate.money(0)},
         {"name": "Market Cap", "id": "Market Cap", "type": "numeric", "format": dt.FormatTemplate.money(0)},
+        {"name": "Weight (%)", "id": "Weight (%)", "type": "numeric", "format": {"specifier": ".2f"}},
+        {"name": "Weight ($)", "id": "Weight ($)", "type": "numeric", "format": dt.FormatTemplate.money(0)},
+        {"name": "Shares to Buy", "id": "Shares to Buy", "type": "numeric", "format": {"specifier": ".3f"}},
     ]
 
-    # Create DataTable
-    summary_table = dt.DataTable(
+    return dt.DataTable(
         data=table_data,
         columns=columns,
         style_table={
-            "maxHeight": "200px",
+            "maxHeight": "400px",
             "overflowY": "auto",
             "border": "1px solid #444"
         },
@@ -66,8 +74,6 @@ def summary_table(cache_data, COLORS):
         row_deletable=False,
         sort_action='native'
     )
-
-    return summary_table
 
 def negative_sharpe_ratio(weights, mean_returns, cov_matrix):
     ret = np.dot(weights, mean_returns)
@@ -103,6 +109,7 @@ def plot_efficient_frontier(cache_data, COLORS):
     target_returns = np.linspace(mean_returns.min(), mean_returns.max(), 100)
     frontier_returns = []
     frontier_stddevs = []
+    frontier_weights = []
 
     for target_return in target_returns:
         constraints = (
@@ -120,8 +127,10 @@ def plot_efficient_frontier(cache_data, COLORS):
         )
 
         if result.success:
-            frontier_stddevs.append(portfolio_volatility(result.x, cov_matrix))
+            frontier_stddevs.append(portfolio_volatility(result.x, 
+                                                         cov_matrix))
             frontier_returns.append(target_return)
+            frontier_weights.append(result.x)
 
     result = minimize(
         negative_sharpe_ratio,
@@ -140,9 +149,9 @@ def plot_efficient_frontier(cache_data, COLORS):
     min_var_std = frontier_stddevs[min_var_idx]
     min_var_return = frontier_returns[min_var_idx]
 
-    ##########################
+    #############################
     ### Initialize Plotly Figure
-    ##########################
+    #############################
 
     efficient_frontier_fig = go.Figure()
 
@@ -151,12 +160,13 @@ def plot_efficient_frontier(cache_data, COLORS):
         go.Scatter(
             x=frontier_stddevs,
             y=frontier_returns,
-            mode='lines',
+            mode='lines+markers',
             name='Efficient Frontier',
             line=dict(color=COLORS['primary'], width=2),
             fill='tozeroy',
             fillcolor="rgba(255,255,255,0.05)",
-            hovertemplate='Risk: %{x:.2%}<br>Return: %{y:.2%}<extra></extra>'
+            hovertemplate='Risk: %{x:.2%}<br>Return: %{y:.2%}<extra></extra>',
+            customdata=frontier_weights 
         )
     )
 
@@ -192,13 +202,13 @@ def plot_efficient_frontier(cache_data, COLORS):
     efficient_frontier_fig.update_layout(
         title="Efficient Frontier",
         xaxis=dict(
-            title='Risk (Standard Deviation of Returns)',
+            title='Risk (Standard Deviation) of Daily Returns)',
             color=COLORS['text'],
             showgrid=True,
             gridcolor='rgba(0, 130, 180, 0.2)'
         ),
         yaxis=dict(
-            title='Expected Annual Return',
+            title='Expected (Mean) Daily Return',
             color=COLORS['text'],
             showgrid=True,
             gridcolor='rgba(0, 130, 180, 0.2)'

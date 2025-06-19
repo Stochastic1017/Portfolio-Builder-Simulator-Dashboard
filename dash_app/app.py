@@ -44,10 +44,14 @@ app.layout = html.Div(
         ################
 
         # Stock exploration dashboard page
-        dcc.Store(id="verify-status", data={"verified": False}), # verify status 
+        dcc.Store(id="verify-ticker", data={"verified": False}), # verify ticker 
         dcc.Store(id="selected-range", data="range-all"),        # selected range
         dcc.Store(id='portfolio-store', data=temp),              # portfolio table
-                    
+        
+        # Portfolio builder page
+        dcc.Store(id="verify-budget", data={"verified": False}), # verify budget
+        dcc.Store(id="budget-value"),                            # budget (in $) input
+
         #################
         ### Landing Page
         #################

@@ -1,4 +1,9 @@
 
+.custom-input::placeholder {
+    color: #aaa;
+    opacity: 1;
+}
+
 .button-container {
   overflow: visible;
 }

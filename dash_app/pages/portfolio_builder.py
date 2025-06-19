@@ -1,13 +1,14 @@
 
 import os
+import re
 import sys
+import uuid
 import dash
 import pandas as pd
 import dash.dash_table as dt
 import dash_bootstrap_components as dbc
 
-from io import StringIO
-from dash import (html, dcc, Input, Output, State, callback, ctx, no_update)
+from dash import (html, Input, Output, State, callback, ctx, no_update)
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -19,6 +20,46 @@ from helpers.button_styles import (COLORS,
                                    default_style_time_range, active_style_time_range)
 
 dash.register_page(__name__, path="/pages/portfolio-builder")
+
+# Stock ticker validation procedure
+def validate_budget(budget):
+    
+    """
+    Function to validate budget input by user. 
+    """
+
+    if budget is None or budget == "":
+        return {"valid": False, "value": None, "error": "Budget cannot be empty."}
+
+    # Remove leading/trailing whitespace
+    budget = budget.strip()
+
+    # Basic sanity check for allowed characters
+    if not re.fullmatch(r"[0-9,]*\.?[0-9]*", budget):
+        return {"valid": False, "value": None, "error": "Budget contains invalid characters."}
+
+    # Check multiple decimals
+    if budget.count('.') > 1:
+        return {"valid": False, "value": None, "error": "Budget has multiple decimal points."}
+
+    # Validate comma placement using regex
+    if ',' in budget:
+        # Regex to match correct comma placement: 1,000 or 12,345.67
+        if not re.fullmatch(r"(?:\d{1,3})(?:,\d{3})*(?:\.\d{1,2})?", budget):
+            return {"valid": False, "value": None, "error": "Commas are placed incorrectly."}
+
+    # Remove commas for numeric conversion
+    numeric_str = budget.replace(",", "")
+
+    try:
+    
+        value = float(numeric_str)
+        if value < 0:
+            return {"valid": False, "value": None, "error": "Budget cannot be negative."}
+        return {"valid": True, "value": value, "error": None}
+    
+    except ValueError:
+        return {"valid": False, "value": None, "error": "Could not parse budget value."}
 
 layout = html.Div(
     
@@ -94,7 +135,7 @@ layout = html.Div(
 
                 children=[
                     
-                    # Budget (in $) input
+                    # Budget (in $) input + verify budget button
                     html.Div(
                         style={
                             'display': 'flex',
@@ -104,49 +145,47 @@ layout = html.Div(
                         
                         children=[
 
-                            html.Div(
+                            # Input for budget (in $)
+                            dbc.Input(
+                                id="inp-budget",
+                                type="text",
+                                debounce=True,
+                                valid=False,
+                                invalid=False,
+                                key="input-key",
+                                placeholder="Enter Budget (in $)",
+                                className="custom-input",
                                 style={
-                                    'display': 'flex',
-                                    'flexDirection': 'column',
-                                    'gap': '5px',
-                                    'marginTop': '10px'
+                                    'width': '200px',
+                                    'padding': '10px',
+                                    'backgroundColor': COLORS['background'],
+                                    'border': f'1px solid {COLORS['primary']}',
+                                    'borderRadius': '5px',
+                                    'color': COLORS['text'],
+                                    'fontSize': '1em',
+                                    'marginRight': '10px'
                                 },
-                                
-                                children=[
-                                    html.Label("Enter Budget ($)", style={
-                                        'color': COLORS['primary'],
-                                        'fontWeight': '600',
-                                        'fontSize': '0.9rem',
-                                    }),
-                                    dcc.Input(
-                                        id="budget-input",
-                                        type="number",
-                                        min=1000,           # Optional: minimum value ($1k)
-                                        max=100_000_000,    # Cap at $100 million
-                                        step=1000,          # Increment in thousands
-                                        placeholder="e.g., 50000",
-                                        debounce=True,
-                                        style={
-                                            'width': '200px',
-                                            'padding': '10px',
-                                            'backgroundColor': COLORS['background'],
-                                            'border': f'1px solid {COLORS["primary"]}',
-                                            'borderRadius': '6px',
-                                            'color': COLORS['text'],
-                                            'fontSize': '1em',
-                                            'textAlign': 'right',
-                                            'boxShadow': '0 1px 3px rgba(0,0,0,0.2)'
-                                        }
-                                    ),
-                                    html.Div(id='budget-error-message', style={
-                                        'color': 'red',
-                                        'fontSize': '0.85rem',
-                                        'marginTop': '4px',
-                                        'display': 'none'
-                                    })
-                                ]
                             ),
 
+                            # A stylized button to verify if user input budget is correct
+                            html.Button("Verify Budget",
+                                id="btn-verify-budget",
+                                n_clicks=0,
+                                disabled=False,
+                                className='special',
+                                style={
+                                    'padding': '6px 12px',
+                                    'backgroundColor': COLORS['primary'],
+                                    'color': 'black',
+                                    'border': '1px solid #9370DB',
+                                    'borderRadius': '20px',
+                                    'fontWeight': 'bold',
+                                    'fontSize': '0.75em',
+                                    'cursor': 'pointer',
+                                    'alignSelf': 'flex-start',
+                                    'transition': 'all 0.2s ease-in-out'
+                                }
+                            ),
                         ]
                     ),
 
@@ -160,15 +199,9 @@ layout = html.Div(
                         
                         children=[
                             
-                            # Button for user to check latest news on stock ticker
-                            html.Button("Get Portfolio Summary", 
-                                id="portfolio-summary", 
-                                disabled=False, 
-                            ),                    
-
                             # Button for user to check historic performance of stock ticker
-                            html.Button("Get Efficient Frontier", 
-                                id="efficient-frontier", 
+                            html.Button("Select Portfolio", 
+                                id="btn-portfolio-choose", 
                                 disabled=False,
                             ),
                         
@@ -228,73 +261,130 @@ layout = html.Div(
 
             ]
         ),
-
     ]
-
 )
 
+# Ensure budget formatting is consistent for monetary inputs
 @callback(
-    Output("budget-error-message", "children"),
-    Output("budget-error-message", "style"),
-    Input("budget-input", "value")
+    Output("inp-budget", "value"),
+    Input("inp-budget", "value"),
+    prevent_initial_call=True
 )
-def validate_budget(budget):
-    if budget is None:
-        return "", {'display': 'none'}
+def format_budget_input(value):
+    if not value:
+        return ""
 
-    if not isinstance(budget, (int, float)):
-        return "Please enter a numeric value.", {'display': 'block'}
+    # Remove everything except digits and decimal point
+    raw_value = re.sub(r"[^\d.]", "", value)
+
+    try:
+        # Format number with commas, preserve decimal if present
+        if "." in raw_value:
+            number = float(raw_value)
+            formatted = f"{number:,.2f}"
+        else:
+            number = int(raw_value)
+            formatted = f"{number:,}"
+        return formatted
+    except:
+        return value  # return unformatted if there's an issue
+
+# Verify budget and reset status if budget changes
+@callback(
+    [
+        Output("verify-budget", "data"),
+        Output("budget-value", "data"),
+    ],
+    Input("btn-verify-budget", "n_clicks"),
+    State("inp-budget", "value"),
+    prevent_initial_call=True
+)
+def handle_verify_budget(_, budget_input):
+    trigger_id = ctx.triggered_id
+
+    if trigger_id == "btn-verify-budget":
+        result = validate_budget(budget_input)
+
+        if result["valid"]:
+            return {"verified": True}, result["value"]
+        else:
+            return {"verified": False, "error": result["error"]}, None
+
+    elif trigger_id == "inp-budget":
+        return {"verified": False}, None
+
+    return no_update
+
+# Change validation symbol upon successful verification
+@callback(
+    Output("inp-budget", "valid"),
+    Output("inp-budget", "invalid"),
+    Output("inp-budget", "key"),
+    Input("verify-budget", "data"),
+    prevent_initial_call=True
+)
+def set_budget_validation(verify_budget):
+    is_verified = verify_budget.get("verified", False)
+
+    # Change the key so Dash forces a component refresh
+    dynamic_key = f"key-{uuid.uuid4()}"
     
-    if budget <= 0:
-        return "Budget must be greater than $0.", {'display': 'block'}
+    return is_verified, not is_verified, dynamic_key
 
-    if budget > 100_000_000:
-        return "Budget cannot exceed $100 million.", {'display': 'block'}
+# Toggle styles between enabled/disabled status
+@callback(
+    [
+        Output("btn-portfolio-choose", "disabled"),
+        Output("btn-portfolio-choose", "style"),
+        Output("btn-portfolio-choose", "className"),
+    ],
+    Input("verify-budget", "data")
+)
+def toggle_button_states(verify_budget):
+    is_verified = verify_budget.get("verified", False)
 
-    return "", {'display': 'none'}
+    if is_verified:
+        return (
+            False, verified_button_style, "simple",
+        )
+    
+    else:
+        return (
+            True, unverified_button_style, "",
+        )
 
+# Update main output section depending on what is chosen by user
 @callback(
     Output("portfolio-builder-main-content", "children"),
     [
-        Input("portfolio-summary", "n_clicks"),
-        Input("efficient-frontier", "n_clicks")
+        Input("btn-portfolio-choose", "n_clicks"),
     ],
     State("portfolio-store", "data"),
     prevent_initial_call=True
 )
-def update_main_content(n_summary, n_frontier, data):
-    if not data:
-        return html.Div("No portfolio data found.", style={'color': 'red'})
+def update_main_content(_, data):
 
     triggered_id = ctx.triggered_id if ctx.triggered_id else None
 
-    if triggered_id == "portfolio-summary":
-        return html.Div([
-            html.H3(f"{len(data)} stock(s) loaded into portfolio.", style={'color': COLORS['primary']}),
-            html.Div(summary_table(data, COLORS), 
-                     id="portfolio-table-output", 
-                     style={'marginTop': '20px'})
-        ])
-    
-    elif triggered_id == "efficient-frontier":
-        return html.Div(
-                id="portfolio-builder-main-content",
-                style={
-                    'display': 'flex',
-                    'flexDirection': 'column',
-                    'height': '100%',
-                    'width': '100%',
-                    'overflow': 'hidden',
-                },
+    if triggered_id == "btn-portfolio-choose":
+        return plot_efficient_frontier(data, COLORS)
 
-                children=[
-                    html.Div(
-                        style={
-                            "flex": "1", 
-                            "overflow": "hidden"
-                        },
-                        children=[plot_efficient_frontier(data, COLORS)]
-                    ),
-                          
-                ]
-        )
+"""
+# Gets back weights of portfolio chosen by user on the efficient frontier
+@callback(
+    Output("portfolio-builder-main-content", "children", allow_duplicate=True),
+    Input("efficient-frontier-graph", "clickData"),
+    State("budget-value", "data"),
+    State("portfolio-store", "data"),
+    prevent_initial_call=True
+)
+def update_table_on_point_click(click_data, budget, cache_data):
+    if not click_data or not budget:
+        return html.Div("Click a point and enter a budget to get allocation.", style={'color': 'red'})
+
+    weights = click_data["points"][0]["customdata"]
+    return html.Div([
+        html.H3("Portfolio Allocation for Selected Risk/Return Point", style={'color': COLORS['primary']}),
+        summary_table(cache_data, COLORS, weights, budget)
+    ])
+"""
