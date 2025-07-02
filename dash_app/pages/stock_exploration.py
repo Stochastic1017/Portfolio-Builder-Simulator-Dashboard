@@ -325,7 +325,6 @@ layout = html.Div(
                     'justifyContent': "center",
                     'alignItems': 'center',
                     'textAlign': 'center',
-                    'padding': '2rem',
                     'overflow': 'hidden'
                 },
                 

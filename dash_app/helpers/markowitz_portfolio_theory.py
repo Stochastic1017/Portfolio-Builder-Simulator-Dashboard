@@ -132,23 +132,6 @@ def plot_efficient_frontier(cache_data, COLORS):
             frontier_returns.append(target_return)
             frontier_weights.append(result.x)
 
-    result = minimize(
-        negative_sharpe_ratio,
-        initial_weights,
-        args=(mean_returns, cov_matrix),
-        method='SLSQP',
-        bounds=bounds,
-        constraints=({'type': 'eq', 'fun': lambda w: np.sum(w) - 1},)
-    )
-
-    max_sharpe_std = np.sqrt(np.dot(result.x.T, np.dot(cov_matrix, result.x)))
-    max_sharpe_return = np.dot(result.x, mean_returns)
-
-    # Min variance portfolio
-    min_var_idx = np.argmin(frontier_stddevs)
-    min_var_std = frontier_stddevs[min_var_idx]
-    min_var_return = frontier_returns[min_var_idx]
-
     #############################
     ### Initialize Plotly Figure
     #############################
@@ -170,31 +153,6 @@ def plot_efficient_frontier(cache_data, COLORS):
         )
     )
 
-    # Max Sharpe Point
-    efficient_frontier_fig.add_trace(
-        go.Scatter(
-            x=[max_sharpe_std],
-            y=[max_sharpe_return],
-            mode='markers+text',
-            marker=dict(color='yellow', size=12, symbol='star'),
-            name='Max Sharpe',
-            text=["Max Sharpe"],
-            textposition="top center"
-        )
-    )
-
-    # Min Variance Line (horizontal line clipped to frontier end)
-    efficient_frontier_fig.add_trace(
-        go.Scatter(
-            x=[min_var_std, frontier_stddevs[-1]],
-            y=[min_var_return, min_var_return],
-            mode='lines',
-            name='Min Variance Line',
-            line=dict(color='white', dash='dot'),
-            hoverinfo='skip'
-        )
-    )
-
     #####################
     ### Layout Styling
     #####################
@@ -204,12 +162,20 @@ def plot_efficient_frontier(cache_data, COLORS):
         xaxis=dict(
             title='Risk (Standard Deviation) of Daily Returns)',
             color=COLORS['text'],
+            tickformat=".2%",
+            range=[
+            min(frontier_stddevs) - 0.0005,
+            max(frontier_stddevs) + 0.0005],
             showgrid=True,
             gridcolor='rgba(0, 130, 180, 0.2)'
         ),
         yaxis=dict(
             title='Expected (Mean) Daily Return',
             color=COLORS['text'],
+            tickformat=".2%",
+            range=[
+            min(frontier_returns) - 0.0005,
+            max(frontier_returns) + 0.0005],
             showgrid=True,
             gridcolor='rgba(0, 130, 180, 0.2)'
         ),
@@ -224,5 +190,4 @@ def plot_efficient_frontier(cache_data, COLORS):
         id="efficient-frontier-graph",
         figure=efficient_frontier_fig,
         config={'responsive': True},
-        style={'height': '100%', 'width': '100%'}
-    )
+        style={'height': '100%', 'width': '100%'})

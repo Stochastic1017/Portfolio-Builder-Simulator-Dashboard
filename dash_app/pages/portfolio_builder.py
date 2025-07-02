@@ -8,7 +8,7 @@ import pandas as pd
 import dash.dash_table as dt
 import dash_bootstrap_components as dbc
 
-from dash import (html, Input, Output, State, callback, ctx, no_update)
+from dash import (html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no_update)
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -122,15 +122,15 @@ layout = html.Div(
                 id="portfolio-builder-console",
                 style={
                     'backgroundColor': COLORS['card'],
-                    'borderRadius': '10px',  # rounded edges
+                    'borderRadius': '10px',
                     'padding': '20px',
                     'display': 'flex',
                     'flexDirection': 'column',
                     'gap': '15px',
                     'height': '100%',
                     'boxSizing': 'border-box',
-                    'boxShadow': '0 4px 12px rgba(0, 0, 0, 0.1)',  # subtle shadow
-                    'overflow': 'hidden', # Prevent layout overflow
+                    'boxShadow': '0 4px 12px rgba(0, 0, 0, 0.1)',  
+                    'overflow': 'hidden', 
                 },
 
                 children=[
@@ -189,24 +189,47 @@ layout = html.Div(
                         ]
                     ),
 
-                    # Two buttons to explore stock ticker
-                    html.Div(
-                        style={
-                            'display': 'flex',
-                            'flexDirection': 'column',
-                            'gap': '10px'  
-                        },
-                        
-                        children=[
-                            
-                            # Button for user to check historic performance of stock ticker
-                            html.Button("Select Portfolio", 
-                                id="btn-portfolio-choose", 
-                                disabled=False,
-                            ),
-                        
-                        ],                    
-                    ),
+                    # Selected Tickers
+                    html.Div([
+                        html.Label("Add Tickers to Portfolio", style={
+                            'color': COLORS['primary'],
+                            'fontSize': '1em',
+                            'marginBottom': '4px',
+                            'fontWeight': 'bold'
+                        }),
+
+                        dcc.Dropdown(
+                            id="dropdown-ticker-selection",
+                            placeholder="Select tickers...",
+                            multi=False,
+                            clearable=True,
+                            searchable=True,
+                            className="custom-dropdown",
+                            style={
+                                'backgroundColor': COLORS['background'],
+                                'color': COLORS['primary'],
+                                'borderRadius': '6px',
+                            },
+                        ),
+
+                        html.Br(),
+
+                        html.Div(
+                            id="selected-ticker-card",
+                            style={
+                                'backgroundColor': COLORS['card'],
+                                'padding': '10px',
+                                'borderRadius': '6px',
+                                'minHeight': '60px',
+                                'maxHeight': '200px',
+                                'overflowY': 'auto',
+                                'display': 'flex',
+                                'flexWrap': 'wrap',
+                                'gap': '10px',
+                                'border': f'1px solid {COLORS["primary"]}'
+                            }
+                        )
+                    ]),
 
                 ]
             ),
@@ -230,32 +253,7 @@ layout = html.Div(
                 },
                 
                 children=[
-                    html.Div([
-                        html.H3("Welcome to Portfolio Builder!", style={'color': COLORS['primary'], 'marginBottom': '1rem'}),
-
-                        html.Br(),
-
-                        html.Div([
-
-                        html.P("Given list of stock tickers chosen in Stock Exploration page:", 
-                               style={'color': COLORS['text'], 
-                                      'fontSize': '1.1rem'}),
-
-                        html.Ol([
-                            html.Li("Input Budget (in USD).", 
-                                    style={'color': COLORS['text']}),
-                            html.Li("Get a summary table of portfolio.", 
-                                    style={'color': COLORS['text']}),
-                            html.Li("Get efficient frontier to find build portfolio according to specified risk/return ratios.", 
-                                    style={'color': COLORS['text']}),
-                            ], 
-                            style={'textAlign': 'left', 
-                                   'color': COLORS['text'], 
-                                   'maxWidth': '600px', 
-                                   'margin': 
-                                   '1rem auto'}),
-                            ], style={'maxWidth': '700px'})
-                        ])
+                    
                     ]
                 )
 
@@ -295,8 +293,12 @@ def format_budget_input(value):
         Output("verify-budget", "data"),
         Output("budget-value", "data"),
     ],
-    Input("btn-verify-budget", "n_clicks"),
-    State("inp-budget", "value"),
+    [
+        Input("btn-verify-budget", "n_clicks")
+    ],
+    [
+        State("inp-budget", "value")
+    ],
     prevent_initial_call=True
 )
 def handle_verify_budget(_, budget_input):
@@ -315,22 +317,134 @@ def handle_verify_budget(_, budget_input):
 
     return no_update
 
-# Change validation symbol upon successful verification
 @callback(
-    Output("inp-budget", "valid"),
-    Output("inp-budget", "invalid"),
-    Output("inp-budget", "key"),
-    Input("verify-budget", "data"),
+    [
+        Output("portfolio-builder-main-content", "children"),
+        Output("inp-budget", "valid"),
+        Output("inp-budget", "invalid"),
+        Output("inp-budget", "key")
+    ],
+    [
+        Input("verify-budget", "data")
+    ],
+    [
+        State("portfolio-store", "data")
+    ],
     prevent_initial_call=True
 )
-def set_budget_validation(verify_budget):
+def set_budget_validation(verify_budget, cache_data):
+    # Defensive fallback key
+    dynamic_key = f"key-{uuid.uuid4()}"
+
+    if not verify_budget:
+        return no_update, False, True, dynamic_key
+
     is_verified = verify_budget.get("verified", False)
 
-    # Change the key so Dash forces a component refresh
-    dynamic_key = f"key-{uuid.uuid4()}"
-    
-    return is_verified, not is_verified, dynamic_key
+    if not is_verified:
+        return no_update, False, True, dynamic_key
 
+    else:
+        return (
+            plot_efficient_frontier(cache_data, COLORS),
+            True,
+            False,
+            dynamic_key
+        )
+
+@callback(
+    Output("dropdown-ticker-selection", "options"),
+    Output("dropdown-ticker-selection", "value"),
+    Input("portfolio-store", "data"),
+)
+def populate_dropdown_options(data):
+    if not data:
+        return [], []
+
+    options = [{"label": entry["ticker"], "value": entry["ticker"]} for entry in data]
+    default_selected = [entry["ticker"] for entry in data]
+    
+    return options, default_selected
+
+# Track selected tickers
+@callback(
+    Output("dropdown-ticker-selection", "options", allow_duplicate=True),
+    Output("dropdown-ticker-selection", "value", allow_duplicate=True),
+    Output("selected-ticker-card", "children", allow_duplicate=True),
+    Input("dropdown-ticker-selection", "value"),
+    Input({"type": "remove-ticker", "index": ALL}, "n_clicks"),
+    State("portfolio-store", "data"),
+    State("dropdown-ticker-selection", "options"),
+    State("selected-ticker-card", "children"),
+    prevent_initial_call=True
+)
+def update_ticker_selection(dropdown_value, remove_clicks, portfolio_data, current_options, current_children):
+    trigger = ctx.triggered_id
+
+    # Reconstruct current selected list from tag buttons
+    current_selected = [child["props"]["id"]["index"] for child in current_children] if current_children else []
+
+    if not portfolio_data:
+        return [], None, []
+
+    full_tickers = [entry["ticker"] for entry in portfolio_data]
+
+    # 1. Remove ticker if "x" clicked
+    if isinstance(trigger, dict) and trigger.get("type") == "remove-ticker":
+        ticker_to_remove = trigger["index"]
+        current_selected = [t for t in current_selected if t != ticker_to_remove]
+        dropdown_value = None  # reset dropdown
+
+    # 2. Add from dropdown
+    elif isinstance(trigger, str) and dropdown_value:
+        if dropdown_value not in current_selected:
+            current_selected.append(dropdown_value)
+        dropdown_value = None  # clear dropdown after adding
+
+    # Filter dropdown options
+    new_options = [
+        {"label": t, "value": t}
+        for t in full_tickers
+        if t not in current_selected
+    ]
+
+    # Build card tags
+    selected_tags = [
+        html.Div([
+            html.Span(ticker, style={
+                'marginRight': '6px',
+                'fontSize': '0.8em',
+                'fontWeight': '500',
+                'color': COLORS['background'],
+            }),
+            html.Button("×", id={"type": "remove-ticker", "index": ticker}, n_clicks=0,
+                style={
+                    'border': 'none',
+                    'background': 'transparent',
+                    'color': COLORS['background'],
+                    'fontSize': '0.8em',
+                    'cursor': 'pointer',
+                    'padding': '0',
+                    'lineHeight': '1'
+                })
+        ],
+        style={
+            'padding': '4px 10px',
+            'backgroundColor': COLORS['primary'],
+            'borderRadius': '14px',
+            'display': 'flex',
+            'alignItems': 'center',
+            'gap': '4px',
+            'height': '28px',
+            'overflow': 'hidden'
+        },
+        id={"type": "ticker-tag", "index": ticker})
+        for ticker in current_selected
+    ]
+
+    return new_options, dropdown_value, selected_tags
+
+"""
 # Toggle styles between enabled/disabled status
 @callback(
     [
@@ -353,38 +467,26 @@ def toggle_button_states(verify_budget):
             True, unverified_button_style, "",
         )
 
-# Update main output section depending on what is chosen by user
 @callback(
-    Output("portfolio-builder-main-content", "children"),
-    [
-        Input("btn-portfolio-choose", "n_clicks"),
-    ],
+    Output("portfolio-builder-main-content", "children", allow_duplicate=True),
+    Input("btn-portfolio-choose", "n_clicks"),  # or any trigger to load graph
     State("portfolio-store", "data"),
     prevent_initial_call=True
 )
-def update_main_content(_, data):
+def show_frontier_with_summary(n_clicks, cache_data):
 
-    triggered_id = ctx.triggered_id if ctx.triggered_id else None
+    efficient_frontier, min_max_returns, min_max_stddevs = plot_efficient_frontier(cache_data, COLORS),
 
-    if triggered_id == "btn-portfolio-choose":
-        return plot_efficient_frontier(data, COLORS)
+    return efficient_frontier
 
-"""
-# Gets back weights of portfolio chosen by user on the efficient frontier
+
 @callback(
-    Output("portfolio-builder-main-content", "children", allow_duplicate=True),
+    Output("summary-table-container", "children"),
     Input("efficient-frontier-graph", "clickData"),
     State("budget-value", "data"),
     State("portfolio-store", "data"),
     prevent_initial_call=True
 )
-def update_table_on_point_click(click_data, budget, cache_data):
-    if not click_data or not budget:
-        return html.Div("Click a point and enter a budget to get allocation.", style={'color': 'red'})
-
-    weights = click_data["points"][0]["customdata"]
-    return html.Div([
-        html.H3("Portfolio Allocation for Selected Risk/Return Point", style={'color': COLORS['primary']}),
-        summary_table(cache_data, COLORS, weights, budget)
-    ])
+def update_summary_table(click_data, budget, cache_data):
+    return summary_table(cache_data, COLORS, weights=click_data["points"][0].get("customdata"), budget=budget)
 """

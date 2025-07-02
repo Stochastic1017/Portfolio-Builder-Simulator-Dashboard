@@ -54,3 +54,76 @@ button.simple:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
 }
+
+.custom-label {
+    color: #FFD700; /* primary color */
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-bottom: 0rem;
+    display: block;
+}
+
+.custom-slider .rc-slider {
+    margin-top: 5px;
+    margin-bottom: 10px;
+}
+
+.custom-slider .rc-slider-rail {
+    height: 6px;
+    background-color: #444; /* darker rail for contrast */
+}
+
+.custom-slider .rc-slider-track {
+    height: 6px;
+    background-color: #FFD700; /* primary */
+}
+
+.custom-slider .rc-slider-handle {
+    border: 2px solid #FFD700;
+    background-color: #2D2D2D;
+    width: 16px;
+    height: 16px;
+    margin-top: -5px;
+    box-shadow: none;
+}
+
+.custom-slider .rc-slider-tooltip-inner {
+    background-color: #FFD700;
+    color: #1A1A1A;
+    font-weight: bold;
+    border: none;
+}
+
+/* Dropdown input and menu */
+.custom-dropdown .Select-control {
+    background-color: #1A1A1A;  /* background */
+    color: #FFD700;             /* yellow text */
+    border-color: #FFD700;
+}
+
+.custom-dropdown .Select-menu-outer {
+    background-color: #1A1A1A;
+    color: #FFD700;
+    border: 1px solid #FFD700;
+}
+
+/* Individual option styling */
+.custom-dropdown .Select-option {
+    background-color: #1A1A1A;
+    color: #FFD700;
+}
+
+.custom-dropdown .Select-option:hover {
+    background-color: #333333;
+    color: #FFD700;
+}
+
+/* Selected value inside input box */
+.custom-dropdown .Select-value-label {
+    color: #FFD700;
+}
+
+/* X clear button color */
+.custom-dropdown .Select-clear-zone {
+    color: #FFD700;
+}

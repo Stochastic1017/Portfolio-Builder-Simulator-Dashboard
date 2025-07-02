@@ -233,6 +233,10 @@ def create_historic_plots(full_name, dates, daily_prices, daily_returns, COLORS)
         showlegend=False
     )
 
+    # Format y-axes as percentage
+    historical_daily_plot.update_yaxes(tickformat=".2%", row=2, col=1)  # Returns line plot
+    historical_daily_plot.update_yaxes(tickformat=".2%", row=2, col=2)  # Histogram of returns
+
     return dcc.Graph(
                 id="historic-performance-plot",
                 figure=historical_daily_plot,
