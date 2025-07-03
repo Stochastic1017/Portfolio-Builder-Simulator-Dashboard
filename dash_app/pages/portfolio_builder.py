@@ -13,21 +13,23 @@ from dash import (html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from helpers.markowitz_portfolio_theory import plot_efficient_frontier, summary_table
-from helpers.button_styles import (COLORS, 
-                                   verified_button_portfolio, unverified_button_portfolio,
-                                   verified_button_style, unverified_button_style, 
-                                   default_style_time_range, active_style_time_range)
+from helpers.portfolio_builder.markowitz_portfolio_theory import (
+    plot_efficient_frontier, 
+    summary_table
+)
+
+from helpers.styles.button_styles import (
+    COLORS, 
+    verified_button_portfolio, unverified_button_portfolio,
+    verified_button_style, unverified_button_style, 
+    default_style_time_range, active_style_time_range
+)
 
 dash.register_page(__name__, path="/pages/portfolio-builder")
 
 # Stock ticker validation procedure
 def validate_budget(budget):
     
-    """
-    Function to validate budget input by user. 
-    """
-
     if budget is None or budget == "":
         return {"valid": False, "value": None, "error": "Budget cannot be empty."}
 
@@ -56,6 +58,7 @@ def validate_budget(budget):
         value = float(numeric_str)
         if value < 0:
             return {"valid": False, "value": None, "error": "Budget cannot be negative."}
+        
         return {"valid": True, "value": value, "error": None}
     
     except ValueError:
@@ -189,7 +192,7 @@ layout = html.Div(
                         ]
                     ),
 
-                    # Selected Tickers
+                    # Selected Tickers and Dropdown
                     html.Div([
                         html.Label("Add Tickers to Portfolio", style={
                             'color': COLORS['primary'],
@@ -217,10 +220,10 @@ layout = html.Div(
                         html.Div(
                             id="selected-ticker-card",
                             style={
-                                'backgroundColor': COLORS['card'],
+                                'backgroundColor': COLORS['background'],
                                 'padding': '10px',
                                 'borderRadius': '6px',
-                                'minHeight': '60px',
+                                'minHeight': '200px',
                                 'maxHeight': '200px',
                                 'overflowY': 'auto',
                                 'display': 'flex',
@@ -230,6 +233,9 @@ layout = html.Div(
                             }
                         )
                     ]),
+
+                    # Buttons to explore portfolio weights and performance
+
 
                 ]
             ),
@@ -346,7 +352,7 @@ def set_budget_validation(verify_budget, cache_data):
 
     else:
         return (
-            plot_efficient_frontier(cache_data, COLORS),
+            no_update,
             True,
             False,
             dynamic_key
@@ -358,8 +364,6 @@ def set_budget_validation(verify_budget, cache_data):
     Input("portfolio-store", "data"),
 )
 def populate_dropdown_options(data):
-    if not data:
-        return [], []
 
     options = [{"label": entry["ticker"], "value": entry["ticker"]} for entry in data]
     default_selected = [entry["ticker"] for entry in data]
@@ -379,15 +383,13 @@ def populate_dropdown_options(data):
     prevent_initial_call=True
 )
 def update_ticker_selection(dropdown_value, remove_clicks, portfolio_data, current_options, current_children):
+    
     trigger = ctx.triggered_id
 
-    # Reconstruct current selected list from tag buttons
-    current_selected = [child["props"]["id"]["index"] for child in current_children] if current_children else []
-
-    if not portfolio_data:
-        return [], None, []
-
     full_tickers = [entry["ticker"] for entry in portfolio_data]
+
+    # Reconstruct current selected list from tag buttons
+    current_selected = [child["props"]["id"]["index"] for child in current_children] if current_children else full_tickers
 
     # 1. Remove ticker if "x" clicked
     if isinstance(trigger, dict) and trigger.get("type") == "remove-ticker":
