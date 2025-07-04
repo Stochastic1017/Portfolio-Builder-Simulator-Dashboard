@@ -235,7 +235,23 @@ layout = html.Div(
                     ]),
 
                     # Buttons to explore portfolio weights and performance
+                    html.Div(
+                        style={
+                            'display': 'flex',
+                            'flexDirection': 'column',
+                            'gap': '10px'  
+                        },
+                        
+                        children=[
 
+                            # Button for user to explore weights via MPT
+                            html.Button("Explore Efficient Frontier", 
+                                id="btn-efficient-frontier", 
+                                disabled=True, 
+                            ),
+
+                        ]
+                    ),
 
                 ]
             ),
@@ -259,12 +275,56 @@ layout = html.Div(
                 },
                 
                 children=[
-                    
+                        html.Div([
+                        html.H3("Welcome to Portfolio Builder Page!", style={'color': COLORS['primary'], 'marginBottom': '1rem'}),
+
+                        html.Br(),
+
+                        html.Div([
+
+                        html.P("To find the appropriate portfolio, please follow the steps below:", 
+                               style={'color': COLORS['text'], 
+                                      'fontSize': '1.1rem'}),
+
+                        html.Ol([
+                            html.Li("Input a budget (in $) and click 'Verify Budget'.", 
+                                    style={'color': COLORS['text']}),
+                            html.Li("Choose a subset of tickers you wish to have in the portfolio.", 
+                                    style={'color': COLORS['text']}),
+                            html.Li("Explore efficient frontier to find the optimum risk/return ratio.", 
+                                    style={'color': COLORS['text']}),
+                            html.Li("Confirm the portfolio weights and proceed.", 
+                                    style={'color': COLORS['text']}),], 
+                            style={'textAlign': 'left', 
+                                   'color': COLORS['text'], 
+                                   'maxWidth': '600px', 
+                                   'margin': 
+                                   '1rem auto'}),
+                            ], style={'maxWidth': '700px'})
+                        ])
                     ]
                 )
 
             ]
         ),
+
+        ##################
+        ### Summary Table
+        ##################
+
+        html.Div(
+            id="summary-table-container",
+            style={
+                "marginTop": "40px",
+                "padding": "20px",
+                "backgroundColor": COLORS["card"],
+                "borderRadius": "10px",
+                "boxShadow": "0 4px 12px rgba(0, 0, 0, 0.1)",
+                "maxWidth": "1200px",
+                "marginLeft": "auto",
+                "marginRight": "auto"
+            }
+        )
     ]
 )
 
@@ -325,7 +385,6 @@ def handle_verify_budget(_, budget_input):
 
 @callback(
     [
-        Output("portfolio-builder-main-content", "children"),
         Output("inp-budget", "valid"),
         Output("inp-budget", "invalid"),
         Output("inp-budget", "key")
@@ -333,30 +392,19 @@ def handle_verify_budget(_, budget_input):
     [
         Input("verify-budget", "data")
     ],
-    [
-        State("portfolio-store", "data")
-    ],
     prevent_initial_call=True
 )
-def set_budget_validation(verify_budget, cache_data):
+def set_budget_validation(verify_budget):
+    
     # Defensive fallback key
     dynamic_key = f"key-{uuid.uuid4()}"
-
-    if not verify_budget:
-        return no_update, False, True, dynamic_key
 
     is_verified = verify_budget.get("verified", False)
 
     if not is_verified:
-        return no_update, False, True, dynamic_key
-
-    else:
-        return (
-            no_update,
-            True,
-            False,
-            dynamic_key
-        )
+        return (False, True, dynamic_key)
+    
+    return (True, False, dynamic_key)
 
 @callback(
     Output("dropdown-ticker-selection", "options"),
@@ -372,17 +420,24 @@ def populate_dropdown_options(data):
 
 # Track selected tickers
 @callback(
-    Output("dropdown-ticker-selection", "options", allow_duplicate=True),
-    Output("dropdown-ticker-selection", "value", allow_duplicate=True),
-    Output("selected-ticker-card", "children", allow_duplicate=True),
-    Input("dropdown-ticker-selection", "value"),
-    Input({"type": "remove-ticker", "index": ALL}, "n_clicks"),
-    State("portfolio-store", "data"),
-    State("dropdown-ticker-selection", "options"),
-    State("selected-ticker-card", "children"),
+    [
+        Output("dropdown-ticker-selection", "options", allow_duplicate=True),
+        Output("dropdown-ticker-selection", "value", allow_duplicate=True),
+        Output("selected-ticker-card", "children", allow_duplicate=True),
+        Output("selected-tickers-store", "data", allow_duplicate=True)
+    ],
+    [
+        Input({"type": "remove-ticker", "index": ALL}, "n_clicks"),
+        Input("dropdown-ticker-selection", "value")
+    ],
+    [
+        State("portfolio-store", "data"),
+        State("dropdown-ticker-selection", "options"),
+        State("selected-ticker-card", "children")
+    ],
     prevent_initial_call=True
 )
-def update_ticker_selection(dropdown_value, remove_clicks, portfolio_data, current_options, current_children):
+def update_ticker_selection(_, dropdown_value, portfolio_data, current_options, current_children):
     
     trigger = ctx.triggered_id
 
@@ -394,8 +449,13 @@ def update_ticker_selection(dropdown_value, remove_clicks, portfolio_data, curre
     # 1. Remove ticker if "x" clicked
     if isinstance(trigger, dict) and trigger.get("type") == "remove-ticker":
         ticker_to_remove = trigger["index"]
+
+        # Prevent removal if it would leave fewer than 2
+        if len(current_selected) <= 2:
+            return no_update, no_update, no_update
+
         current_selected = [t for t in current_selected if t != ticker_to_remove]
-        dropdown_value = None  # reset dropdown
+        dropdown_value = None
 
     # 2. Add from dropdown
     elif isinstance(trigger, str) and dropdown_value:
@@ -444,17 +504,18 @@ def update_ticker_selection(dropdown_value, remove_clicks, portfolio_data, curre
         for ticker in current_selected
     ]
 
-    return new_options, dropdown_value, selected_tags
+    return new_options, dropdown_value, selected_tags, current_options
 
-"""
 # Toggle styles between enabled/disabled status
 @callback(
     [
-        Output("btn-portfolio-choose", "disabled"),
-        Output("btn-portfolio-choose", "style"),
-        Output("btn-portfolio-choose", "className"),
+        Output("btn-efficient-frontier", "disabled"),
+        Output("btn-efficient-frontier", "style"),
+        Output("btn-efficient-frontier", "className"),
     ],
-    Input("verify-budget", "data")
+    [
+        Input("verify-budget", "data")
+    ],
 )
 def toggle_button_states(verify_budget):
     is_verified = verify_budget.get("verified", False)
@@ -469,26 +530,76 @@ def toggle_button_states(verify_budget):
             True, unverified_button_style, "",
         )
 
+# Plot efficient frontier
 @callback(
-    Output("portfolio-builder-main-content", "children", allow_duplicate=True),
-    Input("btn-portfolio-choose", "n_clicks"),  # or any trigger to load graph
-    State("portfolio-store", "data"),
+    [
+        Output("portfolio-builder-main-content", "children")
+    ],
+    [
+        Input("btn-efficient-frontier", "n_clicks"),
+    ],
+    [
+        State("portfolio-store", "data"),
+        State("selected-tickers-store", "data")
+    ],
     prevent_initial_call=True
 )
-def show_frontier_with_summary(n_clicks, cache_data):
+def explore_weights_MPT(_, cache_data, selected_tickers):
 
-    efficient_frontier, min_max_returns, min_max_stddevs = plot_efficient_frontier(cache_data, COLORS),
+    # Filter portfolio data using selected tickers
+    filtered_data = [
+        entry for entry in cache_data
+        if entry["ticker"] in [item["value"] for item in selected_tickers]
+    ]
 
-    return efficient_frontier
+    # Button clicked by user, one of the fllowing:
+    button_id = ctx.triggered_id
 
+    if button_id == "btn-efficient-frontier":
+        return (
+            html.Div(
+                id="portfolio-builder-main-content",
+                style={
+                    'display': 'flex',
+                    'flexDirection': 'column',
+                    'height': '100%',
+                    'width': '100%',
+                    'overflow': 'hidden',
+                },
 
+                children=[
+                    plot_efficient_frontier(filtered_data, COLORS),                
+                ]
+            ),
+        )
+
+# Summary table for chosen portfolio
 @callback(
-    Output("summary-table-container", "children"),
-    Input("efficient-frontier-graph", "clickData"),
-    State("budget-value", "data"),
-    State("portfolio-store", "data"),
+    [
+        Output("summary-table-container", "children")
+    ],
+    [
+        Input("efficient-frontier-graph", "clickData")
+    ],
+    [
+        State("portfolio-store", "data"),
+        State("budget-value", "data"),
+        State("selected-tickers-store", "data")
+    ],
     prevent_initial_call=True
 )
-def update_summary_table(click_data, budget, cache_data):
-    return summary_table(cache_data, COLORS, weights=click_data["points"][0].get("customdata"), budget=budget)
-"""
+def display_summary_table(clickData, cache_data, budget, selected_tickers):
+    
+    if not clickData:
+        return no_update
+
+    # Extract weights from customdata in the clicked point
+    weights = clickData["points"][0]["customdata"]
+    
+    # Filter portfolio data using selected tickers
+    filtered_data = [
+        entry for entry in cache_data
+        if entry["ticker"] in [item["value"] for item in selected_tickers]
+    ]
+
+    return (summary_table(filtered_data, COLORS, weights=weights, budget=budget), )

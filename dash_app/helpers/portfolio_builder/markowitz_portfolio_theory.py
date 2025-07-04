@@ -158,7 +158,6 @@ def plot_efficient_frontier(cache_data, COLORS):
     #####################
 
     efficient_frontier_fig.update_layout(
-        title="Efficient Frontier",
         xaxis=dict(
             title='Risk (Standard Deviation) of Daily Returns)',
             color=COLORS['text'],
@@ -182,7 +181,6 @@ def plot_efficient_frontier(cache_data, COLORS):
         plot_bgcolor=COLORS['background'],
         paper_bgcolor=COLORS['background'],
         font=dict(color=COLORS['text']),
-        title_font=dict(color=COLORS['primary']),
         showlegend=False
     )
 

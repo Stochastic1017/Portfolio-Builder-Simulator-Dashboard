@@ -51,6 +51,7 @@ app.layout = html.Div(
         # Portfolio builder page
         dcc.Store(id="verify-budget", data={"verified": False}), # verify budget
         dcc.Store(id="budget-value"),                            # budget (in $) input
+        dcc.Store(id="selected-tickers-store"),                  # subset of tickers chosen
 
         #################
         ### Landing Page

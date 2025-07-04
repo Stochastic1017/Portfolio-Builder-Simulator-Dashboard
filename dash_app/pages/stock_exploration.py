@@ -385,7 +385,7 @@ layout = html.Div(
             ]
         ),
 
-        # Portfolio Builder
+        # Go to portfolio builder
         html.Div(
             style={
                 'display': 'flex',
@@ -543,21 +543,25 @@ def display_metadata_on_verify(data):
 
 # Update main output section depending on what is chosen by user
 @callback(
-    Output("stock-exploration-main-content", "children"),
+    [
+        Output("stock-exploration-main-content", "children")
+    ],
     [
         Input("btn-news", "n_clicks"),
         Input("btn-performance", "n_clicks"),
         Input("btn-add", "n_clicks"),
         Input("selected-range", "data"),
     ],
-    State("verify-ticker", "data"),
+    [
+        State("verify-ticker", "data")
+    ],
     prevent_initial_call=True
 )
-def update_main_output(_, __, ___, ____, data):
+def update_main_output(_, __, ___, ____, cache_data):
     
     # Recovering cached data from API call
-    company_info = data['company_info']
-    news_articles = data['news']['results']
+    company_info = cache_data['company_info']
+    news_articles = cache_data['news']['results']
 
     # Button clicked by user, one of the fllowing:
     button_id = ctx.triggered_id
@@ -566,14 +570,12 @@ def update_main_output(_, __, ___, ____, data):
     
     # 1. Check Latest News
     if button_id == "btn-news":
-        return  dbc.Container(
-                    
-                    children=[
-                        
-                        html.H2(f"News Feed for {company_info['name']}", 
-                                className="my-4"),
+        return  (
+            dbc.Container(
+                    children=[    
+                        html.H2(f"News Feed for {company_info['name']}", className="my-4"),
+
                         dbc.Container(
-                            
                             children=[
                             
                             html.Div(
@@ -583,14 +585,16 @@ def update_main_output(_, __, ___, ____, data):
                                     "paddingRight": "10px"
                                     },
                             children=[news_article_card_layout(article, COLORS) for article in news_articles],
-                                )
-                            ]
-                        )
-                ], fluid=True)
+                            )
+                        ]
+                    )
+            ], fluid=True), 
+        )
 
     # 2. Check Historic Performance
     elif button_id == "btn-performance":
-        return html.Div(
+        return (
+            html.Div(
                 id="stock-exploration-main-content",
                 style={
                     'display': 'flex',
@@ -673,7 +677,8 @@ def update_main_output(_, __, ___, ____, data):
 
                     html.Div(id="historical-plot-container", style={"flex": "1", "overflow": "hidden"}),
                 ]
-            )
+            ), 
+        )
     
     # 3. Add to Portfolio
     elif button_id == "btn-add":
