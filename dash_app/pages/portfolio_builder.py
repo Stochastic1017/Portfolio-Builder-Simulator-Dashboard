@@ -5,9 +5,11 @@ import sys
 import uuid
 import dash
 import pandas as pd
+import numpy as np
 import dash.dash_table as dt
 import dash_bootstrap_components as dbc
 
+from scipy.special import comb
 from dash import (html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no_update)
 
 # Append the current directory to the system path for imports
@@ -233,6 +235,84 @@ layout = html.Div(
                             }
                         )
                     ]),
+
+                    # Sliders for min returns and max risk
+                    html.Div(
+                        style={
+                            'backgroundColor': COLORS['card'],
+                            'borderRadius': '10px',
+                            'marginTop': '10px',
+                            'display': 'flex',
+                            'flexDirection': 'column',
+                            'gap': '25px'
+                        },
+                        children=[
+
+                            # Minimum Return Slider
+                            html.Div(
+                                style={'display': 'flex', 'flexDirection': 'column'},
+                                children=[
+                                    html.Label(
+                                        "Minimum Expected Return (Mean, %)",
+                                        style={
+                                            'color': COLORS['primary'],
+                                            'fontWeight': 'bold',
+                                            'marginBottom': '6px',
+                                            'fontSize': '0.95rem'
+                                        }
+                                    ),
+                                    dcc.Slider(
+                                        id='slider-min-return',
+                                        min=0.0,
+                                        max=0.05,
+                                        step=0.001,
+                                        value=0.01,
+                                        marks={
+                                            0.0: '0%',
+                                            0.01: '1%',
+                                            0.02: '2%',
+                                            0.03: '3%',
+                                            0.04: '4%',
+                                            0.05: '5%',
+                                        },
+                                        tooltip={"placement": "bottom", "always_visible": True}
+                                    ),
+                                ]
+                            ),
+
+                            # Maximum Risk Slider
+                            html.Div(
+                                style={'display': 'flex', 'flexDirection': 'column'},
+                                children=[
+                                    html.Label(
+                                        "Maximum Risk (Standard Deviation, %)",
+                                        style={
+                                            'color': COLORS['primary'],
+                                            'fontWeight': 'bold',
+                                            'marginBottom': '6px',
+                                            'fontSize': '0.95rem'
+                                        }
+                                    ),
+                                    dcc.Slider(
+                                        id='slider-max-risk',
+                                        min=0.0,
+                                        max=0.05,
+                                        step=0.001,
+                                        value=0.02,
+                                        marks={
+                                            0.0: '0%',
+                                            0.01: '1%',
+                                            0.02: '2%',
+                                            0.03: '3%',
+                                            0.04: '4%',
+                                            0.05: '5%',
+                                        },
+                                        tooltip={"placement": "bottom", "always_visible": True}
+                                    ),
+                                ]
+                            ),
+                        ]
+                    ),
 
                     # Buttons to explore portfolio weights and performance
                     html.Div(
