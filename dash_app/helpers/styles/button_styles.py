@@ -8,47 +8,76 @@ COLORS = {
     'text': '#FFFFFF'          # White Text
 }
 
-verified_button_style = {'padding': '10px', 
-                         'backgroundColor': COLORS['text'], 
-                         'border': 'none', 
-                         'borderRadius': '5px', 
-                         'color': COLORS['background'], 
-                         'fontWeight': 'bold', 
-                         'cursor': 'pointer'}
+verified_button_style = {
+    'padding': '10px', 
+    'backgroundColor': COLORS['text'], 
+    'border': 'none', 
+    'borderRadius': '5px', 
+    'color': COLORS['background'], 
+    'fontWeight': 'bold', 
+    'cursor': 'pointer'
+}
 
-unverified_button_style = {'padding': '10px', 
-                           'border': 'none', 
-                           'borderRadius': '5px', 
-                           'fontWeight': 'bold', 
-                           'cursor': 'pointer'}
+unverified_button_style = {
+    'padding': '10px', 
+    'border': 'none', 
+    'borderRadius': '5px', 
+    'fontWeight': 'bold', 
+    'cursor': 'pointer'
+}
 
-verified_button_portfolio = {'padding': '12px',
-                            'backgroundColor': COLORS['primary'],
-                            'border': 'none',
-                            'borderRadius': '8px',
-                            'color': '#000000',
-                            'fontWeight': 'bold',
-                            'fontSize': '1em',
-                            'cursor': 'pointer',
-                            'marginTop': '10px'}
+verified_button_portfolio = {
+    'padding': '12px',
+    'backgroundColor': COLORS['primary'],
+    'border': 'none',
+    'borderRadius': '8px',
+    'color': '#000000',
+    'fontWeight': 'bold',
+    'fontSize': '1em',
+    'cursor': 'pointer',
+    'marginTop': '10px'
+}
 
-unverified_button_portfolio = {'padding': '12px',
-                               'border': 'none',
-                               'borderRadius': '8px',
-                               'fontWeight': 'bold',
-                               'fontSize': '1em',
-                               'cursor': 'pointer',
-                               'marginTop': '10px'}
+unverified_button_portfolio = {
+    'padding': '12px',
+    'border': 'none',
+    'borderRadius': '8px',
+    'fontWeight': 'bold',
+    'fontSize': '1em',
+    'cursor': 'pointer',
+    'marginTop': '10px'
+}
+
+verified_toggle_button = {
+    'display': 'flex',
+    'justifyContent': 'space-between',
+    'alignItems': 'center',
+    'padding': '10px',
+    'borderRadius': '8px',
+    'backgroundColor': COLORS['background'],
+    'border': f'1px solid {COLORS["primary"]}',
+    'transition': 'all 0.3s ease-in-out',
+}
+
+unverified_toggle_button = {
+    'display': 'flex',
+    'justifyContent': 'space-between',
+    'alignItems': 'center',
+    'padding': '10px',
+    'borderRadius': '8px',
+    'border': '1px solid #cccccc',
+    'opacity': 0.5
+}
 
 default_style_time_range = {
-    'padding': '4px 12px',  # smaller pill-style padding
+    'padding': '4px 12px',
     'backgroundColor': COLORS['card'],
     'color': COLORS['text'],
     'border': f'1px solid {COLORS["primary"]}',
-    'borderRadius': '999px',  # makes it pill-shaped
+    'borderRadius': '999px',  
     'cursor': 'pointer',
     'fontSize': '0.85rem',
-    'marginRight': '8px',  # spacing between buttons
+    'marginRight': '8px',  
     'display': 'inline-block',
     'transition': 'all 0.2s ease-in-out',
 }

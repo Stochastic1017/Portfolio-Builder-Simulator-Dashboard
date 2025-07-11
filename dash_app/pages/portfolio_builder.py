@@ -4,9 +4,7 @@ import re
 import sys
 import uuid
 import dash
-import pandas as pd
-import numpy as np
-import dash.dash_table as dt
+import dash_daq as daq
 import dash_bootstrap_components as dbc
 
 from scipy.special import comb
@@ -23,7 +21,8 @@ from helpers.portfolio_builder.markowitz_portfolio_theory import (
 from helpers.styles.button_styles import (
     COLORS, 
     verified_button_portfolio, unverified_button_portfolio,
-    verified_button_style, unverified_button_style, 
+    verified_button_style, unverified_button_style,
+    verified_toggle_button, unverified_toggle_button, 
     default_style_time_range, active_style_time_range
 )
 
@@ -236,84 +235,6 @@ layout = html.Div(
                         )
                     ]),
 
-                    # Sliders for min returns and max risk
-                    html.Div(
-                        style={
-                            'backgroundColor': COLORS['card'],
-                            'borderRadius': '10px',
-                            'marginTop': '10px',
-                            'display': 'flex',
-                            'flexDirection': 'column',
-                            'gap': '25px'
-                        },
-                        children=[
-
-                            # Minimum Return Slider
-                            html.Div(
-                                style={'display': 'flex', 'flexDirection': 'column'},
-                                children=[
-                                    html.Label(
-                                        "Minimum Expected Return (Mean, %)",
-                                        style={
-                                            'color': COLORS['primary'],
-                                            'fontWeight': 'bold',
-                                            'marginBottom': '6px',
-                                            'fontSize': '0.95rem'
-                                        }
-                                    ),
-                                    dcc.Slider(
-                                        id='slider-min-return',
-                                        min=0.0,
-                                        max=0.05,
-                                        step=0.001,
-                                        value=0.01,
-                                        marks={
-                                            0.0: '0%',
-                                            0.01: '1%',
-                                            0.02: '2%',
-                                            0.03: '3%',
-                                            0.04: '4%',
-                                            0.05: '5%',
-                                        },
-                                        tooltip={"placement": "bottom", "always_visible": True}
-                                    ),
-                                ]
-                            ),
-
-                            # Maximum Risk Slider
-                            html.Div(
-                                style={'display': 'flex', 'flexDirection': 'column'},
-                                children=[
-                                    html.Label(
-                                        "Maximum Risk (Standard Deviation, %)",
-                                        style={
-                                            'color': COLORS['primary'],
-                                            'fontWeight': 'bold',
-                                            'marginBottom': '6px',
-                                            'fontSize': '0.95rem'
-                                        }
-                                    ),
-                                    dcc.Slider(
-                                        id='slider-max-risk',
-                                        min=0.0,
-                                        max=0.05,
-                                        step=0.001,
-                                        value=0.02,
-                                        marks={
-                                            0.0: '0%',
-                                            0.01: '1%',
-                                            0.02: '2%',
-                                            0.03: '3%',
-                                            0.04: '4%',
-                                            0.05: '5%',
-                                        },
-                                        tooltip={"placement": "bottom", "always_visible": True}
-                                    ),
-                                ]
-                            ),
-                        ]
-                    ),
-
                     # Buttons to explore portfolio weights and performance
                     html.Div(
                         style={
@@ -333,6 +254,90 @@ layout = html.Div(
                         ]
                     ),
 
+                            # Toggle switch for Max Sharpe / Min Variance
+
+                    # Three toggle buttons to highlight important portfolio
+                    html.Div(
+                        style={
+                            'width': '100%',         
+                            'maxWidth': '400px',     
+                            'padding': '10px',      
+                            'display': 'flex',
+                            'flexDirection': 'column',
+                            'gap': '10px'            
+                        },
+
+                        children=[
+                            html.Label("Highlight Portfolios", 
+                                       style={
+                                        'color': COLORS['primary'],
+                                        'fontWeight': 'bold',
+                                        'marginBottom': '10px',
+                                        'fontSize': '1rem'
+                                    }
+                            ),
+
+                            # Maximum Sharpe Ratio toggle
+                            html.Div(
+                                id="toggle-max-sharpe",
+                                style=unverified_toggle_button,
+                                
+                                children=[
+                                    html.Span("Maximum Sharpe:", style={'color': COLORS['text']}),
+                                    daq.ToggleSwitch(
+                                        id="max-sharpe-button",
+                                        value=False,
+                                        size=40,
+                                        style={'marginLeft': 'auto'},
+                                        color=COLORS['primary'],
+                                        disabled=True
+                                    )
+                                ]
+                            ),
+
+                            # Minimum Variance toggle
+                            html.Div(
+                                id="toggle-min-variance",
+                                style=unverified_toggle_button,
+                                
+                                children=[
+                                    html.Span("Minimum Variance:", style={
+                                        'color': COLORS['text'],
+                                        'fontWeight': '500',
+                                        'fontSize': '1rem'
+                                    }),
+                                    daq.ToggleSwitch(
+                                        id="min-variance-button",
+                                        value=False,
+                                        size=40,
+                                        color=COLORS['primary'],
+                                        disabled=True,
+                                    )
+                                ]
+                            ),
+
+                            # Minimum Variance toggle
+                            html.Div(
+                                id="toggle-equal-weights",
+                                style=unverified_toggle_button,
+                                
+                                children=[
+                                    html.Span("Equal Weights:", style={
+                                        'color': COLORS['text'],
+                                        'fontWeight': '500',
+                                        'fontSize': '1rem'
+                                    }),
+                                    daq.ToggleSwitch(
+                                        id="equal-weights-button",
+                                        value=False,
+                                        size=40,
+                                        color=COLORS['primary'],
+                                        disabled=True,
+                                    )
+                                ]
+                            ),
+                        ]
+                    )
                 ]
             ),
                 
@@ -402,8 +407,23 @@ layout = html.Div(
                 "boxShadow": "0 4px 12px rgba(0, 0, 0, 0.1)",
                 "maxWidth": "1200px",
                 "marginLeft": "auto",
-                "marginRight": "auto"
-            }
+                "marginRight": "auto",
+                "justifyContent": "center", 
+                "alignItems": "center",     
+            },
+
+            children=[
+                html.P(
+                    "Open the Efficient Frontier and choose a portfolio to view its details.",
+                    style={
+                        "fontSize": "25px",
+                        "fontWeight": "750",
+                        "color": COLORS["text"],
+                        "textAlign": "center",
+                        "marginBottom": "20px"
+                    }
+                ),
+            ],
         )
     ]
 )
@@ -463,15 +483,14 @@ def handle_verify_budget(_, budget_input):
 
     return no_update
 
+# Show validation symbol upon successful verification
 @callback(
     [
         Output("inp-budget", "valid"),
         Output("inp-budget", "invalid"),
         Output("inp-budget", "key")
     ],
-    [
-        Input("verify-budget", "data")
-    ],
+    Input("verify-budget", "data"),
     prevent_initial_call=True
 )
 def set_budget_validation(verify_budget):
@@ -486,10 +505,15 @@ def set_budget_validation(verify_budget):
     
     return (True, False, dynamic_key)
 
+# Populate dropdown with tickers
 @callback(
-    Output("dropdown-ticker-selection", "options"),
-    Output("dropdown-ticker-selection", "value"),
-    Input("portfolio-store", "data"),
+    [
+        Output("dropdown-ticker-selection", "options"),
+        Output("dropdown-ticker-selection", "value")
+    ],
+    [
+        Input("portfolio-store", "data")
+    ],
 )
 def populate_dropdown_options(data):
 
@@ -593,9 +617,7 @@ def update_ticker_selection(_, dropdown_value, portfolio_data, current_options, 
         Output("btn-efficient-frontier", "style"),
         Output("btn-efficient-frontier", "className"),
     ],
-    [
-        Input("verify-budget", "data")
-    ],
+    Input("verify-budget", "data"),
 )
 def toggle_button_states(verify_budget):
     is_verified = verify_budget.get("verified", False)
@@ -613,10 +635,19 @@ def toggle_button_states(verify_budget):
 # Plot efficient frontier
 @callback(
     [
-        Output("portfolio-builder-main-content", "children")
+        Output("portfolio-builder-main-content", "children"),
+        Output("max-sharpe-button", "disabled"),
+        Output("toggle-max-sharpe", "style"),
+        Output("min-variance-button", "disabled"),
+        Output("toggle-min-variance", "style"),
+        Output("equal-weights-button", "disabled"),
+        Output("toggle-equal-weights", "style")
     ],
     [
         Input("btn-efficient-frontier", "n_clicks"),
+        Input('max-sharpe-button', 'value'),
+        Input('min-variance-button', 'value'),
+        Input('equal-weights-button', 'value')
     ],
     [
         State("portfolio-store", "data"),
@@ -624,7 +655,7 @@ def toggle_button_states(verify_budget):
     ],
     prevent_initial_call=True
 )
-def explore_weights_MPT(_, cache_data, selected_tickers):
+def explore_weights_MPT(_, max_sharpe_on, min_variance_on, equal_weights_on, cache_data, selected_tickers):
 
     # Filter portfolio data using selected tickers
     filtered_data = [
@@ -632,11 +663,7 @@ def explore_weights_MPT(_, cache_data, selected_tickers):
         if entry["ticker"] in [item["value"] for item in selected_tickers]
     ]
 
-    # Button clicked by user, one of the fllowing:
-    button_id = ctx.triggered_id
-
-    if button_id == "btn-efficient-frontier":
-        return (
+    return (
             html.Div(
                 id="portfolio-builder-main-content",
                 style={
@@ -648,10 +675,16 @@ def explore_weights_MPT(_, cache_data, selected_tickers):
                 },
 
                 children=[
-                    plot_efficient_frontier(filtered_data, COLORS),                
+                    plot_efficient_frontier(max_sharpe_on, min_variance_on, equal_weights_on, filtered_data, COLORS),                
                 ]
             ),
-        )
+            False,
+            verified_toggle_button,
+            False,
+            verified_toggle_button,
+            False,
+            verified_toggle_button
+    )
 
 # Summary table for chosen portfolio
 @callback(
@@ -673,13 +706,28 @@ def display_summary_table(clickData, cache_data, budget, selected_tickers):
     if not clickData:
         return no_update
 
-    # Extract weights from customdata in the clicked point
-    weights = clickData["points"][0]["customdata"]
-    
+    point = clickData["points"][0]
+    weights = point["customdata"]
+    risk = point["x"]
+    ret = point["y"]
+
+    # Format risk/return info
+    header_text = f"Portfolio Details for Risk: {risk:.2%} | Return: {ret:.2%}"
+
     # Filter portfolio data using selected tickers
     filtered_data = [
         entry for entry in cache_data
         if entry["ticker"] in [item["value"] for item in selected_tickers]
     ]
 
-    return (summary_table(filtered_data, COLORS, weights=weights, budget=budget), )
+    return ([
+            html.H4(
+                header_text,
+                style={
+                    "color": COLORS["primary"],
+                    "textAlign": "center",
+                    "marginBottom": "20px"
+                }
+            ),
+            summary_table(filtered_data, COLORS, weights=weights, budget=budget)],
+    )

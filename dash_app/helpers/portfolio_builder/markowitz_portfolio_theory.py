@@ -71,19 +71,15 @@ def summary_table(cache_data, COLORS, weights=None, budget=None):
             "color": COLORS["primary"],
             "fontWeight": "bold"
         },
+        fixed_rows={"headers": True},
         row_deletable=False,
         sort_action='native'
     )
 
-def negative_sharpe_ratio(weights, mean_returns, cov_matrix):
-    ret = np.dot(weights, mean_returns)
-    std = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
-    return -ret / std if std != 0 else 0
-
 def portfolio_volatility(weights, cov_matrix):
     return np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
 
-def plot_efficient_frontier(cache_data, COLORS):
+def plot_efficient_frontier(max_sharpe_on, min_variance_on, equal_weights_on, cache_data, COLORS):
     tickers = []
     returns_list = []
 
@@ -132,6 +128,40 @@ def plot_efficient_frontier(cache_data, COLORS):
             frontier_returns.append(target_return)
             frontier_weights.append(result.x)
 
+    # Max Sharpe
+    def neg_sharpe_ratio(weights):
+        ret = np.dot(weights, mean_returns)
+        vol = portfolio_volatility(weights, cov_matrix)
+        return -ret / vol
+
+    # Maximum sharpe optimization
+    max_sharpe_result = minimize(
+    neg_sharpe_ratio,
+    initial_weights,
+    method='SLSQP',
+    bounds=bounds,
+    constraints=[{'type': 'eq', 'fun': lambda x: np.sum(x) - 1}]
+    )
+    max_sharpe_vol = portfolio_volatility(max_sharpe_result.x, cov_matrix)
+    max_sharpe_ret = np.dot(max_sharpe_result.x, mean_returns)
+    
+    # Minimum variance optimization
+    min_var_result = minimize(
+        portfolio_volatility,
+        initial_weights,
+        args=(cov_matrix,),
+        method='SLSQP',
+        bounds=bounds,
+        constraints=[{'type': 'eq', 'fun': lambda x: np.sum(x) - 1}]
+    )
+    min_var_vol = portfolio_volatility(min_var_result.x, cov_matrix)
+    min_var_ret = np.dot(min_var_result.x, mean_returns)
+
+    # Equal weights portfolio
+    equal_weights = np.array([1 / num_assets] * num_assets)
+    equal_weight_ret = np.dot(equal_weights, mean_returns)
+    equal_weight_vol = portfolio_volatility(equal_weights, cov_matrix)
+
     #############################
     ### Initialize Plotly Figure
     #############################
@@ -149,9 +179,72 @@ def plot_efficient_frontier(cache_data, COLORS):
             fill='tozeroy',
             fillcolor="rgba(255,255,255,0.05)",
             hovertemplate='Risk: %{x:.2%}<br>Return: %{y:.2%}<extra></extra>',
-            customdata=frontier_weights 
+            customdata=frontier_weights,
         )
     )
+
+    ####################
+    ### Maximum Sharpe
+    ### Toggle Button
+    ####################
+
+    # Maximum sharpe ratio portfolio
+    if max_sharpe_on:
+
+        # Plot maximum sharpe portfolio
+        efficient_frontier_fig.add_trace(
+            go.Scatter(
+                x=[max_sharpe_vol],
+                y=[max_sharpe_ret],
+                mode='markers',
+                marker=dict(size=12, color='red', symbol='x'),
+                name='Maximum Sharpe Ratio',
+                customdata=[max_sharpe_result.x],
+                hovertemplate='Maximum Sharpe<br>Risk: %{x:.2%}<br>Return: %{y:.2%}<extra></extra>'
+            )
+        )
+
+    #####################
+    ### Minimum Variance
+    ### Toggle Button
+    #####################
+
+    # Minimum variance portfolio
+    if min_variance_on:
+        
+        # Plot minimum variance portfolio
+        efficient_frontier_fig.add_trace(
+            go.Scatter(
+                x=[min_var_vol],
+                y=[min_var_ret],
+                mode='markers',
+                marker=dict(size=12, color='white', symbol='hexagram'),
+                name='Miimum Variance',
+                customdata=[min_var_result.x],
+                hovertemplate='Minimum Variance<br>Risk: %{x:.2%}<br>Return: %{y:.2%}<extra></extra>'
+            )
+        )
+
+    #####################
+    ### Equal Weights
+    ### Toggle Button
+    #####################
+
+    # Equal weights portfolio
+    if equal_weights_on:
+        
+        # Plot minimum variance portfolio
+        efficient_frontier_fig.add_trace(
+            go.Scatter(
+                x=[equal_weight_vol],
+                y=[equal_weight_ret],
+                mode='markers',
+                marker=dict(size=12, color='orange', symbol='star'),
+                name='Equal-Weight Portfolio',
+                customdata=[equal_weights],
+                hovertemplate='Equal Weight<br>Risk: %{x:.2%}<br>Return: %{y:.2%}<extra></extra>'
+            )
+        )
 
     #####################
     ### Layout Styling
