@@ -14,7 +14,12 @@ from dash import (html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from helpers.portfolio_simulator import (
-    plot_portfolio_value
+    parse_ts_map
+)
+
+from helpers.portfolio_exploration import (
+    dash_range_selector,
+    create_historic_plots
 )
 
 from helpers.button_styles import (
@@ -205,6 +210,28 @@ layout = html.Div(
                             ),
                         ]
                     ),
+                
+                    # Buttons to explore portfolio weights and performance
+                    html.Div(
+                        style={
+                            'display': 'flex',
+                            'flexDirection': 'column',
+                            'gap': '10px'  
+                        },
+                        
+                        children=[
+
+                            # Button for user to explore past performance of portfolio
+                            html.Button("Evaluate Past Performance", 
+                                id="btn-portfolio-performance", 
+                                style=verified_button_style,
+                                disabled=False,
+                                className="simple" 
+                            ),
+
+                        ]
+                    ),
+
                 ]
             ),
                 
@@ -259,6 +286,7 @@ layout = html.Div(
             
             ]
         ),    
+    
     ]
 )
 
@@ -339,13 +367,12 @@ def set_budget_validation(verify_budget):
     
     return (True, False, dynamic_key)
 
-"""
 # Toggle styles between enabled/disabled status
 @callback(
     [
-        Output("btn-efficient-frontier", "disabled"),
-        Output("btn-efficient-frontier", "style"),
-        Output("btn-efficient-frontier", "className"),
+        Output("btn-portfolio-performance", "disabled"),
+        Output("btn-portfolio-performance", "style"),
+        Output("btn-portfolio-performance", "className"),
     ],
     Input("verify-budget", "data"),
 )
@@ -361,4 +388,44 @@ def toggle_button_states(verify_budget):
         return (
             True, unverified_button_style, "",
         )
+
+@callback(
+    Output("portfolio-simulator-main-content", "children"),
+    Input("btn-portfolio-performance", "n_clicks"),
+    State("budget-value", "data"),
+    State("portfolio-store", "data"),
+    State("selected-tickers-store", "data"),
+    State("confirmed-weights-store", "data"),
+    prevent_initial_call=True
+)
+def portfolio_plot(_, budget, portfolio_store, selected_tickers, weights):
+    
+    # Compute budget-adjusted time series
+    ts_map, portfolio_value_ts = parse_ts_map(
+        selected_tickers=selected_tickers,
+        portfolio_weights=weights,
+        portfolio_store=portfolio_store,
+        budget=budget
+    )
+
+    # Portfolio returns
+    portfolio_returns = portfolio_value_ts.pct_change().dropna()
+
+    # Call your existing plotting function
+    return create_historic_plots(
+        full_name="Simulated Portfolio",
+        dates=portfolio_value_ts.index,
+        daily_prices=portfolio_value_ts.values,
+        daily_returns=portfolio_returns,
+        COLORS=COLORS
+    )
+
+"""
+create_historic_plots(
+    full_name,       # str — name label for plot title
+    dates,           # list-like of timestamps
+    daily_prices,    # list-like of portfolio prices
+    daily_returns,   # list-like of portfolio returns
+    COLORS           # dict — your theme
+)
 """
