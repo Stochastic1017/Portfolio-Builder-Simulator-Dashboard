@@ -50,6 +50,7 @@ app.layout = html.Div(
         
         ### Portfolio builder page
         dcc.Store(id="selected-tickers-store"),                  # subset of tickers chosen
+        dcc.Store(id="efficient-frontier-clicked", data=False),   # efficient frontier clicked or not
         dcc.Store(id="portfolio-weights-store"),                 # For all optimizations
         dcc.Store(id="confirmed-weights-store"),                 # For the selected/confirmed portfolio weights
 
@@ -61,7 +62,7 @@ app.layout = html.Div(
         ### Landing Page
         #################
 
-        dcc.Location(id="url", refresh=True, pathname="/pages/stock-exploration"),
+        dcc.Location(id="url", refresh=True, pathname="/pages/portfolio-exploration"),
         dash.page_container
     ]
 )

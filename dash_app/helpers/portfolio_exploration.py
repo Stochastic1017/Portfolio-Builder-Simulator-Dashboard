@@ -1,9 +1,12 @@
 
 import os
 import sys
+import requests
 import numpy as np
 import pandas as pd
+from datetime import datetime
 import plotly.graph_objects as go
+import dash_bootstrap_components as dbc
 
 from scipy import stats
 from dash import dcc, html, dash_table
@@ -11,6 +14,113 @@ from plotly.subplots import make_subplots
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+class StockTickerInformation():
+
+    def __init__(self, ticker, api_key):
+
+        """
+        Initializing function.
+
+        Args:
+            ticker: unique abbreviation of publicly traded stock ticker.
+            api_key: Polygon.io api key
+        """
+
+        self.ticker = ticker
+        self.api_key = api_key
+
+    def get_metadata(self):
+
+        """ 
+        Retrieve detailed reference information for a specific stock ticker from the Polygon.io API.
+        
+        Returns:
+            dict: A dictionary containing metadata about the specified stock ticker.
+        
+        Raises:
+            requests.RequestException: If the HTTP request fails.
+        """
+        
+        try:
+            url = f'https://api.polygon.io/v3/reference/tickers/{self.ticker}?apiKey={self.api_key}'
+            response = requests.get(url)
+            response.raise_for_status()
+            return response.json()
+        
+        except requests.RequestException as error:
+            raise Exception(f"HTTP request failed: {error}")
+
+    def get_news(self):
+        
+        """ 
+        Retrieve detailed news about specific stock ticker from the Polygon.io API.
+        
+        Returns:
+            dict: A dictionary containing news and sentiments about the specified stock ticker.
+        
+        Raises:
+            requests.RequestException: If the HTTP request fails.
+        """
+
+        try:
+            url = f'https://api.polygon.io/v2/reference/news?ticker={self.ticker}&apiKey={self.api_key}'
+            response = requests.get(url)
+            response.raise_for_status()
+            return response.json()
+
+        except requests.RequestException as error:
+            raise Exception(f"HTTP request failed: {error}")
+
+    def get_all_data(self):
+
+        """ 
+        Fetches historical daily aggregated stock data for a given ticker symbol within a specified date range 
+        using the Polygon.io API.
+
+        Parameters:
+            start_date (str): The start date of the data range in 'YYYY-MM-DD' format.
+            end_date (str): The end date of the data range in 'YYYY-MM-DD' format.
+
+        Returns:
+            Pandas DataFrame containing daily stock data with the date, open, high, low, close, and volume.
+
+        Raises:
+            Exception: If the API response does not contain the expected 'results' key or if another error occurs.
+        """
+
+        start_date = "2000-01-01"
+        end_date = datetime.today().strftime("%Y-%m-%d")
+        url = f"https://api.polygon.io/v2/aggs/ticker/{self.ticker}/range/1/day/{start_date}/{end_date}"
+        params = {
+            "adjusted": "true",
+            "sort": "asc",
+            "limit": 50000,
+            "apiKey": self.api_key,
+        }
+
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            
+            data = response.json()
+
+            if "results" not in data:
+                raise Exception(f"Polygon API error: {data}")
+
+            df = pd.DataFrame(data["results"])
+            df["t"] = pd.to_datetime(df["t"], unit="ms")  # timestamp to datetime
+            df = df.rename(columns={"t": "date", 
+                                    "c": "close", 
+                                    "o": "open", 
+                                    "h": "high", 
+                                    "l": "low", 
+                                    "v": "volume"})
+            
+            return df.sort_values(by="date")
+
+        except requests.RequestException as error:
+            raise Exception(f"HTTP request failed: {error}")
 
 def dash_range_selector(default_style):
     
@@ -362,3 +472,177 @@ def create_statistics_table(dates, daily_prices, daily_returns, COLORS):
             style_as_list_view=True,
         )
     ])
+
+def company_metadata_layout(company_info, branding, logo_url_with_key, address, COLORS):
+    return html.Div(
+        style={
+            'padding': '30px',
+            'height': '100%',
+            'width': '100%',
+            'boxSizing': 'border-box',
+            'overflowY': 'auto',
+            'display': 'flex',
+            'flexDirection': 'column',
+            'gap': '20px'
+        },
+        
+        children=[
+
+        # Company name and logo
+        html.Div(
+            style={'display': 'flex', 
+                   'alignItems': 'center', 
+                   'gap': '20px'},
+            
+            children=[
+
+                html.Div(
+                style={
+                    'backgroundColor': '#ffffff',  # light background
+                    'padding': '6px',
+                    'borderRadius': '10px',
+                    'display': 'flex',
+                    'alignItems': 'center',
+                    'justifyContent': 'center'
+                },
+
+                children=[
+                            html.Img(
+                                src=logo_url_with_key,
+                                style={
+                                    'height': '60px',
+                                    'objectFit': 'contain',
+                                    'filter': 'none'  # prevent any inversion
+                                }
+                            )
+                        ]
+                    ) 
+                    
+                    if branding.get('logo_url') else None,
+
+                    html.H2(company_info['name'], 
+                                    style={'margin': 0, 
+                                        'color': COLORS['primary']})
+                        ]
+                    ),
+
+            # Description
+            html.P(company_info.get('description', ''), 
+                style={'fontSize': '1.1em'}),
+
+            # Basic info section
+            html.Div(
+                style={'display': 'grid', 
+                    'gridTemplateColumns': 'repeat(auto-fit, minmax(220px, 1fr))', 
+                    'gap': '15px'},
+                children=[
+                    html.Div([html.Strong("Ticker: "), company_info['ticker']]),
+                    html.Div([html.Strong("Market: "), company_info['market']]),
+                    html.Div([html.Strong("Exchange: "), company_info['primary_exchange']]),
+                    html.Div([html.Strong("Locale: "), company_info['locale'].upper()]),
+                    html.Div([html.Strong("Type: "), company_info['type']]),
+                    html.Div([html.Strong("Active: "), str(company_info['active'])]),
+                    html.Div([html.Strong("Currency: "), company_info['currency_name'].upper()]),
+                    html.Div([html.Strong("SIC: "), f"{company_info['sic_code']} – {company_info['sic_description']}"]),
+                    html.Div([html.Strong("Market Cap: "), f"${company_info['market_cap']:,.0f}"]),
+                    html.Div([html.Strong("Employees: "), f"{company_info.get('total_employees', 'N/A'):,}"]),
+                    html.Div([html.Strong("List Date: "), company_info['list_date']]),
+                ]
+            ),
+
+            # Address and Contact
+            html.Div([
+                html.H4("Contact", style={'color': COLORS['primary'], 'marginTop': '20px'}),
+                html.P(company_info.get('phone_number', 'N/A')),
+                html.P(f"{address.get('address1', '')}, {address.get('city', '')}, {address.get('state', '')} {address.get('postal_code', '')}"),
+                html.A("Visit Website", href=company_info['homepage_url'], target="_blank", style={'color': COLORS['primary'], 'textDecoration': 'underline'})
+            ])
+        ]
+    )
+
+def news_article_card_layout(article, COLORS):
+    
+    sentiment_color = {'positive': 'success', 'neutral': 'secondary', 'negative': 'danger'}
+    sentiment = article['insights'][0]['sentiment']
+
+    return dbc.Card(
+            [
+                dbc.CardHeader(
+                    style={
+                        'backgroundColor': COLORS['card'], 
+                        'color': COLORS['text'], 
+                        'borderBottom': '1px solid #444',
+                    },
+
+                    children=[
+                        
+                        ### Publisher Details
+
+                        # Publisher logo image 
+                        html.Img(src=article['publisher']['favicon_url'], 
+                                height="20px", 
+                                style={'marginRight': '10px'}),
+                        
+                        # Publisher name
+                        html.A(article['publisher']['name'], 
+                            href=article['publisher']['homepage_url'], 
+                            target="_blank", className='me-2', 
+                            style={'color': COLORS['primary']}),
+                        
+                        # Sentiment of news article
+                        dbc.Badge(sentiment.capitalize(), 
+                                  color=sentiment_color.get(sentiment, 'secondary'), 
+                                  className="float-end")
+                    
+                    ],
+                
+                ),
+                
+                # Article title
+                dbc.CardBody(
+                    [
+                        html.Div(
+                            [
+                                html.Span(article["title"], className="card-title"),
+                                html.A(" 🔗", href=article["article_url"], target="_blank", 
+                                       style={'textDecoration': 'none'}),
+                            ],
+                            style={
+                                'color': COLORS['primary'],
+                                'textAlign': 'center',
+                                'display': 'flex',
+                                'fontWeight': 'bold',
+                                'fontSize': 25,
+                                'justifyContent': 'center',
+                                'alignItems': 'center',
+                                'gap': '5px',
+                            }
+                        ),
+                
+                        html.P(f"By {article['author']} | Published: {article['published_utc'][:10]}",
+                                style={'color': 'white',
+                                        'textAlign': 'center',
+                                        'display': 'block',
+                                        'width': '100%'}
+                        ),
+                    
+                        html.Img(src=article['image_url'], 
+                                 style={'width': '100%', 
+                                        'marginTop': '10px', 
+                                        'marginBottom': '10px'}),
+                    
+                        html.P(article['description'], style={'color': COLORS['text']}),
+                    
+                        html.Div(
+                            [
+                                dbc.Badge(keyword, color="warning", className="me-1 mb-1", 
+                                          style={'backgroundColor': COLORS['primary'], 
+                                                 'color': COLORS['background']})
+                                
+                                for keyword in article['keywords']
+                            ]
+                        )
+                    ],
+                style={'backgroundColor': COLORS['card'], 'color': COLORS['text']}
+                )
+            ], className="mb-4 shadow-sm", style={'backgroundColor': COLORS['card'], 'border': 'none'})

@@ -13,13 +13,13 @@ from dash import (html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from helpers.portfolio_builder.markowitz_portfolio_theory import (
+from helpers.portfolio_builder import (
     portfolio_optimization,
     plot_efficient_frontier, 
     summary_table
 )
 
-from helpers.styles.button_styles import (
+from helpers.button_styles import (
     COLORS, 
     verified_button_portfolio, unverified_button_portfolio,
     verified_button_style, unverified_button_style,
@@ -28,19 +28,6 @@ from helpers.styles.button_styles import (
 )
 
 dash.register_page(__name__, path="/pages/portfolio-builder")
-
-def default_summary_message():
-
-    return html.P(
-        "Open the Efficient Frontier and choose a portfolio to view its details.",
-        style={
-            "fontSize": "25px",
-            "fontWeight": "750",
-            "color": COLORS["text"],
-            "textAlign": "center",
-            "marginBottom": "20px"
-        }
-    )
 
 layout = html.Div(
     
@@ -333,37 +320,25 @@ layout = html.Div(
                 },
                 
                 children=[
-                        html.Div([
-                        html.H3("Welcome to Portfolio Builder Page!", style={'color': COLORS['primary'], 'marginBottom': '1rem'}),
-
-                        html.Br(),
-
-                        html.Div([
-
-                        html.P("To find the appropriate portfolio, please follow the steps below:", 
-                               style={'color': COLORS['text'], 
-                                      'fontSize': '1.1rem'}),
-
+                    html.H3("Welcome to Portfolio Builder Page!", style={'color': COLORS['primary'], 'marginBottom': '1rem'}),
+                    html.Br(),
+                    html.Div([
+                        html.P("To find the appropriate portfolio, please follow the steps below:",
+                            style={'color': COLORS['text'], 'fontSize': '1.1rem'}),
                         html.Ol([
-                            html.Li("Input a budget (in $) and click 'Verify Budget'.", 
-                                    style={'color': COLORS['text']}),
-                            html.Li("Choose a subset of tickers you wish to have in the portfolio.", 
-                                    style={'color': COLORS['text']}),
-                            html.Li("Explore efficient frontier to find the optimum risk/return ratio.", 
-                                    style={'color': COLORS['text']}),
-                            html.Li("Confirm the portfolio weights and proceed.", 
-                                    style={'color': COLORS['text']}),], 
-                            style={'textAlign': 'left', 
-                                   'color': COLORS['text'], 
-                                   'maxWidth': '600px', 
-                                   'margin': 
-                                   '1rem auto'}),
-                            ], style={'maxWidth': '700px'})
-                        ])
-                    ]
-                ),
-            
-            ]
+                            html.Li("Input a budget (in $) and click 'Verify Budget'.", style={'color': COLORS['text']}),
+                            html.Li("Choose a subset of tickers you wish to have in the portfolio.", style={'color': COLORS['text']}),
+                            html.Li("Explore efficient frontier to find the optimum risk/return ratio.", style={'color': COLORS['text']}),
+                            html.Li("Confirm the portfolio weights and proceed.", style={'color': COLORS['text']}),
+                        ], style={
+                            'textAlign': 'left',
+                            'color': COLORS['text'],
+                            'maxWidth': '600px',
+                            'margin': '1rem auto'
+                        })
+                    ], style={'maxWidth': '700px'})
+                ]
+            )]
         ),
 
         ##################
@@ -443,6 +418,7 @@ layout = html.Div(
     [
         Input("portfolio-store", "data")
     ],
+    prevent_initial_call=True
 )
 def populate_dropdown_options(data):
 
@@ -461,6 +437,8 @@ def populate_dropdown_options(data):
         Output("portfolio-builder-main-content", "children", allow_duplicate=True),
         Output("max-sharpe-button", "disabled", allow_duplicate=True),
         Output("toggle-max-sharpe", "style", allow_duplicate=True),
+        Output("max-diversification-button", "disabled", allow_duplicate=True),
+        Output("toggle-max-diversification", "style", allow_duplicate=True),
         Output("min-variance-button", "disabled", allow_duplicate=True),
         Output("toggle-min-variance", "style", allow_duplicate=True),
         Output("equal-weights-button", "disabled", allow_duplicate=True),
@@ -557,26 +535,34 @@ def update_ticker_selection(_, dropdown_value, portfolio_data, current_options, 
         unverified_toggle_button,
         True,  
         unverified_toggle_button,
-        [default_summary_message()]
+        True,  
+        unverified_toggle_button,
+        [html.Div()]
 )
 
 # Plot efficient frontier and conduct optimizations
 @callback(
-    Output("portfolio-weights-store", "data"),
+    [
+        Output("portfolio-weights-store", "data"),
+        Output("efficient-frontier-clicked", "data"),
+    ],
     Input("btn-efficient-frontier", "n_clicks"),
     [
         State("portfolio-store", "data"),
-        State("selected-tickers-store", "data")
+        State("selected-tickers-store", "data"),
     ],
     prevent_initial_call=True
 )
 def compute_optimization(_, cache_data, selected_tickers):
+    if not selected_tickers:
+        raise dash.exceptions.PreventUpdate
+
     filtered_data = [
         entry for entry in cache_data
         if entry["ticker"] in [item["value"] for item in selected_tickers]
     ]
 
-    return portfolio_optimization(filtered_data)
+    return portfolio_optimization(filtered_data), True
 
 @callback(
     [
@@ -591,16 +577,26 @@ def compute_optimization(_, cache_data, selected_tickers):
         Output("toggle-equal-weights", "style"),
     ],
     [
-        Input('max-sharpe-button', 'value'),
-        Input('max-diversification-button', 'value'),
-        Input('min-variance-button', 'value'),
-        Input('equal-weights-button', 'value'),
+        Input("portfolio-weights-store", "data"),
+        Input("max-sharpe-button", "value"),
+        Input("max-diversification-button", "value"),
+        Input("min-variance-button", "value"),
+        Input("equal-weights-button", "value"),
     ],
-    State("portfolio-weights-store", "data"),
+    State("efficient-frontier-clicked", "data"),
     prevent_initial_call=True
 )
-def update_plot(max_sharpe_on, max_diversification_on, min_variance_on, equal_weights_on, optimization_dict):
+def update_plot(optimization_dict, max_sharpe_on, max_diversification_on, min_variance_on, equal_weights_on, has_clicked):
 
+    if not has_clicked:
+        return (
+            no_update,
+            True, unverified_toggle_button,
+            True, unverified_toggle_button,
+            True, unverified_toggle_button,
+            True, unverified_toggle_button
+        )
+    
     if not optimization_dict:
         raise dash.exceptions.PreventUpdate
 
@@ -723,7 +719,8 @@ def confirm_portfolio(_):
         Output("btn-portfolio-simulator", "style"),
         Output("btn-portfolio-simulator", "className"),
     ],
-    Input("btn-confirm-portfolio", "n_clicks")
+    Input("btn-confirm-portfolio", "n_clicks"),
+    prevent_initial_call=True
 )
 def update_portfolio_analytics_button(n_clicks):
     

@@ -16,23 +16,16 @@ from dash import (html, dcc, Input, Output, State, callback, ctx, no_update)
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from helpers.stock_exploration.polygon_stock_api import StockTickerInformation
-
-from helpers.stock_exploration.polygon_stock_historic_plots import (
+from helpers.portfolio_exploration import (
+    StockTickerInformation,
     dash_range_selector, 
     create_historic_plots, 
-    create_statistics_table
-)
-
-from helpers.stock_exploration.polygon_stock_metadata import (
-    company_metadata_layout
-)
-
-from helpers.stock_exploration.polygon_stock_news import (
+    create_statistics_table,
+    company_metadata_layout,
     news_article_card_layout
 )
 
-from helpers.styles.button_styles import (
+from helpers.button_styles import (
         COLORS, 
         verified_button_portfolio, unverified_button_portfolio,
         verified_button_style, unverified_button_style, 
@@ -40,7 +33,7 @@ from helpers.styles.button_styles import (
 )
 
 # Register the page
-dash.register_page(__name__, path="/pages/stock-exploration")
+dash.register_page(__name__, path="/pages/portfolio-exploration")
 
 # Load .env to fetch api key
 load_dotenv()

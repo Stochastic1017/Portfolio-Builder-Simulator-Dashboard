@@ -13,11 +13,11 @@ from dash import (html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from helpers.portfolio_simulator.monte_carlo import (
+from helpers.portfolio_simulator import (
     plot_portfolio_value
 )
 
-from helpers.styles.button_styles import (
+from helpers.button_styles import (
     COLORS, 
     verified_button_portfolio, unverified_button_portfolio,
     verified_button_style, unverified_button_style,
@@ -261,7 +261,6 @@ layout = html.Div(
         ),    
     ]
 )
-
 
 # Ensure budget formatting is consistent for monetary inputs
 @callback(
