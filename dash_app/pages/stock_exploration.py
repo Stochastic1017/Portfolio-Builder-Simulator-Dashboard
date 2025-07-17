@@ -113,6 +113,20 @@ layout = html.Div(
 
     children=[
         
+        #################
+        ### Pop-up Toast 
+        #################
+
+        # Add at the end of layout (outside left console/right panel)
+        dbc.Toast(
+            id="stock-exploration-toast",
+            header="Success",
+            icon="success",
+            is_open=False,
+            duration=4000,
+            dismissable=True,
+        ),
+
         ################
         ### Page Header
         ################
@@ -316,6 +330,7 @@ layout = html.Div(
                             ),
                         ]
                     ),
+
                 ]
             ),
                 
@@ -402,7 +417,7 @@ layout = html.Div(
                 html.Div(
                     className='button-container', 
                     children=[
-                        # Go to Portfolio Builder Page
+                        # Go to portfolio builder page
                         dcc.Link(
                             html.Button(
                                 "Go to Portfolio Builder",
@@ -450,7 +465,14 @@ layout = html.Div(
 
 # Verify ticker API call and reset status if ticker input changes
 @callback(
-    Output("verify-ticker", "data"),
+    [
+        Output("verify-ticker", "data"),
+        Output("stock-exploration-toast", "is_open"),
+        Output("stock-exploration-toast", "children"),
+        Output("stock-exploration-toast", "header"),
+        Output("stock-exploration-toast", "icon"),
+        Output("stock-exploration-toast", "style")
+    ],
     [
         Input("btn-verify-ticker", "n_clicks"),
         Input("inp-ticker", "value")
@@ -465,20 +487,49 @@ def handle_verify_ticker(_, ticker):
         result = validate_stock_ticker(ticker, api_key)
 
         if "error" in result:
-            return {"verified": False}
-        
-        return {"verified": True, **result}
+            return (
+            {"verified": False},
+            True,  # Show toast
+            f"{result['error']}",
+            "Error",
+            "danger",
+            {
+                "position": "fixed",
+                "top": "70px",
+                "right": "30px",
+                "zIndex": 9999,
+                "backgroundColor": COLORS["card"],
+                "color": COLORS["text"],
+                "borderLeft": "6px solid red",  # Red bar for error
+                "boxShadow": "0 2px 8px rgba(0,0,0,0.3)",
+                "padding": "12px 16px",
+                "borderRadius": "6px",
+                "width": "350px"
+            }
+        )
 
-    elif trigger_id == "inp-ticker":
-        return {"verified": False}
+        # Upon successful verification    
+        return (
+            {"verified": True, **result},
+            False, "", "", "", dash.no_update
+        )
+
+    # Reset status on manual input change (no toast)
+    if trigger_id == "inp-ticker":
+        return (
+            {"verified": False},
+            False, "", "", "", dash.no_update
+        )
 
     return no_update
 
 # Change validation symbol upon successful verification
 @callback(
-    Output("inp-ticker", "valid"),
-    Output("inp-ticker", "invalid"),
-    Output("inp-ticker", "key"),
+    [
+        Output("inp-ticker", "valid"),
+        Output("inp-ticker", "invalid"),
+        Output("inp-ticker", "key")
+    ],
     Input("verify-ticker", "data"),
     prevent_initial_call=True
 )
@@ -732,8 +783,10 @@ def update_range_styles(*btn_clicks):
 # Update historic daily plot based on range selected
 @callback(
     Output("historical-plot-container", "children"),
-    Input("performance-tabs", "value"),
-    Input("selected-range", "data"),
+    [
+        Input("performance-tabs", "value"),
+        Input("selected-range", "data")
+    ],
     State("verify-ticker", "data"),
     prevent_initial_call=True
 )
@@ -776,8 +829,10 @@ def update_plot_on_range_change(active_tab, selected_range, data):
 @callback(
     Output("portfolio-store", "data"),
     Input("btn-add", "n_clicks"),
-    State("verify-ticker", "data"),
-    State("portfolio-store", "data"),
+    [
+        State("verify-ticker", "data"),
+        State("portfolio-store", "data")
+    ],
     prevent_initial_call=True
 )
 def add_to_portfolio(_, verify_data, portfolio_data):
@@ -807,12 +862,14 @@ def add_to_portfolio(_, verify_data, portfolio_data):
 def update_portfolio_table(data):
     return data
 
-# Allow users to navigate to portfolio analytics page
+# Allow users to navigate to portfolio builder page
 # Provided at least two tickers were selected
 @callback(
-    Output("btn-portfolio-builder", "disabled"),
-    Output("btn-portfolio-builder", "style"),
-    Output("btn-portfolio-builder", "className"),
+    [
+        Output("btn-portfolio-builder", "disabled"),
+        Output("btn-portfolio-builder", "style"),
+        Output("btn-portfolio-builder", "className")
+    ],
     Input("portfolio-store", "data")
 )
 def update_portfolio_analytics_button(tickers):

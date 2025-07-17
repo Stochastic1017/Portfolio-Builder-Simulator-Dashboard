@@ -14,6 +14,7 @@ from dash import (html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from helpers.portfolio_builder.markowitz_portfolio_theory import (
+    portfolio_optimization,
     plot_efficient_frontier, 
     summary_table
 )
@@ -28,42 +29,18 @@ from helpers.styles.button_styles import (
 
 dash.register_page(__name__, path="/pages/portfolio-builder")
 
-# Stock ticker validation procedure
-def validate_budget(budget):
-    
-    if budget is None or budget == "":
-        return {"valid": False, "value": None, "error": "Budget cannot be empty."}
+def default_summary_message():
 
-    # Remove leading/trailing whitespace
-    budget = budget.strip()
-
-    # Basic sanity check for allowed characters
-    if not re.fullmatch(r"[0-9,]*\.?[0-9]*", budget):
-        return {"valid": False, "value": None, "error": "Budget contains invalid characters."}
-
-    # Check multiple decimals
-    if budget.count('.') > 1:
-        return {"valid": False, "value": None, "error": "Budget has multiple decimal points."}
-
-    # Validate comma placement using regex
-    if ',' in budget:
-        # Regex to match correct comma placement: 1,000 or 12,345.67
-        if not re.fullmatch(r"(?:\d{1,3})(?:,\d{3})*(?:\.\d{1,2})?", budget):
-            return {"valid": False, "value": None, "error": "Commas are placed incorrectly."}
-
-    # Remove commas for numeric conversion
-    numeric_str = budget.replace(",", "")
-
-    try:
-    
-        value = float(numeric_str)
-        if value < 0:
-            return {"valid": False, "value": None, "error": "Budget cannot be negative."}
-        
-        return {"valid": True, "value": value, "error": None}
-    
-    except ValueError:
-        return {"valid": False, "value": None, "error": "Could not parse budget value."}
+    return html.P(
+        "Open the Efficient Frontier and choose a portfolio to view its details.",
+        style={
+            "fontSize": "25px",
+            "fontWeight": "750",
+            "color": COLORS["text"],
+            "textAlign": "center",
+            "marginBottom": "20px"
+        }
+    )
 
 layout = html.Div(
     
@@ -76,7 +53,21 @@ layout = html.Div(
     },
 
     children=[
-        
+
+        #################
+        ### Pop-up Toast 
+        #################
+
+        # Add at the end of layout (outside left console/right panel)
+        dbc.Toast(
+            id="portfolio-toast",
+            header="Success",
+            icon="success",
+            is_open=False,
+            duration=4000,
+            dismissable=True,
+        ),
+
         ################
         ### Page Header
         ################
@@ -138,60 +129,6 @@ layout = html.Div(
                 },
 
                 children=[
-                    
-                    # Budget (in $) input + verify budget button
-                    html.Div(
-                        style={
-                            'display': 'flex',
-                            'flexDirection': 'row',
-                            'alignItems': 'center'
-                        },
-                        
-                        children=[
-
-                            # Input for budget (in $)
-                            dbc.Input(
-                                id="inp-budget",
-                                type="text",
-                                debounce=True,
-                                valid=False,
-                                invalid=False,
-                                key="input-key",
-                                placeholder="Enter Budget (in $)",
-                                className="custom-input",
-                                style={
-                                    'width': '200px',
-                                    'padding': '10px',
-                                    'backgroundColor': COLORS['background'],
-                                    'border': f'1px solid {COLORS['primary']}',
-                                    'borderRadius': '5px',
-                                    'color': COLORS['text'],
-                                    'fontSize': '1em',
-                                    'marginRight': '10px'
-                                },
-                            ),
-
-                            # A stylized button to verify if user input budget is correct
-                            html.Button("Verify Budget",
-                                id="btn-verify-budget",
-                                n_clicks=0,
-                                disabled=False,
-                                className='special',
-                                style={
-                                    'padding': '6px 12px',
-                                    'backgroundColor': COLORS['primary'],
-                                    'color': 'black',
-                                    'border': '1px solid #9370DB',
-                                    'borderRadius': '20px',
-                                    'fontWeight': 'bold',
-                                    'fontSize': '0.75em',
-                                    'cursor': 'pointer',
-                                    'alignSelf': 'flex-start',
-                                    'transition': 'all 0.2s ease-in-out'
-                                }
-                            ),
-                        ]
-                    ),
 
                     # Selected Tickers and Dropdown
                     html.Div([
@@ -248,7 +185,9 @@ layout = html.Div(
                             # Button for user to explore weights via MPT
                             html.Button("Explore Efficient Frontier", 
                                 id="btn-efficient-frontier", 
-                                disabled=True, 
+                                style=verified_button_style,
+                                disabled=False,
+                                className="simple" 
                             ),
 
                         ]
@@ -256,7 +195,7 @@ layout = html.Div(
 
                             # Toggle switch for Max Sharpe / Min Variance
 
-                    # Three toggle buttons to highlight important portfolio
+                    # Four toggle buttons to highlight important portfolio
                     html.Div(
                         style={
                             'width': '100%',         
@@ -283,9 +222,35 @@ layout = html.Div(
                                 style=unverified_toggle_button,
                                 
                                 children=[
-                                    html.Span("Maximum Sharpe:", style={'color': COLORS['text']}),
+                                    html.Span("Maximum Sharpe:", style={
+                                        'color': COLORS['text'],
+                                        'fontWeight': '400',
+                                        'fontSize': '0.8rem'
+                                    }),
                                     daq.ToggleSwitch(
                                         id="max-sharpe-button",
+                                        value=False,
+                                        size=40,
+                                        style={'marginLeft': 'auto'},
+                                        color=COLORS['primary'],
+                                        disabled=True
+                                    )
+                                ]
+                            ),
+
+                            # Maximum Diversification Ratio toggle
+                            html.Div(
+                                id="toggle-max-diversification",
+                                style=unverified_toggle_button,
+                                
+                                children=[
+                                    html.Span("Maximum Diversification:", style={
+                                        'color': COLORS['text'],
+                                        'fontWeight': '400',
+                                        'fontSize': '0.8rem'
+                                    }),
+                                    daq.ToggleSwitch(
+                                        id="max-diversification-button",
                                         value=False,
                                         size=40,
                                         style={'marginLeft': 'auto'},
@@ -303,8 +268,8 @@ layout = html.Div(
                                 children=[
                                     html.Span("Minimum Variance:", style={
                                         'color': COLORS['text'],
-                                        'fontWeight': '500',
-                                        'fontSize': '1rem'
+                                        'fontWeight': '400',
+                                        'fontSize': '0.8rem'
                                     }),
                                     daq.ToggleSwitch(
                                         id="min-variance-button",
@@ -324,8 +289,8 @@ layout = html.Div(
                                 children=[
                                     html.Span("Equal Weights:", style={
                                         'color': COLORS['text'],
-                                        'fontWeight': '500',
-                                        'fontSize': '1rem'
+                                        'fontWeight': '400',
+                                        'fontSize': '0.8rem'
                                     }),
                                     daq.ToggleSwitch(
                                         id="equal-weights-button",
@@ -337,7 +302,15 @@ layout = html.Div(
                                 ]
                             ),
                         ]
-                    )
+                    ),
+                
+                    # A stylized button for users to add stock ticker to portfolio
+                    html.Button("Confirm Portfolio", 
+                        id="btn-confirm-portfolio", 
+                        n_clicks=0,
+                        disabled=True,
+                    ),
+
                 ]
             ),
                 
@@ -388,8 +361,8 @@ layout = html.Div(
                             ], style={'maxWidth': '700px'})
                         ])
                     ]
-                )
-
+                ),
+            
             ]
         ),
 
@@ -424,86 +397,42 @@ layout = html.Div(
                     }
                 ),
             ],
-        )
+        ),
+    
+        # Go to portfolio simulator
+        html.Div(
+            style={
+                'display': 'flex',
+                'justifyContent': 'flex-end',
+                'marginTop': '20px',
+                'marginLeft': '320px',
+                'maxWidth': 'calc(100% - 320px)',
+                'paddingRight': '20px',
+                'overflow': 'hidden',
+            },
+            
+            children=[
+
+                html.Div(
+                    className='button-container', 
+                    children=[
+                        # Go to portfolio simulator page
+                        dcc.Link(
+                            html.Button(
+                                "Go to Portfolio Simulator",
+                                id="btn-portfolio-simulator",
+                                n_clicks=0,
+                                disabled=True,
+                            ),
+                            href="/pages/portfolio-simulator",
+                            refresh=False  # Set to True if you want full page reload
+                        )
+                    ]
+                )
+            ]
+        ),
     ]
 )
-
-# Ensure budget formatting is consistent for monetary inputs
-@callback(
-    Output("inp-budget", "value"),
-    Input("inp-budget", "value"),
-    prevent_initial_call=True
-)
-def format_budget_input(value):
-    if not value:
-        return ""
-
-    # Remove everything except digits and decimal point
-    raw_value = re.sub(r"[^\d.]", "", value)
-
-    try:
-        # Format number with commas, preserve decimal if present
-        if "." in raw_value:
-            number = float(raw_value)
-            formatted = f"{number:,.2f}"
-        else:
-            number = int(raw_value)
-            formatted = f"{number:,}"
-        return formatted
-    except:
-        return value  # return unformatted if there's an issue
-
-# Verify budget and reset status if budget changes
-@callback(
-    [
-        Output("verify-budget", "data"),
-        Output("budget-value", "data"),
-    ],
-    [
-        Input("btn-verify-budget", "n_clicks")
-    ],
-    [
-        State("inp-budget", "value")
-    ],
-    prevent_initial_call=True
-)
-def handle_verify_budget(_, budget_input):
-    trigger_id = ctx.triggered_id
-
-    if trigger_id == "btn-verify-budget":
-        result = validate_budget(budget_input)
-
-        if result["valid"]:
-            return {"verified": True}, result["value"]
-        else:
-            return {"verified": False, "error": result["error"]}, None
-
-    elif trigger_id == "inp-budget":
-        return {"verified": False}, None
-
-    return no_update
-
-# Show validation symbol upon successful verification
-@callback(
-    [
-        Output("inp-budget", "valid"),
-        Output("inp-budget", "invalid"),
-        Output("inp-budget", "key")
-    ],
-    Input("verify-budget", "data"),
-    prevent_initial_call=True
-)
-def set_budget_validation(verify_budget):
-    
-    # Defensive fallback key
-    dynamic_key = f"key-{uuid.uuid4()}"
-
-    is_verified = verify_budget.get("verified", False)
-
-    if not is_verified:
-        return (False, True, dynamic_key)
-    
-    return (True, False, dynamic_key)
 
 # Populate dropdown with tickers
 @callback(
@@ -528,7 +457,15 @@ def populate_dropdown_options(data):
         Output("dropdown-ticker-selection", "options", allow_duplicate=True),
         Output("dropdown-ticker-selection", "value", allow_duplicate=True),
         Output("selected-ticker-card", "children", allow_duplicate=True),
-        Output("selected-tickers-store", "data", allow_duplicate=True)
+        Output("selected-tickers-store", "data", allow_duplicate=True),
+        Output("portfolio-builder-main-content", "children", allow_duplicate=True),
+        Output("max-sharpe-button", "disabled", allow_duplicate=True),
+        Output("toggle-max-sharpe", "style", allow_duplicate=True),
+        Output("min-variance-button", "disabled", allow_duplicate=True),
+        Output("toggle-min-variance", "style", allow_duplicate=True),
+        Output("equal-weights-button", "disabled", allow_duplicate=True),
+        Output("toggle-equal-weights", "style", allow_duplicate=True),
+        Output("summary-table-container", "children", allow_duplicate=True),
     ],
     [
         Input({"type": "remove-ticker", "index": ALL}, "n_clicks"),
@@ -608,88 +545,100 @@ def update_ticker_selection(_, dropdown_value, portfolio_data, current_options, 
         for ticker in current_selected
     ]
 
-    return new_options, dropdown_value, selected_tags, current_options
-
-# Toggle styles between enabled/disabled status
-@callback(
-    [
-        Output("btn-efficient-frontier", "disabled"),
-        Output("btn-efficient-frontier", "style"),
-        Output("btn-efficient-frontier", "className"),
-    ],
-    Input("verify-budget", "data"),
+    return (
+        new_options,
+        dropdown_value,
+        selected_tags,
+        [{"value": t, "label": t} for t in current_selected],
+        [html.Div()],
+        True,  
+        unverified_toggle_button,
+        True,  
+        unverified_toggle_button,
+        True,  
+        unverified_toggle_button,
+        [default_summary_message()]
 )
-def toggle_button_states(verify_budget):
-    is_verified = verify_budget.get("verified", False)
 
-    if is_verified:
-        return (
-            False, verified_button_style, "simple",
-        )
-    
-    else:
-        return (
-            True, unverified_button_style, "",
-        )
-
-# Plot efficient frontier
+# Plot efficient frontier and conduct optimizations
 @callback(
-    [
-        Output("portfolio-builder-main-content", "children"),
-        Output("max-sharpe-button", "disabled"),
-        Output("toggle-max-sharpe", "style"),
-        Output("min-variance-button", "disabled"),
-        Output("toggle-min-variance", "style"),
-        Output("equal-weights-button", "disabled"),
-        Output("toggle-equal-weights", "style")
-    ],
-    [
-        Input("btn-efficient-frontier", "n_clicks"),
-        Input('max-sharpe-button', 'value'),
-        Input('min-variance-button', 'value'),
-        Input('equal-weights-button', 'value')
-    ],
+    Output("portfolio-weights-store", "data"),
+    Input("btn-efficient-frontier", "n_clicks"),
     [
         State("portfolio-store", "data"),
         State("selected-tickers-store", "data")
     ],
     prevent_initial_call=True
 )
-def explore_weights_MPT(_, max_sharpe_on, min_variance_on, equal_weights_on, cache_data, selected_tickers):
-
-    # Filter portfolio data using selected tickers
+def compute_optimization(_, cache_data, selected_tickers):
     filtered_data = [
         entry for entry in cache_data
         if entry["ticker"] in [item["value"] for item in selected_tickers]
     ]
 
-    return (
-            html.Div(
-                id="portfolio-builder-main-content",
-                style={
-                    'display': 'flex',
-                    'flexDirection': 'column',
-                    'height': '100%',
-                    'width': '100%',
-                    'overflow': 'hidden',
-                },
+    return portfolio_optimization(filtered_data)
 
-                children=[
-                    plot_efficient_frontier(max_sharpe_on, min_variance_on, equal_weights_on, filtered_data, COLORS),                
-                ]
-            ),
-            False,
-            verified_toggle_button,
-            False,
-            verified_toggle_button,
-            False,
-            verified_toggle_button
+@callback(
+    [
+        Output("portfolio-builder-main-content", "children"),
+        Output("max-sharpe-button", "disabled"),
+        Output("toggle-max-sharpe", "style"),
+        Output("max-diversification-button", "disabled"),
+        Output("toggle-max-diversification", "style"),
+        Output("min-variance-button", "disabled"),
+        Output("toggle-min-variance", "style"),
+        Output("equal-weights-button", "disabled"),
+        Output("toggle-equal-weights", "style"),
+    ],
+    [
+        Input('max-sharpe-button', 'value'),
+        Input('max-diversification-button', 'value'),
+        Input('min-variance-button', 'value'),
+        Input('equal-weights-button', 'value'),
+    ],
+    State("portfolio-weights-store", "data"),
+    prevent_initial_call=True
+)
+def update_plot(max_sharpe_on, max_diversification_on, min_variance_on, equal_weights_on, optimization_dict):
+
+    if not optimization_dict:
+        raise dash.exceptions.PreventUpdate
+
+    return (
+        html.Div(
+            id="portfolio-builder-main-content",
+            style={
+                'display': 'flex',
+                'flexDirection': 'column',
+                'height': '100%',
+                'width': '100%',
+                'overflow': 'hidden',
+            },
+            children=[
+                plot_efficient_frontier(
+                    max_sharpe_on,
+                    min_variance_on,
+                    max_diversification_on,
+                    equal_weights_on,
+                    optimization_dict,
+                    COLORS
+                )
+            ]
+        ),
+        False, verified_toggle_button,
+        False, verified_toggle_button,
+        False, verified_toggle_button,
+        False, verified_toggle_button
     )
 
 # Summary table for chosen portfolio
 @callback(
     [
-        Output("summary-table-container", "children")
+        Output("summary-table-container", "children"),
+        Output("btn-confirm-portfolio", "disabled"),
+        Output("btn-confirm-portfolio", "style"),
+        Output("btn-confirm-portfolio", "className"),
+        Output("confirmed-weights-store", "data")
     ],
     [
         Input("efficient-frontier-graph", "clickData")
@@ -720,7 +669,8 @@ def display_summary_table(clickData, cache_data, budget, selected_tickers):
         if entry["ticker"] in [item["value"] for item in selected_tickers]
     ]
 
-    return ([
+    return (
+        [
             html.H4(
                 header_text,
                 style={
@@ -729,5 +679,55 @@ def display_summary_table(clickData, cache_data, budget, selected_tickers):
                     "marginBottom": "20px"
                 }
             ),
-            summary_table(filtered_data, COLORS, weights=weights, budget=budget)],
+            summary_table(filtered_data, COLORS, weights=weights, budget=budget)
+        ],
+        False,
+        verified_button_portfolio,
+        "special",
+        weights
     )
+
+# Confirm portfolio and display appropriate message
+@callback(
+    [
+        Output("portfolio-toast", "is_open"),
+        Output("portfolio-toast", "children"),
+        Output("portfolio-toast", "style"),
+    ],
+    Input("btn-confirm-portfolio", "n_clicks"),
+    prevent_initial_call=True
+)
+def confirm_portfolio(_):
+    return (
+        True,  # is_open
+        "Portfolio confirmed! You're ready to simulate.",  # children/message
+        {
+            "position": "fixed",
+            "top": "70px",
+            "right": "30px",
+            "zIndex": 9999,
+            "backgroundColor": COLORS["card"],
+            "color": COLORS["text"],
+            "borderLeft": f"6px solid {COLORS['primary']}",  # success = yellow
+            "boxShadow": "0 2px 8px rgba(0,0,0,0.3)",
+            "padding": "12px 16px",
+            "borderRadius": "6px",
+            "width": "350px"
+        }
+    )
+
+# Allow users to navigate to portfolio simulator page
+@callback(
+    [
+        Output("btn-portfolio-simulator", "disabled"),
+        Output("btn-portfolio-simulator", "style"),
+        Output("btn-portfolio-simulator", "className"),
+    ],
+    Input("btn-confirm-portfolio", "n_clicks")
+)
+def update_portfolio_analytics_button(n_clicks):
+    
+    if n_clicks:
+        return False, verified_button_portfolio, "special"
+    
+    return True, unverified_button_portfolio, ""
