@@ -326,7 +326,6 @@ layout = html.Div(
                         html.P("To find the appropriate portfolio, please follow the steps below:",
                             style={'color': COLORS['text'], 'fontSize': '1.1rem'}),
                         html.Ol([
-                            html.Li("Input a budget (in $) and click 'Verify Budget'.", style={'color': COLORS['text']}),
                             html.Li("Choose a subset of tickers you wish to have in the portfolio.", style={'color': COLORS['text']}),
                             html.Li("Explore efficient frontier to find the optimum risk/return ratio.", style={'color': COLORS['text']}),
                             html.Li("Confirm the portfolio weights and proceed.", style={'color': COLORS['text']}),
@@ -528,7 +527,7 @@ def update_ticker_selection(_, dropdown_value, portfolio_data, current_options, 
         dropdown_value,
         selected_tags,
         [{"value": t, "label": t} for t in current_selected],
-        [html.Div()],
+        no_update,
         True,  
         unverified_toggle_button,
         True,  
@@ -537,7 +536,7 @@ def update_ticker_selection(_, dropdown_value, portfolio_data, current_options, 
         unverified_toggle_button,
         True,  
         unverified_toggle_button,
-        [html.Div()]
+        no_update
 )
 
 # Plot efficient frontier and conduct optimizations
@@ -577,16 +576,17 @@ def compute_optimization(_, cache_data, selected_tickers):
         Output("toggle-equal-weights", "style"),
     ],
     [
-        Input("portfolio-weights-store", "data"),
         Input("max-sharpe-button", "value"),
         Input("max-diversification-button", "value"),
         Input("min-variance-button", "value"),
         Input("equal-weights-button", "value"),
+        Input("portfolio-weights-store", "data"),
     ],
     State("efficient-frontier-clicked", "data"),
     prevent_initial_call=True
 )
-def update_plot(optimization_dict, max_sharpe_on, max_diversification_on, min_variance_on, equal_weights_on, has_clicked):
+def update_plot(max_sharpe_on, max_diversification_on, min_variance_on, equal_weights_on, 
+                optimization_dict, has_clicked):
 
     if not has_clicked:
         return (
@@ -601,25 +601,13 @@ def update_plot(optimization_dict, max_sharpe_on, max_diversification_on, min_va
         raise dash.exceptions.PreventUpdate
 
     return (
-        html.Div(
-            id="portfolio-builder-main-content",
-            style={
-                'display': 'flex',
-                'flexDirection': 'column',
-                'height': '100%',
-                'width': '100%',
-                'overflow': 'hidden',
-            },
-            children=[
-                plot_efficient_frontier(
-                    max_sharpe_on,
-                    min_variance_on,
-                    max_diversification_on,
-                    equal_weights_on,
-                    optimization_dict,
-                    COLORS
-                )
-            ]
+        plot_efficient_frontier(
+            max_sharpe_on,
+            min_variance_on,
+            max_diversification_on,
+            equal_weights_on,
+            optimization_dict,
+            COLORS
         ),
         False, verified_toggle_button,
         False, verified_toggle_button,
@@ -641,12 +629,11 @@ def update_plot(optimization_dict, max_sharpe_on, max_diversification_on, min_va
     ],
     [
         State("portfolio-store", "data"),
-        State("budget-value", "data"),
         State("selected-tickers-store", "data")
     ],
     prevent_initial_call=True
 )
-def display_summary_table(clickData, cache_data, budget, selected_tickers):
+def display_summary_table(clickData, cache_data, selected_tickers):
     
     if not clickData:
         return no_update
@@ -675,7 +662,7 @@ def display_summary_table(clickData, cache_data, budget, selected_tickers):
                     "marginBottom": "20px"
                 }
             ),
-            summary_table(filtered_data, COLORS, weights=weights, budget=budget)
+            summary_table(filtered_data, COLORS, weights=weights)
         ],
         False,
         verified_button_portfolio,

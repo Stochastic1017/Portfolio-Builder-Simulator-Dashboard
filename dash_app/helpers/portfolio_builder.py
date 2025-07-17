@@ -13,7 +13,7 @@ from scipy.optimize import minimize
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-def summary_table(cache_data, COLORS, weights=None, budget=None):
+def summary_table(cache_data, COLORS, weights=None):
     table_data = []
 
     for i, entry in enumerate(cache_data):
@@ -23,8 +23,6 @@ def summary_table(cache_data, COLORS, weights=None, budget=None):
         latest_price = hist_df['close'].iloc[-1]
         
         weight_pct = weights[i] if weights else 0
-        dollar_alloc = weight_pct * budget if budget else 0
-        shares = dollar_alloc / latest_price if latest_price else 0
 
         table_data.append({
             "Sr. No.": i+1,
@@ -33,9 +31,7 @@ def summary_table(cache_data, COLORS, weights=None, budget=None):
             "SIC": entry["sic_description"],
             "Latest Price": latest_price,
             "Market Cap": entry["market_cap"],
-            "Weight (%)": round(weight_pct * 100, 2),
-            "Weight ($)": round(dollar_alloc, 2),
-            "Shares to Buy": round(shares, 3)
+            "Weight (in %)": round(weight_pct * 100, 2)
         })
 
     columns = [
@@ -45,9 +41,7 @@ def summary_table(cache_data, COLORS, weights=None, budget=None):
         {"name": "SIC", "id": "SIC"},
         {"name": "Latest Price", "id": "Latest Price", "type": "numeric", "format": dt.FormatTemplate.money(0)},
         {"name": "Market Cap", "id": "Market Cap", "type": "numeric", "format": dt.FormatTemplate.money(0)},
-        {"name": "Weight (%)", "id": "Weight (%)", "type": "numeric", "format": {"specifier": ".2f"}},
-        {"name": "Weight ($)", "id": "Weight ($)", "type": "numeric", "format": dt.FormatTemplate.money(0)},
-        {"name": "Shares to Buy", "id": "Shares to Buy", "type": "numeric", "format": {"specifier": ".3f"}},
+        {"name": "Weight (in %)", "id": "Weight (in %)", "type": "numeric", "format": {"specifier": ".2f"}},
     ]
 
     return dt.DataTable(
