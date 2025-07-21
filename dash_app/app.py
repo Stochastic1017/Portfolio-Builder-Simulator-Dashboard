@@ -44,19 +44,23 @@ app.layout = html.Div(
         ################
 
         ### Stock exploration dashboard page
-        dcc.Store(id="verify-ticker", data={"verified": False}), # verify ticker 
-        dcc.Store(id="selected-range", data="range-all"),        # selected range
-        dcc.Store(id='portfolio-store', data=temp),              # portfolio table
+        dcc.Store(id="verify-ticker", data={"verified": False}),    # verify ticker 
+        dcc.Store(id="selected-range", data="range-all"),           # selected range
+        dcc.Store(id='portfolio-store', data=temp),                 # portfolio table
         
         ### Portfolio builder page
-        dcc.Store(id="selected-tickers-store"),                  # subset of tickers chosen
-        dcc.Store(id="efficient-frontier-clicked", data=False),   # efficient frontier clicked or not
-        dcc.Store(id="portfolio-weights-store"),                 # For all optimizations
-        dcc.Store(id="confirmed-weights-store"),                 # For the selected/confirmed portfolio weights
+        dcc.Store(id="selected-tickers-store"),                     # subset of tickers chosen
+        dcc.Store(id="efficient-frontier-clicked", data=False),     # efficient frontier clicked or not
+        dcc.Store(id="portfolio-weights-store"),                    # for all optimizations
+        dcc.Store(id="confirmed-weights-store"),                    # for the selected/confirmed portfolio weights
+        dcc.Store(id="portfolio-clicked-risk-return"),              # temporary placeholder for risk/return
+        dcc.Store(id="portfolio-risk-return"),                      # risk/return for confirmed portfolio
 
         ### Portfolio simulation page
-        dcc.Store(id="verify-budget", data={"verified": False}), # verify budget
-        dcc.Store(id="budget-value"),                            # budget (in $) input
+        dcc.Store(id="verify-budget", data={"verified": False}),    # verify budget
+        dcc.Store(id="budget-value"),                               # budget (in $) input
+        dcc.Store(id="portfolio-selected-range", 
+                  data="portfolio-range-all"),                      # portfolio selected range
 
         #################
         ### Landing Page

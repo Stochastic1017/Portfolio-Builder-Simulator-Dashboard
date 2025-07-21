@@ -186,40 +186,6 @@ def create_historic_plots(full_name, dates, daily_prices, daily_returns, COLORS)
         row=1, col=1
     )
 
-    # Calculate 5-day rolling statistics
-    rolling_mean = pd.Series(daily_prices).rolling(window=5).mean().to_numpy()
-    rolling_std = pd.Series(daily_prices).rolling(window=5).std().to_numpy()
-
-    # Compute Bollinger Bands
-    upper_band = rolling_mean + 1.96 * rolling_std
-    lower_band = rolling_mean - 1.96 * rolling_std
-
-    # Upper Bollinger Band
-    historical_daily_plot.add_trace(
-        go.Scatter(
-            x=dates,
-            y=upper_band,
-            mode='lines',
-            name='Upper Bollinger Bound',
-            line=dict(color="rgba(255,255,255,0.5)"),
-        ),
-        row=1, col=1
-    )
-
-    # Lower Bollinger Band
-    historical_daily_plot.add_trace(
-        go.Scatter(
-            x=dates,
-            y=lower_band,
-            mode='lines',
-            name='Lower Bollinger Bound',
-            line=dict(color="rgba(255,255,255,0.5)"),
-            fill='tonexty', 
-            fillcolor="rgba(255,255,255,0.05)",
-        ),
-        row=1, col=1
-    )
-
     #################################
     ### Line Plot for Daily Returns
     ### with 95% Confidence Interval

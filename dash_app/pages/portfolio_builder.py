@@ -622,7 +622,8 @@ def update_plot(max_sharpe_on, max_diversification_on, min_variance_on, equal_we
         Output("btn-confirm-portfolio", "disabled"),
         Output("btn-confirm-portfolio", "style"),
         Output("btn-confirm-portfolio", "className"),
-        Output("confirmed-weights-store", "data")
+        Output("confirmed-weights-store", "data"),
+        Output("portfolio-clicked-risk-return", "data"),
     ],
     [
         Input("efficient-frontier-graph", "clickData")
@@ -667,7 +668,8 @@ def display_summary_table(clickData, cache_data, selected_tickers):
         False,
         verified_button_portfolio,
         "special",
-        weights
+        weights,
+        {"risk": risk, "return": ret},
     )
 
 # Confirm portfolio and display appropriate message
@@ -676,14 +678,24 @@ def display_summary_table(clickData, cache_data, selected_tickers):
         Output("portfolio-toast", "is_open"),
         Output("portfolio-toast", "children"),
         Output("portfolio-toast", "style"),
+        Output("portfolio-risk-return", "data")
     ],
-    Input("btn-confirm-portfolio", "n_clicks"),
+    [
+        Input("btn-confirm-portfolio", "n_clicks")
+    ],
+    [
+        State("portfolio-clicked-risk-return", "data")
+    ],
     prevent_initial_call=True
 )
-def confirm_portfolio(_):
+def confirm_portfolio(_, risk_return):
+      
+    if not risk_return or "risk" not in risk_return or "return" not in risk_return:
+        raise dash.exceptions.PreventUpdate
+    
     return (
-        True,  # is_open
-        "Portfolio confirmed! You're ready to simulate.",  # children/message
+        True,
+        "Portfolio confirmed! You're ready to simulate.",
         {
             "position": "fixed",
             "top": "70px",
@@ -691,11 +703,15 @@ def confirm_portfolio(_):
             "zIndex": 9999,
             "backgroundColor": COLORS["card"],
             "color": COLORS["text"],
-            "borderLeft": f"6px solid {COLORS['primary']}",  # success = yellow
+            "borderLeft": f"6px solid {COLORS['primary']}",
             "boxShadow": "0 2px 8px rgba(0,0,0,0.3)",
             "padding": "12px 16px",
             "borderRadius": "6px",
             "width": "350px"
+        },
+        {
+            "risk": risk_return["risk"],
+            "return": risk_return["return"],
         }
     )
 

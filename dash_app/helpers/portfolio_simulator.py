@@ -13,6 +13,32 @@ from plotly.subplots import make_subplots
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+def portfolio_dash_range_selector(default_style):
+    
+    return html.Div(
+        id="portfolio-simulator-range-selector-container",
+        children=[
+            html.Div(
+                style={"display": "flex", 
+                       "justifyContent": "start", 
+                       "flexWrap": "wrap",
+                       "gap": "10px",
+                       "paddingTop": "10px", 
+                       "marginBottom": "10px"},
+
+                children=[
+                    html.Button("1M", id="portfolio-range-1M", n_clicks=0, style=default_style, className="simple"),
+                    html.Button("3M", id="portfolio-range-3M", n_clicks=0, style=default_style, className="simple"),
+                    html.Button("6M", id="portfolio-range-6M", n_clicks=0, style=default_style, className="simple"),
+                    html.Button("1Y", id="portfolio-range-1Y", n_clicks=0, style=default_style, className="simple"),
+                    html.Button("5Y", id="portfolio-range-5Y", n_clicks=0, style=default_style, className="simple"),
+                    html.Button("All", id="portfolio-range-all", n_clicks=0, style=default_style, className="simple"),
+                ],
+
+            )
+        ]
+    )
+
 def parse_ts_map(selected_tickers, portfolio_weights, portfolio_store, budget, threshold=1e-6):
     ts_map = {}
     selected_values = {t['value'] for t in selected_tickers}

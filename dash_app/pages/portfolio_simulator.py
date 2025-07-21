@@ -4,30 +4,32 @@ import re
 import sys
 import uuid
 import dash
-import dash_daq as daq
+import numpy as np
 import dash_bootstrap_components as dbc
 
 from scipy.special import comb
+from datetime import timedelta
 from dash import (html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no_update)
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from helpers.portfolio_simulator import (
-    parse_ts_map
+    parse_ts_map,
+    portfolio_dash_range_selector
 )
 
 from helpers.portfolio_exploration import (
-    dash_range_selector,
     create_historic_plots
 )
 
 from helpers.button_styles import (
-    COLORS, 
+    COLORS, PORTFOLIO_COLORS,
     verified_button_portfolio, unverified_button_portfolio,
     verified_button_style, unverified_button_style,
     verified_toggle_button, unverified_toggle_button, 
-    default_style_time_range, active_style_time_range
+    default_style_time_range, active_style_time_range,
+    portfolio_default_style_time_range, portfolio_active_style_time_range
 )
 
 dash.register_page(__name__, path="/pages/portfolio-simulator")
@@ -390,18 +392,172 @@ def toggle_button_states(verify_budget):
         )
 
 @callback(
-    Output("portfolio-simulator-main-content", "children"),
-    Input("btn-portfolio-performance", "n_clicks"),
-    State("budget-value", "data"),
-    State("portfolio-store", "data"),
-    State("selected-tickers-store", "data"),
-    State("confirmed-weights-store", "data"),
+    [
+        Output("portfolio-simulator-main-content", "children")
+    ],
+    [
+        Input("btn-portfolio-performance", "n_clicks")
+    ],
+    [
+        State("verify-budget", "data")
+    ],
     prevent_initial_call=True
 )
-def portfolio_plot(_, budget, portfolio_store, selected_tickers, weights):
+def update_portfolio_simulator_main_plot(_, __):
+
+    # Button clicked by user, one of the fllowing:
+    button_id = ctx.triggered_id
+    if button_id == "portfolio-selected-range":
+        raise dash.exceptions.PreventUpdate # Prevent callback overlap
     
+    if button_id == "btn-portfolio-performance":
+        return (
+            html.Div(
+                    id="simulator-main-panel",
+                    style={
+                        'display': 'flex',
+                        'flexDirection': 'column',
+                        'height': '100%',
+                        'width': '100%',
+                        'overflow': 'hidden',
+                    },
+
+                    children=[
+                        portfolio_dash_range_selector(default_style=portfolio_default_style_time_range),
+                        dcc.Tabs(
+                            id="portfolio-performance-tabs",
+                            value='portfolio-tab-plot',
+                            style={
+                                "marginTop": "10px",
+                                "backgroundColor": PORTFOLIO_COLORS['card'],
+                                "color": PORTFOLIO_COLORS['text'],
+                                "height": "42px",
+                                "borderRadius": "5px",
+                                "overflow": "hidden",
+                            },
+                            colors={
+                                "border": PORTFOLIO_COLORS['background'],
+                                "primary": PORTFOLIO_COLORS['primary'],
+                                "background": PORTFOLIO_COLORS['card'],
+                            },
+                            
+                            children=[                       
+                                dcc.Tab(
+                                    label="Price & Returns Plot",
+                                    value='portfolio-tab-plot',
+                                    style={
+                                        "backgroundColor": PORTFOLIO_COLORS['background'],
+                                        "color": PORTFOLIO_COLORS['text'],
+                                        "padding": "6px 18px",
+                                        "fontSize": "14px",
+                                        "fontWeight": "bold",
+                                        "border": "none",
+                                        "borderBottom": f"2px solid transparent",
+                                    },
+                                    selected_style={
+                                        "backgroundColor": PORTFOLIO_COLORS['background'],
+                                        "color": PORTFOLIO_COLORS['primary'],
+                                        "padding": "6px 18px",
+                                        "fontSize": "14px",
+                                        "fontWeight": "bold",
+                                        "border": "none",
+                                        "borderBottom": f"2px solid {PORTFOLIO_COLORS['primary']}",
+                                    },
+                                ),                           
+                                dcc.Tab(
+                                    label="Statistical Summary",
+                                    value='portfolio-tab-stats',
+                                    style={
+                                        "backgroundColor": PORTFOLIO_COLORS['background'],
+                                        "color": PORTFOLIO_COLORS['text'],
+                                        "padding": "6px 18px",
+                                        "fontWeight": "bold",
+                                        "fontSize": "14px",
+                                        "border": "none",
+                                        "borderBottom": f"2px solid transparent",
+                                    },
+                                    selected_style={
+                                        "backgroundColor": PORTFOLIO_COLORS['background'],
+                                        "color": PORTFOLIO_COLORS['primary'],
+                                        "padding": "6px 18px",
+                                        "fontWeight": "bold",
+                                        "fontSize": "14px",
+                                        "border": "none",
+                                        "borderBottom": f"2px solid {PORTFOLIO_COLORS['primary']}",
+                                    },
+                                ),
+                            ]
+                        ),
+                        html.Div(id="portfolio-plot-container", style={"flex": "1", "overflow": "hidden"}),
+                    ]
+                ),
+            )
+
+# Highlight buttons based on time-range selected
+@callback(
+    [
+        Output("portfolio-range-1M", "style"),
+        Output("portfolio-range-3M", "style"),
+        Output("portfolio-range-6M", "style"),
+        Output("portfolio-range-1Y", "style"),
+        Output("portfolio-range-5Y", "style"),
+        Output("portfolio-range-all", "style"),
+        Output("portfolio-selected-range", "data")
+    ],
+    [
+        Input("portfolio-range-1M", "n_clicks"),
+        Input("portfolio-range-3M", "n_clicks"),
+        Input("portfolio-range-6M", "n_clicks"),
+        Input("portfolio-range-1Y", "n_clicks"),
+        Input("portfolio-range-5Y", "n_clicks"),
+        Input("portfolio-range-all", "n_clicks"),
+    ]
+)
+def update_portfolio_range_styles(*btn_clicks):
+    button_ids = [
+        "portfolio-range-1M", "portfolio-range-3M", "portfolio-range-6M",
+        "portfolio-range-1Y", "portfolio-range-5Y", "portfolio-range-all"
+    ]
+
+    # If no button has been clicked yet, fall back to "All"
+    if not any(click and click > 0 for click in btn_clicks):
+        selected = "portfolio-range-all"
+    else:
+        selected = ctx.triggered_id or "portfolio-range-all"
+
+    style_map = {btn_id: portfolio_default_style_time_range for btn_id in button_ids}
+    style_map[selected] = portfolio_active_style_time_range
+
+    return (
+        style_map["portfolio-range-1M"],
+        style_map["portfolio-range-3M"],
+        style_map["portfolio-range-6M"],
+        style_map["portfolio-range-1Y"],
+        style_map["portfolio-range-5Y"],
+        style_map["portfolio-range-all"],
+        selected.split("-")[-1]  # "1M", "3M", ..., "all"
+    )
+
+# Update historic daily plot based on range selected
+@callback(
+    Output("portfolio-plot-container", "children"),
+    [
+        Input("portfolio-performance-tabs", "value"),
+        Input("portfolio-selected-range", "data")
+    ],
+    [
+        State("budget-value", "data"),
+        State("portfolio-store", "data"),
+        State("selected-tickers-store", "data"),
+        State("confirmed-weights-store", "data"),
+        State("portfolio-risk-return", "data"),
+    ],
+    prevent_initial_call=True
+)
+def update_plot_on_range_change(active_tab, selected_range, budget, portfolio_store, selected_tickers, weights, risk_return):
+
     # Compute budget-adjusted time series
-    ts_map, portfolio_value_ts = parse_ts_map(
+    _, portfolio_value_ts = parse_ts_map(
         selected_tickers=selected_tickers,
         portfolio_weights=weights,
         portfolio_store=portfolio_store,
@@ -411,21 +567,33 @@ def portfolio_plot(_, budget, portfolio_store, selected_tickers, weights):
     # Portfolio returns
     portfolio_returns = portfolio_value_ts.pct_change().dropna()
 
-    # Call your existing plotting function
-    return create_historic_plots(
-        full_name="Simulated Portfolio",
+    today = portfolio_value_ts.index[-1]
+    range_days = {
+        "1M": 30,
+        "3M": 90,
+        "6M": 180,
+        "1Y": 365,
+        "5Y": 1825,
+        "all": None
+    }
+
+    selected_range = (selected_range or "all").upper()
+    if selected_range not in range_days:
+        selected_range = "all"
+
+    if range_days[selected_range] is not None:
+        cutoff = today - timedelta(days=range_days[selected_range])
+        portfolio_value_ts = portfolio_value_ts[portfolio_value_ts.index >= cutoff]
+        portfolio_returns = portfolio_value_ts.pct_change().dropna()
+
+    if active_tab == "portfolio-tab-plot":
+        return create_historic_plots(
+        full_name=f"Portfolio (Risk: {round(risk_return["risk"], 4)*100}%, Return: {round(risk_return["return"], 4)*100}%)",
         dates=portfolio_value_ts.index,
         daily_prices=portfolio_value_ts.values,
         daily_returns=portfolio_returns,
-        COLORS=COLORS
+        COLORS=PORTFOLIO_COLORS
     )
-
-"""
-create_historic_plots(
-    full_name,       # str — name label for plot title
-    dates,           # list-like of timestamps
-    daily_prices,    # list-like of portfolio prices
-    daily_returns,   # list-like of portfolio returns
-    COLORS           # dict — your theme
-)
-"""
+    
+    elif active_tab == "portfolio-tab-stats":
+        return (html.Div("temp!"), )

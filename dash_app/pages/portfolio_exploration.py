@@ -8,8 +8,8 @@ import pandas as pd
 import dash.dash_table as dt
 import dash_bootstrap_components as dbc
 
-from datetime import timedelta
 from io import StringIO
+from datetime import timedelta
 from dotenv import load_dotenv
 from dash import (html, dcc, Input, Output, State, callback, ctx, no_update)
 
@@ -610,7 +610,7 @@ def update_main_output(_, __, ___, ____, cache_data):
     # Button clicked by user, one of the fllowing:
     button_id = ctx.triggered_id
     if button_id == "selected-range":
-        raise dash.exceptions.PreventUpdate # Prevent caallback overlap
+        raise dash.exceptions.PreventUpdate # Prevent callback overlap
     
     # 1. Check Latest News
     if button_id == "btn-news":
@@ -652,7 +652,7 @@ def update_main_output(_, __, ___, ____, cache_data):
                     
                     dash_range_selector(default_style=default_style_time_range),
                     dcc.Tabs(
-                        id="performance-tabs",
+                        id="stock-performance-tabs",
                         value='tab-plot',
                         style={
                             "marginTop": "10px",

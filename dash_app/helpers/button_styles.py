@@ -8,6 +8,14 @@ COLORS = {
     'text': '#FFFFFF'          # White Text
 }
 
+PORTFOLIO_COLORS = {
+    'primary': "#08ABF1",      # Golden Yellow
+    'secondary': '#FFF4B8',    # Light Yellow
+    'background': '#1A1A1A',   # Dark Background
+    'card': '#2D2D2D',         # Card Background
+    'text': '#FFFFFF'          # White Text
+}
+
 verified_button_style = {
     'padding': '10px', 
     'backgroundColor': COLORS['text'], 
@@ -89,4 +97,26 @@ active_style_time_range = {
     'fontWeight': '600',
     'boxShadow': '0 0 6px rgba(0, 0, 0, 0.15)',
     'transform': 'scale(1.05)',
+}
+
+portfolio_default_style_time_range = {
+    'padding': '4px 12px',
+    'backgroundColor': PORTFOLIO_COLORS['card'],
+    'color': PORTFOLIO_COLORS['text'],
+    'border': f'1px solid {PORTFOLIO_COLORS["primary"]}',
+    'borderRadius': '999px',  
+    'cursor': 'pointer',
+    'fontSize': '0.85rem',
+    'marginRight': '8px',  
+    'display': 'inline-block',
+    'transition': 'all 0.2s ease-in-out',    
+}
+
+portfolio_active_style_time_range = {
+    **portfolio_default_style_time_range,
+    'backgroundColor': PORTFOLIO_COLORS['primary'],
+    'color': PORTFOLIO_COLORS['background'],
+    'fontWeight': '600',
+    'boxShadow': '0 0 6px rgba(0, 0, 0, 0.15)',
+    'transform': 'scale(1.05)',    
 }
