@@ -20,7 +20,8 @@ from helpers.portfolio_simulator import (
 )
 
 from helpers.portfolio_exploration import (
-    create_historic_plots
+    create_historic_plots,
+    create_statistics_table,
 )
 
 from helpers.button_styles import (
@@ -596,4 +597,7 @@ def update_plot_on_range_change(active_tab, selected_range, budget, portfolio_st
     )
     
     elif active_tab == "portfolio-tab-stats":
-        return (html.Div("temp!"), )
+        return create_statistics_table(dates=portfolio_value_ts.index, 
+                                       daily_prices=portfolio_value_ts.values, 
+                                       daily_returns=portfolio_returns, 
+                                       COLORS=PORTFOLIO_COLORS)
