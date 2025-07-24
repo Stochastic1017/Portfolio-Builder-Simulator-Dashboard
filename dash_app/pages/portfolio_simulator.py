@@ -235,6 +235,29 @@ layout = html.Div(
                         ]
                     ),
 
+                    html.Div(
+                        style={
+                            'display': 'flex',
+                            'flexDirection': 'column',
+                            'gap': '10px'  
+                        },
+
+                        children=[
+                            
+                            html.Label("Number of ensembles to generate:",
+                                    style={
+                                    'color': COLORS['primary'],
+                                    'fontWeight': 'bold',
+                                    'marginBottom': '10px',
+                                    'fontSize': '1rem'
+                                }
+                            ),
+
+                            # Slider to choose number of ensembles to generate
+                            dcc.Slider(10, 1000, value=500)
+
+                        ]
+                    )
                 ]
             ),
                 
