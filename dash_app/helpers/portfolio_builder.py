@@ -189,6 +189,7 @@ def portfolio_optimization(cache_data):
 
 def plot_efficient_frontier(max_sharpe_on, min_variance_on, min_diversification_on, equal_weights_on, 
                             optimization_dict, COLORS):
+    
     # Extract data from the optimization dictionary
     frontier_stddevs = optimization_dict["frontier_stddevs"]
     frontier_returns = optimization_dict["frontier_returns"]

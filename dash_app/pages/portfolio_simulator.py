@@ -4,11 +4,9 @@ import re
 import sys
 import uuid
 import dash
-import numpy as np
 import dash_bootstrap_components as dbc
 
-from scipy.special import comb
-from datetime import timedelta
+from datetime import datetime, timedelta
 from dash import (html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no_update)
 
 # Append the current directory to the system path for imports
@@ -25,12 +23,9 @@ from helpers.portfolio_exploration import (
 )
 
 from helpers.button_styles import (
-    COLORS, PORTFOLIO_COLORS,
-    verified_button_portfolio, unverified_button_portfolio,
+    COLORS,
     verified_button_style, unverified_button_style,
-    verified_toggle_button, unverified_toggle_button, 
-    default_style_time_range, active_style_time_range,
-    portfolio_default_style_time_range, portfolio_active_style_time_range
+    default_style_time_range, active_style_time_range
 )
 
 dash.register_page(__name__, path="/pages/portfolio-simulator")
@@ -71,6 +66,20 @@ def validate_budget(budget):
     
     except ValueError:
         return {"valid": False, "value": None, "error": "Could not parse budget value."}
+
+# Get next business day
+def next_business_day(date_str):
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+    next_day = date_obj + timedelta(days=1)
+    while next_day.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+        next_day += timedelta(days=1)
+    return next_day.strftime("%Y-%m-%d")  # Return as string if needed
+
+# Get exact one year business day
+def max_forecast_date(latest_date_str):
+    date_obj = datetime.strptime(latest_date_str, "%Y-%m-%d")
+    one_year_later = date_obj + timedelta(days=365)
+    return one_year_later.strftime("%Y-%m-%d")
 
 layout = html.Div(
     
@@ -231,10 +240,30 @@ layout = html.Div(
                                 disabled=False,
                                 className="simple" 
                             ),
-
                         ]
                     ),
 
+                    # Buttons to generate simulations and predictions
+                    html.Div(
+                        style={
+                            'display': 'flex',
+                            'flexDirection': 'column',
+                            'gap': '10px'  
+                        },
+                        
+                        children=[
+
+                            # Button for user to start monte carlo exploration
+                            html.Button("Predict Future Performance", 
+                                id="btn-simulate-performance", 
+                                style=verified_button_style,
+                                disabled=False,
+                                className="simple" 
+                            ),
+                        ]
+                    ),
+
+                    # Options to generate monte carlo simulations
                     html.Div(
                         style={
                             'display': 'flex',
@@ -254,8 +283,29 @@ layout = html.Div(
                             ),
 
                             # Slider to choose number of ensembles to generate
-                            dcc.Slider(10, 1000, value=500)
+                            dcc.Slider(
+                                id="num-ensemble-slider",
+                                min=10,
+                                max=1000,
+                                value=500,
+                                disabled=True,
+                                tooltip={"placement": "bottom", "always_visible": False}
+                            ),
 
+                            html.Label("Choose a future date for prediction:",
+                                    style={
+                                    'color': COLORS['primary'],
+                                    'fontWeight': 'bold',
+                                    'marginBottom': '10px',
+                                    'fontSize': '1rem'
+                                }
+                            ),
+
+                            dcc.DatePickerSingle(
+                                id="date-chooser-simulation",
+                                disabled=True,
+                                with_portal=True,
+                            )
                         ]
                     )
                 ]
@@ -312,7 +362,6 @@ layout = html.Div(
             
             ]
         ),    
-    
     ]
 )
 
@@ -399,6 +448,9 @@ def set_budget_validation(verify_budget):
         Output("btn-portfolio-performance", "disabled"),
         Output("btn-portfolio-performance", "style"),
         Output("btn-portfolio-performance", "className"),
+        Output("btn-simulate-performance", "disabled"),
+        Output("btn-simulate-performance", "style"),
+        Output("btn-simulate-performance", "className"),
     ],
     Input("verify-budget", "data"),
 )
@@ -408,27 +460,35 @@ def toggle_button_states(verify_budget):
     if is_verified:
         return (
             False, verified_button_style, "simple",
+            False, verified_button_style, "simple",
         )
     
     else:
         return (
             True, unverified_button_style, "",
+            True, unverified_button_style, "",
         )
 
 @callback(
     [
-        Output("portfolio-simulator-main-content", "children")
+        Output("portfolio-simulator-main-content", "children"),
+        Output("num-ensemble-slider", "disabled"),
+        Output("date-chooser-simulation", "disabled"),   
+        Output("date-chooser-simulation", "min_date_allowed"),        
+        Output("date-chooser-simulation", "max_date_allowed"), 
     ],
     [
-        Input("btn-portfolio-performance", "n_clicks")
+        Input("btn-portfolio-performance", "n_clicks"),
+        Input("btn-simulate-performance", "n_clicks"),
     ],
     [
-        State("verify-budget", "data")
+        State("verify-budget", "data"),
+        State("latest-date", "data")
     ],
     prevent_initial_call=True
 )
-def update_portfolio_simulator_main_plot(_, __):
-
+def update_portfolio_simulator_main_plot(_, __, ___, latest_date):
+    
     # Button clicked by user, one of the fllowing:
     button_id = ctx.triggered_id
     if button_id == "portfolio-selected-range":
@@ -447,22 +507,22 @@ def update_portfolio_simulator_main_plot(_, __):
                     },
 
                     children=[
-                        portfolio_dash_range_selector(default_style=portfolio_default_style_time_range),
+                        portfolio_dash_range_selector(default_style=default_style_time_range),
                         dcc.Tabs(
                             id="portfolio-performance-tabs",
                             value='portfolio-tab-plot',
                             style={
                                 "marginTop": "10px",
-                                "backgroundColor": PORTFOLIO_COLORS['card'],
-                                "color": PORTFOLIO_COLORS['text'],
+                                "backgroundColor": COLORS['card'],
+                                "color": COLORS['text'],
                                 "height": "42px",
                                 "borderRadius": "5px",
                                 "overflow": "hidden",
                             },
                             colors={
-                                "border": PORTFOLIO_COLORS['background'],
-                                "primary": PORTFOLIO_COLORS['primary'],
-                                "background": PORTFOLIO_COLORS['card'],
+                                "border": COLORS['background'],
+                                "primary": COLORS['primary'],
+                                "background": COLORS['card'],
                             },
                             
                             children=[                       
@@ -470,8 +530,8 @@ def update_portfolio_simulator_main_plot(_, __):
                                     label="Price & Returns Plot",
                                     value='portfolio-tab-plot',
                                     style={
-                                        "backgroundColor": PORTFOLIO_COLORS['background'],
-                                        "color": PORTFOLIO_COLORS['text'],
+                                        "backgroundColor": COLORS['background'],
+                                        "color": COLORS['text'],
                                         "padding": "6px 18px",
                                         "fontSize": "14px",
                                         "fontWeight": "bold",
@@ -479,21 +539,21 @@ def update_portfolio_simulator_main_plot(_, __):
                                         "borderBottom": f"2px solid transparent",
                                     },
                                     selected_style={
-                                        "backgroundColor": PORTFOLIO_COLORS['background'],
-                                        "color": PORTFOLIO_COLORS['primary'],
+                                        "backgroundColor": COLORS['background'],
+                                        "color": COLORS['primary'],
                                         "padding": "6px 18px",
                                         "fontSize": "14px",
                                         "fontWeight": "bold",
                                         "border": "none",
-                                        "borderBottom": f"2px solid {PORTFOLIO_COLORS['primary']}",
+                                        "borderBottom": f"2px solid {COLORS['primary']}",
                                     },
                                 ),                           
                                 dcc.Tab(
                                     label="Statistical Summary",
                                     value='portfolio-tab-stats',
                                     style={
-                                        "backgroundColor": PORTFOLIO_COLORS['background'],
-                                        "color": PORTFOLIO_COLORS['text'],
+                                        "backgroundColor": COLORS['background'],
+                                        "color": COLORS['text'],
                                         "padding": "6px 18px",
                                         "fontWeight": "bold",
                                         "fontSize": "14px",
@@ -501,13 +561,13 @@ def update_portfolio_simulator_main_plot(_, __):
                                         "borderBottom": f"2px solid transparent",
                                     },
                                     selected_style={
-                                        "backgroundColor": PORTFOLIO_COLORS['background'],
-                                        "color": PORTFOLIO_COLORS['primary'],
+                                        "backgroundColor": COLORS['background'],
+                                        "color": COLORS['primary'],
                                         "padding": "6px 18px",
                                         "fontWeight": "bold",
                                         "fontSize": "14px",
                                         "border": "none",
-                                        "borderBottom": f"2px solid {PORTFOLIO_COLORS['primary']}",
+                                        "borderBottom": f"2px solid {COLORS['primary']}",
                                     },
                                 ),
                             ]
@@ -515,7 +575,20 @@ def update_portfolio_simulator_main_plot(_, __):
                         html.Div(id="portfolio-plot-container", style={"flex": "1", "overflow": "hidden"}),
                     ]
                 ),
-            )
+            True,
+            True,
+            next_business_day(latest_date),
+            max_forecast_date(latest_date)
+        )
+    
+    if button_id == "btn-simulate-performance":
+        return (
+            no_update,
+            False,
+            False,
+            next_business_day(latest_date),
+            max_forecast_date(latest_date)
+        )
 
 # Highlight buttons based on time-range selected
 @callback(
@@ -549,8 +622,8 @@ def update_portfolio_range_styles(*btn_clicks):
     else:
         selected = ctx.triggered_id or "portfolio-range-all"
 
-    style_map = {btn_id: portfolio_default_style_time_range for btn_id in button_ids}
-    style_map[selected] = portfolio_active_style_time_range
+    style_map = {btn_id: default_style_time_range for btn_id in button_ids}
+    style_map[selected] = active_style_time_range
 
     return (
         style_map["portfolio-range-1M"],
@@ -564,7 +637,9 @@ def update_portfolio_range_styles(*btn_clicks):
 
 # Update historic daily plot based on range selected
 @callback(
-    Output("portfolio-plot-container", "children"),
+    [
+        Output("portfolio-plot-container", "children"),
+    ],
     [
         Input("portfolio-performance-tabs", "value"),
         Input("portfolio-selected-range", "data")
@@ -611,16 +686,40 @@ def update_plot_on_range_change(active_tab, selected_range, budget, portfolio_st
         portfolio_returns = portfolio_value_ts.pct_change().dropna()
 
     if active_tab == "portfolio-tab-plot":
-        return create_historic_plots(
-        full_name=f"Portfolio (Risk: {round(risk_return["risk"], 4)*100}%, Return: {round(risk_return["return"], 4)*100}%)",
-        dates=portfolio_value_ts.index,
-        daily_prices=portfolio_value_ts.values,
-        daily_returns=portfolio_returns,
-        COLORS=PORTFOLIO_COLORS
-    )
+        return (create_historic_plots(
+            full_name=f"Portfolio (Risk: {round(risk_return["risk"], 4)*100}%, Return: {round(risk_return["return"], 4)*100}%)",
+            dates=portfolio_value_ts.index,
+            daily_prices=portfolio_value_ts.values,
+            daily_returns=portfolio_returns,
+            COLORS=COLORS),
+        )
     
     elif active_tab == "portfolio-tab-stats":
-        return create_statistics_table(dates=portfolio_value_ts.index, 
-                                       daily_prices=portfolio_value_ts.values, 
-                                       daily_returns=portfolio_returns, 
-                                       COLORS=PORTFOLIO_COLORS)
+        return (create_statistics_table(dates=portfolio_value_ts.index, 
+            daily_prices=portfolio_value_ts.values, 
+            daily_returns=portfolio_returns, 
+            COLORS=COLORS),
+        )
+
+"""
+@callback(
+    [
+        State("budget-value", "data"),
+        State("portfolio-store", "data"),
+        State("selected-tickers-store", "data"),
+        State("confirmed-weights-store", "data"),
+        State("portfolio-risk-return", "data"),
+    ],
+)
+def generate_ensembles(budget, portfolio_store, selected_tickers, weights):
+
+    # Compute budget-adjusted time series
+    _, portfolio_value_ts = parse_ts_map(
+        selected_tickers=selected_tickers,
+        portfolio_weights=weights,
+        portfolio_store=portfolio_store,
+        budget=budget
+    )
+
+    print(portfolio_value_ts)
+"""

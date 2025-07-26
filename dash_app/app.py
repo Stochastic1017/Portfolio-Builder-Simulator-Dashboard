@@ -55,7 +55,8 @@ app.layout = html.Div(
         dcc.Store(id="confirmed-weights-store"),                    # for the selected/confirmed portfolio weights
         dcc.Store(id="portfolio-clicked-risk-return"),              # temporary placeholder for risk/return
         dcc.Store(id="portfolio-risk-return"),                      # risk/return for confirmed portfolio
-
+        dcc.Store(id="latest-date"),                                # latest date (last row value)
+        
         ### Portfolio simulation page
         dcc.Store(id="verify-budget", data={"verified": False}),    # verify budget
         dcc.Store(id="budget-value"),                               # budget (in $) input

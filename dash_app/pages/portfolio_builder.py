@@ -1,12 +1,12 @@
 
 import os
-import re
 import sys
-import uuid
+import json
 import dash
 import dash_daq as daq
 import dash_bootstrap_components as dbc
 
+from datetime import datetime
 from scipy.special import comb
 from dash import (html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no_update)
 
@@ -678,21 +678,34 @@ def display_summary_table(clickData, cache_data, selected_tickers):
         Output("portfolio-toast", "is_open"),
         Output("portfolio-toast", "children"),
         Output("portfolio-toast", "style"),
-        Output("portfolio-risk-return", "data")
+        Output("portfolio-risk-return", "data"),
+        Output("latest-date", "data")
     ],
     [
         Input("btn-confirm-portfolio", "n_clicks")
     ],
     [
-        State("portfolio-clicked-risk-return", "data")
+        State("portfolio-clicked-risk-return", "data"),
+        State("portfolio-store", "data"),
     ],
     prevent_initial_call=True
 )
-def confirm_portfolio(_, risk_return):
-      
+def confirm_portfolio(_, risk_return, cache_data):
+    
+    latest_date_str = None
+
+    for asset in cache_data:
+        try:
+            history = json.loads(asset["historical_json"])
+            latest_ts = max(entry["date"] for entry in history if "date" in entry)
+            latest_date_str = datetime.fromtimestamp(latest_ts / 1000).strftime("%Y-%m-%d")
+            break  # stop after first successful parse
+        except Exception:
+            continue
+        
     if not risk_return or "risk" not in risk_return or "return" not in risk_return:
         raise dash.exceptions.PreventUpdate
-    
+
     return (
         True,
         "Portfolio confirmed! You're ready to simulate.",
@@ -712,7 +725,8 @@ def confirm_portfolio(_, risk_return):
         {
             "risk": risk_return["risk"],
             "return": risk_return["return"],
-        }
+        },
+        latest_date_str
     )
 
 # Allow users to navigate to portfolio simulator page

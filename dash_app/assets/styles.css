@@ -127,3 +127,56 @@ button.simple:hover {
 .custom-dropdown .Select-clear-zone {
     color: #FFD700;
 }
+
+/* Track line */
+.rc-slider-track {
+    background-color: #FFD700 !important; /* COLORS['primary'] */
+}
+
+/* Handle (thumb) */
+.rc-slider-handle {
+    border: 2px solid #FFD700 !important; /* Golden border */
+    background-color: #1A1A1A !important; /* Dark background */
+    box-shadow: 0 0 5px #FFD700 !important;
+}
+
+.rc-slider-handle:hover {
+    border-color: #FFF4B8 !important; /* Light yellow on hover */
+}
+
+/* Rail (unselected track) */
+.rc-slider-rail {
+    background-color: #1A1A1A !important; /* COLORS['card'] */
+}
+
+/* Dots on slider if used */
+.rc-slider-dot {
+    border: 1px solid #FFD700 !important;
+    background-color: #1A1A1A !important;
+}
+
+.rc-slider-dot-active {
+    background-color: #FFD700 !important;
+}
+
+/* Marks (labels) */
+.rc-slider-mark {
+    color: #FFFFFF !important;
+}
+
+.rc-slider-mark-text {
+    color: #FFF4B8 !important;
+    font-size: 0.8rem;
+}
+
+/* Disable transitions if needed */
+.rc-slider {
+    transition: none;
+}
+
+/* Core input box style */
+.DateInput_input {
+    background-color: #1A1A1A !important;  /* card color */
+    color: #FFD700 !important;            /* text color */
+}
+

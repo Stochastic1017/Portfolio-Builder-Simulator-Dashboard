@@ -777,7 +777,7 @@ def update_range_styles(*btn_clicks):
 @callback(
     Output("historical-plot-container", "children"),
     [
-        Input("performance-tabs", "value"),
+        Input("stock-performance-tabs", "value"),
         Input("selected-range", "data")
     ],
     State("verify-ticker", "data"),
@@ -824,7 +824,7 @@ def update_plot_on_range_change(active_tab, selected_range, data):
     Input("btn-add", "n_clicks"),
     [
         State("verify-ticker", "data"),
-        State("portfolio-store", "data")
+        State("portfolio-store", "data"),
     ],
     prevent_initial_call=True
 )
