@@ -4,6 +4,7 @@ import re
 import sys
 import uuid
 import dash
+import numpy as np
 import dash_bootstrap_components as dbc
 
 from datetime import datetime, timedelta
@@ -14,7 +15,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from helpers.portfolio_simulator import (
     parse_ts_map,
-    portfolio_dash_range_selector
+    portfolio_dash_range_selector,
+    forecast_arima, arima_forecast_plot
 )
 
 from helpers.portfolio_exploration import (
@@ -243,6 +245,62 @@ layout = html.Div(
                         ]
                     ),
 
+                    # Date picker to choose future date for prediction
+                    html.Div(
+                        style={
+                            'display': 'flex',
+                            'flexDirection': 'column',
+                            'gap': '10px',
+                            'width': '100%',  
+                        },
+                        
+                        children=[
+
+                            html.Label("Choose a future date for prediction:",
+                                    style={
+                                    'color': COLORS['primary'],
+                                    'fontWeight': 'bold',
+                                    'fontSize': '1rem'
+                                }
+                            ),
+
+                            dcc.DatePickerSingle(
+                                id="date-chooser-simulation",
+                                disabled=True,
+                                with_portal=True,
+                                display_format='MMM Do, YY',
+                            ),                       
+                        ]
+                    ),
+
+                    # Buttons to generate ARIMA/GARCH predictions
+                    html.Div(
+                        style={
+                            'display': 'flex',
+                            'flexDirection': 'column',
+                            'gap': '10px'  
+                        },
+                        
+                        children=[
+
+                            # Button for user to start monte carlo exploration
+                            html.Button("Predict Using ARIMA process", 
+                                id="btn-arima-performance", 
+                                style=verified_button_style,
+                                disabled=False,
+                                className="simple" 
+                            ),
+
+                            # Button for user to start monte carlo exploration
+                            html.Button("Predict Using GARCH process", 
+                                id="btn-garch-performance", 
+                                style=verified_button_style,
+                                disabled=False,
+                                className="simple" 
+                            ),
+                        ]
+                    ),
+                    
                     # Buttons to generate simulations and predictions
                     html.Div(
                         style={
@@ -254,7 +312,7 @@ layout = html.Div(
                         children=[
 
                             # Button for user to start monte carlo exploration
-                            html.Button("Predict Future Performance", 
+                            html.Button("Predict Using Ensemble Generations", 
                                 id="btn-simulate-performance", 
                                 style=verified_button_style,
                                 disabled=False,
@@ -291,21 +349,6 @@ layout = html.Div(
                                 disabled=True,
                                 tooltip={"placement": "bottom", "always_visible": False}
                             ),
-
-                            html.Label("Choose a future date for prediction:",
-                                    style={
-                                    'color': COLORS['primary'],
-                                    'fontWeight': 'bold',
-                                    'marginBottom': '10px',
-                                    'fontSize': '1rem'
-                                }
-                            ),
-
-                            dcc.DatePickerSingle(
-                                id="date-chooser-simulation",
-                                disabled=True,
-                                with_portal=True,
-                            )
                         ]
                     )
                 ]
@@ -442,29 +485,60 @@ def set_budget_validation(verify_budget):
     
     return (True, False, dynamic_key)
 
-# Toggle styles between enabled/disabled status
+# Toggle portfolio performance and date chooser after verification of budget
 @callback(
     [
         Output("btn-portfolio-performance", "disabled"),
         Output("btn-portfolio-performance", "style"),
         Output("btn-portfolio-performance", "className"),
-        Output("btn-simulate-performance", "disabled"),
-        Output("btn-simulate-performance", "style"),
-        Output("btn-simulate-performance", "className"),
+
+        Output("date-chooser-simulation", "disabled"),   
+        Output("date-chooser-simulation", "min_date_allowed"),        
+        Output("date-chooser-simulation", "max_date_allowed"), 
     ],
     Input("verify-budget", "data"),
+    State("latest-date", "data")
 )
-def toggle_button_states(verify_budget):
+def enable_initial_controls(verify_budget, latest_date):
     is_verified = verify_budget.get("verified", False)
 
     if is_verified:
         return (
             False, verified_button_style, "simple",
-            False, verified_button_style, "simple",
+            False, next_business_day(latest_date), max_forecast_date(latest_date),
         )
-    
     else:
         return (
+            True, unverified_button_style, "",
+            True, next_business_day(latest_date), max_forecast_date(latest_date),
+        )
+
+@callback(
+    [
+        Output("btn-simulate-performance", "disabled"),
+        Output("btn-simulate-performance", "style"),
+        Output("btn-simulate-performance", "className"),
+
+        Output("btn-arima-performance", "disabled"),
+        Output("btn-arima-performance", "style"),
+        Output("btn-arima-performance", "className"),
+
+        Output("btn-garch-performance", "disabled"),
+        Output("btn-garch-performance", "style"),
+        Output("btn-garch-performance", "className"),
+    ],
+    Input("date-chooser-simulation", "date")
+)
+def enable_post_datepicker_buttons(selected_date):
+    if selected_date:
+        return (
+            False, verified_button_style, "simple",
+            False, verified_button_style, "simple",
+            False, verified_button_style, "simple",
+        )
+    else:
+        return (
+            True, unverified_button_style, "",
             True, unverified_button_style, "",
             True, unverified_button_style, "",
         )
@@ -473,122 +547,122 @@ def toggle_button_states(verify_budget):
     [
         Output("portfolio-simulator-main-content", "children"),
         Output("num-ensemble-slider", "disabled"),
-        Output("date-chooser-simulation", "disabled"),   
-        Output("date-chooser-simulation", "min_date_allowed"),        
-        Output("date-chooser-simulation", "max_date_allowed"), 
     ],
     [
         Input("btn-portfolio-performance", "n_clicks"),
+        Input("btn-arima-performance", "n_clicks"),
+        Input("btn-garch-performance", "n_clicks"),
         Input("btn-simulate-performance", "n_clicks"),
     ],
     [
         State("verify-budget", "data"),
-        State("latest-date", "data")
+        State("portfolio-store", "data"),
+        State("selected-tickers-store", "data"),
+        State("confirmed-weights-store", "data"),
+        State("budget-value", "data"),
+        State("portfolio-risk-return", "data"),
+        State("date-chooser-simulation", "date"),
     ],
     prevent_initial_call=True
 )
-def update_portfolio_simulator_main_plot(_, __, ___, latest_date):
-    
-    # Button clicked by user, one of the fllowing:
+def update_portfolio_simulator_main_plot(_, __, ___, ____, verify_budget, portfolio_store, selected_tickers, weights, budget, risk_return, forecast_until):
     button_id = ctx.triggered_id
-    if button_id == "portfolio-selected-range":
-        raise dash.exceptions.PreventUpdate # Prevent callback overlap
-    
+
+    if not verify_budget.get("verified", False):
+        raise dash.exceptions.PreventUpdate
+
     if button_id == "btn-portfolio-performance":
         return (
             html.Div(
-                    id="simulator-main-panel",
-                    style={
-                        'display': 'flex',
-                        'flexDirection': 'column',
-                        'height': '100%',
-                        'width': '100%',
-                        'overflow': 'hidden',
-                    },
+                id="simulator-main-panel",
+                style={'display': 'flex', 'flexDirection': 'column', 'height': '100%', 'width': '100%', 'overflow': 'hidden'},
+                children=[
+                    portfolio_dash_range_selector(default_style=default_style_time_range),
+                    dcc.Tabs(
+                        id="portfolio-performance-tabs",
+                        value='portfolio-tab-plot',
+                        style={
+                            "marginTop": "10px",
+                            "backgroundColor": COLORS['card'],
+                            "color": COLORS['text'],
+                            "height": "42px",
+                            "borderRadius": "5px",
+                            "overflow": "hidden",
+                        },
+                        colors={
+                            "border": COLORS['background'],
+                            "primary": COLORS['primary'],
+                            "background": COLORS['card'],
+                        },
+                        children=[
+                            dcc.Tab(
+                                label="Price & Returns Plot",
+                                value='portfolio-tab-plot',
+                                style={...},  # keep styles
+                                selected_style={...}
+                            ),
+                            dcc.Tab(
+                                label="Statistical Summary",
+                                value='portfolio-tab-stats',
+                                style={...},
+                                selected_style={...}
+                            ),
+                        ]
+                    ),
+                    html.Div(id="portfolio-plot-container", style={"flex": "1", "overflow": "hidden"}),
+                ]
+            ),
+            True
+        )
 
-                    children=[
-                        portfolio_dash_range_selector(default_style=default_style_time_range),
-                        dcc.Tabs(
-                            id="portfolio-performance-tabs",
-                            value='portfolio-tab-plot',
-                            style={
-                                "marginTop": "10px",
-                                "backgroundColor": COLORS['card'],
-                                "color": COLORS['text'],
-                                "height": "42px",
-                                "borderRadius": "5px",
-                                "overflow": "hidden",
-                            },
-                            colors={
-                                "border": COLORS['background'],
-                                "primary": COLORS['primary'],
-                                "background": COLORS['card'],
-                            },
-                            
-                            children=[                       
-                                dcc.Tab(
-                                    label="Price & Returns Plot",
-                                    value='portfolio-tab-plot',
-                                    style={
-                                        "backgroundColor": COLORS['background'],
-                                        "color": COLORS['text'],
-                                        "padding": "6px 18px",
-                                        "fontSize": "14px",
-                                        "fontWeight": "bold",
-                                        "border": "none",
-                                        "borderBottom": f"2px solid transparent",
-                                    },
-                                    selected_style={
-                                        "backgroundColor": COLORS['background'],
-                                        "color": COLORS['primary'],
-                                        "padding": "6px 18px",
-                                        "fontSize": "14px",
-                                        "fontWeight": "bold",
-                                        "border": "none",
-                                        "borderBottom": f"2px solid {COLORS['primary']}",
-                                    },
-                                ),                           
-                                dcc.Tab(
-                                    label="Statistical Summary",
-                                    value='portfolio-tab-stats',
-                                    style={
-                                        "backgroundColor": COLORS['background'],
-                                        "color": COLORS['text'],
-                                        "padding": "6px 18px",
-                                        "fontWeight": "bold",
-                                        "fontSize": "14px",
-                                        "border": "none",
-                                        "borderBottom": f"2px solid transparent",
-                                    },
-                                    selected_style={
-                                        "backgroundColor": COLORS['background'],
-                                        "color": COLORS['primary'],
-                                        "padding": "6px 18px",
-                                        "fontWeight": "bold",
-                                        "fontSize": "14px",
-                                        "border": "none",
-                                        "borderBottom": f"2px solid {COLORS['primary']}",
-                                    },
-                                ),
-                            ]
-                        ),
-                        html.Div(id="portfolio-plot-container", style={"flex": "1", "overflow": "hidden"}),
-                    ]
-                ),
-            True,
-            True,
-            next_business_day(latest_date),
-            max_forecast_date(latest_date)
+    elif button_id == "btn-arima-performance":
+        # ARIMA: compute and plot everything here
+        if not forecast_until:
+            raise dash.exceptions.PreventUpdate
+
+        _, portfolio_value_ts = parse_ts_map(
+            selected_tickers=selected_tickers,
+            portfolio_weights=weights,
+            portfolio_store=portfolio_store,
+            budget=budget
         )
-    
-    if button_id == "btn-simulate-performance":
+        log_returns = np.log(portfolio_value_ts / portfolio_value_ts.shift(1))
+        log_returns.replace([np.inf, -np.inf], np.nan).dropna()
+        forecast_df = forecast_arima(log_returns, forecast_until)
+
+        plot = arima_forecast_plot(
+            full_name="Portfolio (ARIMA Forecast)",
+            dates=portfolio_value_ts.index,
+            daily_prices=portfolio_value_ts.values,
+            log_returns=log_returns,
+            forecast_df=forecast_df,
+            COLORS=COLORS
+        )
+
         return (
-            no_update,
-            False,
-            False,
-            next_business_day(latest_date),
-            max_forecast_date(latest_date)
+            html.Div(
+                id="simulator-main-panel",
+                style={'display': 'flex', 'flexDirection': 'column', 'height': '100%', 'width': '100%', 'overflow': 'hidden'},
+                children=[
+                    html.Div(id="portfolio-plot-container", children=plot, style={"flex": "1", "overflow": "hidden"})
+                ]
+            ),
+            True
         )
+
+    elif button_id == "btn-garch-performance":
+        return (
+            html.Div("GARCH Plot Coming Soon...", style={"color": COLORS["primary"], "fontSize": "1.5rem"}),
+            True
+        )
+
+    elif button_id == "btn-simulate-performance":
+        return (
+            html.Div("Monte Carlo Simulation Coming Soon...", style={"color": COLORS["primary"], "fontSize": "1.5rem"}),
+            False
+        )
+
+    return no_update, no_update
 
 # Highlight buttons based on time-range selected
 @callback(
@@ -662,7 +736,7 @@ def update_plot_on_range_change(active_tab, selected_range, budget, portfolio_st
         portfolio_store=portfolio_store,
         budget=budget
     )
-
+    
     # Portfolio returns
     portfolio_returns = portfolio_value_ts.pct_change().dropna()
 
@@ -687,7 +761,7 @@ def update_plot_on_range_change(active_tab, selected_range, budget, portfolio_st
 
     if active_tab == "portfolio-tab-plot":
         return (create_historic_plots(
-            full_name=f"Portfolio (Risk: {round(risk_return["risk"], 4)*100}%, Return: {round(risk_return["return"], 4)*100}%)",
+            full_name=f"Portfolio (Risk: {round(risk_return['risk'], 4)*100:.2f}%, Return: {round(risk_return['return'], 4)*100:.2f}%)",
             dates=portfolio_value_ts.index,
             daily_prices=portfolio_value_ts.values,
             daily_returns=portfolio_returns,
