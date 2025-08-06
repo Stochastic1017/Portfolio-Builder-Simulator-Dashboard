@@ -1,16 +1,19 @@
 
 import os
 import sys
+import warnings
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from scipy import stats
 from io import StringIO
 from dash import dcc, html
 from arch import arch_model
+from datetime import timedelta
 from pmdarima.arima import auto_arima
 from plotly.subplots import make_subplots
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tools.sm_exceptions import ConvergenceWarning
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -77,262 +80,170 @@ def parse_ts_map(selected_tickers, portfolio_weights, portfolio_store, budget, t
 
     return ts_map, total_value
 
-def forecast_arima(log_returns, forecast_until):
-    
-    # Fit best ARIMA model using AIC
-    model = auto_arima(
-        log_returns,
-        seasonal=False,
-        stepwise=True,
-        suppress_warnings=True,
-        error_action='ignore',
-        trace=False,
-        information_criterion='aic'
-    )
+def grid_search_arima_model(
+    y,
+    criterion='AIC',
+    p_range=range(0, 4),
+    d_range=range(1, 3),
+    q_range=range(0, 4)
+):
+    best_score = np.inf if criterion != 'LogLikelihood' else -np.inf
+    best_model = None
+    best_order = None
 
-    # Forecast horizon (in number of periods)
-    last_date = log_returns.index[-1]
-    target_date = pd.to_datetime(forecast_until)
-    freq = pd.infer_freq(log_returns.index) or 'B'  # Business day fallback
-    forecast_index = pd.date_range(start=last_date + pd.Timedelta(1, unit='D'), end=target_date, freq=freq)
-    n_periods = len(forecast_index)
+    for p in p_range:
+        for d in d_range:
+            for q in q_range:
+                try:
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore", category=UserWarning)
+                        warnings.filterwarnings("ignore", category=ConvergenceWarning)
+                        
+                        model = ARIMA(y, order=(p, d, q))
+                        res = model.fit()
 
-    # Make forecast
-    forecast, conf_int = model.predict(n_periods=n_periods, return_conf_int=True)
-    
-    # Prepare forecast DataFrame
-    forecast_df = pd.DataFrame({
-        'Forecast': forecast,
-        'Lower CI': conf_int[:, 0],
-        'Upper CI': conf_int[:, 1]
-    }, index=forecast_index)
-    
-    return forecast_df
+                    score = {
+                        'AIC': res.aic,
+                        'BIC': res.bic,
+                        'LogLikelihood': res.llf
+                    }[criterion]
 
-def arima_forecast_plot(full_name, dates, daily_prices, log_returns, forecast_df, COLORS):
+                    if ((criterion == 'LogLikelihood' and score > best_score) or
+                        (criterion != 'LogLikelihood' and score < best_score)):
+                        best_score = score
+                        best_model = res
+                        best_order = (p, d, q)
 
-    ######################
-    ### Compute Forecasted Prices
-    ######################
+                except Exception:
+                    continue
 
-    # Start from last known price
+    return {
+        'score': best_score,
+        'result': best_model,
+        'order': best_order
+    }
+
+def simulate_arima_paths(model_result, last_date, forecast_until, num_ensembles, inferred_freq='B'):
+    forecast_until = pd.to_datetime(forecast_until)
+    forecast_index = pd.date_range(start=last_date + pd.Timedelta(1, unit='D'), 
+                                   end=forecast_until, freq=inferred_freq)
+    n_steps = len(forecast_index)
+
+    simulations = np.zeros((n_steps, num_ensembles))
+    for i in range(num_ensembles):
+        simulations[:, i] = model_result.simulate(nsimulations=n_steps)
+
+    return simulations, forecast_index
+
+def arima_simulation_plot(title, dates, daily_prices, log_returns, simulations, forecast_index, COLORS):
     last_price = daily_prices[-1]
-    cumulative_returns = forecast_df['Forecast'].cumsum()
-    forecasted_prices = last_price * np.exp(cumulative_returns)
+    _, num_ensembles = simulations.shape
 
-    # Upper and lower confidence bands on price (exponential of cumulative bounds)
-    cumulative_lower = forecast_df['Lower CI'].cumsum()
-    cumulative_upper = forecast_df['Upper CI'].cumsum()
-
-    lower_prices = last_price * np.exp(cumulative_lower)
-    upper_prices = last_price * np.exp(cumulative_upper)
-
-    forecast_dates = forecast_df.index
-    print(forecast_df)
-
-    ######################
-    ### Setup Subplots
-    ######################
+    # Convert cumulative returns to price paths
+    price_paths = np.zeros_like(simulations)
+    for i in range(num_ensembles):
+        cum_ret = np.cumsum(simulations[:, i])
+        price_paths[:, i] = last_price * np.exp(cum_ret)
 
     fig = make_subplots(
-        rows=2, cols=2,
-        specs=[[{"colspan": 2}, None], [{}, {}]],
+        rows=2, cols=1,
         subplot_titles=[
-            "Daily Prices with ARIMA Forecast Cone (95% CI)",
-            "Daily Returns with 95% Confidence Intervals",
-            "Histogram of Log Returns with 95% Confidence Intervals"
+            "Simulated Price Paths (ARIMA)",
+            "Simulated Log Returns"
         ],
+        shared_xaxes=True,
         vertical_spacing=0.15,
-        horizontal_spacing=0.1,
-        shared_xaxes=False,
-        shared_yaxes=False,
-        column_widths=[0.7, 0.3]
     )
 
-    ######################
-    ### Price + Forecast Cone
-    ######################
+    fig.add_trace(go.Scatter(x=dates, y=daily_prices, mode='lines', name='Historical Price',
+                             line=dict(color=COLORS['primary'])), row=1, col=1)
 
-    # Historical prices
-    fig.add_trace(
-        go.Scatter(
-            x=dates,
-            y=daily_prices,
-            mode='lines',
-            name='Historical Prices',
-            line=dict(color=COLORS['primary'])
-        ),
-        row=1, col=1
-    )
+    for i in range(num_ensembles):
+        fig.add_trace(go.Scatter(x=[dates[-1]] + list(forecast_index),
+                                 y=[daily_prices[-1]] + list(price_paths[:, i]),
+                                 mode='lines', line=dict(width=1, color='rgba(255,255,255,0.1)'),
+                                 showlegend=False), row=1, col=1)
 
-    # Forecasted prices (mean)
-    fig.add_trace(
-        go.Scatter(
-            x=forecast_dates,
-            y=forecasted_prices,
-            mode='lines',
-            name='ARIMA Forecast (Mean)',
-            line=dict(color="#00C2FF", dash='dash')
-        ),
-        row=1, col=1
-    )
+    fig.add_trace(go.Scatter(x=dates, y=log_returns, mode='lines', name='Log Returns',
+                             line=dict(color=COLORS['primary'])), row=2, col=1)
 
-    # Confidence interval cone
-    fig.add_trace(
-        go.Scatter(
-            x=np.concatenate([forecast_dates, forecast_dates[::-1]]),
-            y=np.concatenate([upper_prices, lower_prices[::-1]]),
-            fill='toself',
-            fillcolor='rgba(0, 194, 255, 0.1)',  # Light cyan translucent
-            line=dict(color='rgba(255,255,255,0)'),
-            name='95% Forecast CI',
-            showlegend=True
-        ),
-        row=1, col=1
-    )
-
-    ######################
-    ### Returns + CI
-    ######################
-
-    # Historical returns
-    fig.add_trace(
-        go.Scatter(
-            x=log_returns.index,
-            y=log_returns,
-            mode='lines',
-            name='Log Returns',
-            line=dict(color=COLORS['primary'])
-        ),
-        row=2, col=1
-    )
-
-    # Forecasted returns
-    fig.add_trace(
-        go.Scatter(
-            x=forecast_dates,
-            y=forecast_df['Forecast'],
-            mode='lines',
-            name='Forecasted Returns',
-            line=dict(color="#00C2FF", dash='dash')
-        ),
-        row=2, col=1
-    )
-
-    # Confidence interval bounds
-    mean_return = log_returns.mean()
-    std_return = log_returns.std()
-    lower_bound = mean_return - 1.96 * std_return
-    upper_bound = mean_return + 1.96 * std_return
-
-    ######################
-    ### Histogram
-    ######################
-
-    return_range = np.linspace(log_returns.min(), log_returns.max(), 500)
-    hist_counts, _ = np.histogram(log_returns, bins=50, density=True)
-
-    # Histogram
-    fig.add_trace(
-        go.Histogram(
-            y=log_returns,
-            name="Log Returns Histogram",
-            marker_color=COLORS['primary'],
-            nbinsy=50,
-            orientation='h',
-            opacity=0.6,
-            histnorm='probability density'
-        ),
-        row=2, col=2
-    )
-
-    # Gaussian Fit
-    fig.add_trace(
-        go.Scatter(
-            x=stats.norm.pdf(return_range, mean_return, std_return),
-            y=return_range,
-            mode='lines',
-            name="Gaussian Fit",
-            line=dict(color="#E0E0E0", width=4)
-        ),
-        row=2, col=2
-    )
-
-    # Confidence bounds on histogram
-    fig.add_trace(
-        go.Scatter(
-            x=[0, hist_counts.max()],
-            y=[upper_bound] * 2,
-            mode='lines',
-            name='Upper 95% Bound',
-            line=dict(color="rgba(255,255,255,0.4)", dash="dot"),
-            showlegend=False
-        ),
-        row=2, col=2
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=[0, hist_counts.max()],
-            y=[lower_bound] * 2,
-            mode='lines',
-            name='Lower 95% Bound',
-            line=dict(color="rgba(255,255,255,0.4)", dash="dot"),
-            fill='tonexty',
-            fillcolor="rgba(255,255,255,0.05)",
-            showlegend=False
-        ),
-        row=2, col=2
-    )
-
-    ######################
-    ### Layout
-    ######################
+    for i in range(num_ensembles):
+        fig.add_trace(go.Scatter(x=[log_returns.index[-1]] + list(forecast_index),
+                                 y=[log_returns.iloc[-1]] + list(simulations[:, i]),
+                                 mode='lines', line=dict(width=1, color='rgba(255,255,255,0.1)'),
+                                 showlegend=False), row=2, col=1)
 
     fig.update_layout(
         template="plotly_dark",
-        title=f"ARIMA Forecast Performance Analysis for {full_name}",
+        title=title,
         paper_bgcolor=COLORS['background'],
         plot_bgcolor=COLORS['background'],
         font=dict(color=COLORS['text']),
         title_font=dict(color=COLORS['primary']),
-        showlegend=False
+        showlegend=False,
+        xaxis2=dict(
+            rangeslider=dict(visible=True),
+            type='date',
+            range=[dates[-1] - timedelta(days=30), forecast_index[-1]]
+        ),
     )
 
     fig.update_yaxes(tickformat=".2%", row=2, col=1)
-    fig.update_yaxes(tickformat=".2%", row=2, col=2)
 
-    return dcc.Graph(
-        id="arima-performance-plot",
-        figure=fig,
-        config={'responsive': True},
-        style={'height': '100%', 'width': '100%'}
-    )
+    return dcc.Graph(id="arima-simulation-plot", figure=fig, config={'responsive': True}, style={'height': '100%', 'width': '100%'})
 
-def forecast_garch(log_returns, forecast_until):
+def select_best_garch_model(
+    returns,
+    p_range=range(1, 4),
+    q_range=range(1, 4),
+    criterions=('AIC', 'BIC', 'LogLikelihood'),
+    dists=('normal', 't', 'skewt')
+):
+    """
+    Evaluate GARCH(p,q) models across different error distributions and selection criteria.
 
-    # GARCH model on mean + volatility (AR + GARCH)
-    am = arch_model(log_returns, vol='Garch', p=1, q=1, mean='AR', lags=1, rescale=True)
-    res = am.fit(disp="off")
+    Returns:
+        best_models: dict of {criterion: (result, (p,q), dist, score)}
+    """
+    best_models = {criterion: {'score': np.inf if criterion != 'LogLikelihood' else -np.inf,
+                               'result': None,
+                               'order': None,
+                               'dist': None}
+                   for criterion in criterions}
 
-    # Define forecast range
-    last_date = log_returns.index[-1]
-    target_date = pd.to_datetime(forecast_until)
-    freq = pd.infer_freq(log_returns.index) or 'B'
-    forecast_index = pd.date_range(start=last_date + pd.Timedelta(1, unit='D'), end=target_date, freq=freq)
-    n_periods = len(forecast_index)
+    for p in p_range:
+        for q in q_range:
+            for dist in dists:
+                try:
+                    model = arch_model(returns, vol='Garch', p=p, q=q, dist=dist)
+                    res = model.fit(disp='off')
+                    
+                    scores = {
+                        'AIC': res.aic,
+                        'BIC': res.bic,
+                        'LogLikelihood': res.loglikelihood
+                    }
 
-    # Forecast
-    forecasts = res.forecast(horizon=n_periods)
-    mean_forecast = forecasts.mean.values[-1]
-    variance_forecast = forecasts.variance.values[-1]
-    std_forecast = np.sqrt(variance_forecast)
+                    for criterion in criterions:
+                        if criterion == 'LogLikelihood':
+                            if scores[criterion] > best_models[criterion]['score']:
+                                best_models[criterion] = {
+                                    'score': scores[criterion],
+                                    'result': res,
+                                    'order': (p, q),
+                                    'dist': dist
+                                }
+                        else:
+                            if scores[criterion] < best_models[criterion]['score']:
+                                best_models[criterion] = {
+                                    'score': scores[criterion],
+                                    'result': res,
+                                    'order': (p, q),
+                                    'dist': dist
+                                }
+                except Exception as e:
+                    # Some combinations may not converge; skip silently
+                    continue
 
-    # Create DataFrame with forecast and 95% CI
-    forecast_df = pd.DataFrame({
-        'Forecast': mean_forecast,
-        'Lower CI': mean_forecast - 1.96 * std_forecast,
-        'Upper CI': mean_forecast + 1.96 * std_forecast
-    }, index=forecast_index)
+    return best_models
 
-    return forecast_df

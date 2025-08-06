@@ -90,3 +90,24 @@ active_style_time_range = {
     'boxShadow': '0 0 6px rgba(0, 0, 0, 0.15)',
     'transform': 'scale(1.05)',
 }
+
+active_labelStyle_radioitems = {
+    'display': 'block',
+    'marginBottom': '5px',
+    'color': COLORS['primary'],
+    'fontSize': '0.95rem',
+}
+
+active_inputStyle_radioitems = {
+    'marginRight': '10px',
+    'transform': 'scale(1.2)',
+    'accentColor': COLORS['primary'],
+}
+
+active_style_radioitems = {
+    'backgroundColor': COLORS.get('background', '#ffffff'),
+    'padding': '10px 15px',
+    'borderRadius': '8px',
+    'boxShadow': '0 1px 3px rgba(0,0,0,0.1)',
+    'marginTop': '5px'
+}

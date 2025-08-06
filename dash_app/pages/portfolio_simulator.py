@@ -5,6 +5,7 @@ import sys
 import uuid
 import dash
 import numpy as np
+import pandas as pd
 import dash_bootstrap_components as dbc
 
 from datetime import datetime, timedelta
@@ -16,7 +17,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from helpers.portfolio_simulator import (
     parse_ts_map,
     portfolio_dash_range_selector,
-    forecast_arima, arima_forecast_plot
+    grid_search_arima_model, simulate_arima_paths, arima_simulation_plot,
+    select_best_garch_model
 )
 
 from helpers.portfolio_exploration import (
@@ -27,7 +29,8 @@ from helpers.portfolio_exploration import (
 from helpers.button_styles import (
     COLORS,
     verified_button_style, unverified_button_style,
-    default_style_time_range, active_style_time_range
+    default_style_time_range, active_style_time_range,
+    active_labelStyle_radioitems, active_inputStyle_radioitems, active_style_radioitems
 )
 
 dash.register_page(__name__, path="/pages/portfolio-simulator")
@@ -245,7 +248,7 @@ layout = html.Div(
                         ]
                     ),
 
-                    # Date picker to choose future date for prediction
+                    # Date picker, Criterion Selector, and Ensemble Generator for prediction
                     html.Div(
                         style={
                             'display': 'flex',
@@ -258,10 +261,10 @@ layout = html.Div(
 
                             html.Label("Choose a future date for prediction:",
                                     style={
-                                    'color': COLORS['primary'],
-                                    'fontWeight': 'bold',
-                                    'fontSize': '1rem'
-                                }
+                                        'color': COLORS['primary'],
+                                        'fontWeight': 'bold',
+                                        'fontSize': '1rem'
+                                    }
                             ),
 
                             dcc.DatePickerSingle(
@@ -269,7 +272,48 @@ layout = html.Div(
                                 disabled=True,
                                 with_portal=True,
                                 display_format='MMM Do, YY',
+                            ),
+
+                            html.Br(),
+
+                            html.Label("Number of ensembles to generate:",
+                                        style={
+                                            'color': COLORS['primary'],
+                                            'fontWeight': 'bold',
+                                            'marginBottom': '10px',
+                                            'fontSize': '1rem'
+                                        }
+                            ),
+
+                            # Slider to choose number of ensembles to generate
+                            dcc.Slider(
+                                id="num-ensemble-slider",
+                                min=10,
+                                max=1000,
+                                value=500,
+                                disabled=True,
+                                tooltip={"placement": "bottom", "always_visible": False}
                             ),                       
+
+                            html.Br(),
+
+                            html.Label("Model selection criterion:",
+                                    style={
+                                        'color': COLORS['primary'],
+                                        'fontWeight': 'bold',
+                                        'fontSize': '1rem',
+                                        'marginTop': '20px'
+                                    }
+                            ),
+
+                            dcc.RadioItems(
+                                id='model-selection-criterion',
+                                options=[
+                                    {'label': 'AIC (Akaike)', 'value': 'AIC', 'disabled': True},
+                                    {'label': 'BIC (Bayesian)', 'value': 'BIC', 'disabled': True},
+                                    {'label': 'Log-Likelihood', 'value': 'LogLikelihood', 'disabled': True}
+                                ],
+                            ),
                         ]
                     ),
 
@@ -300,57 +344,6 @@ layout = html.Div(
                             ),
                         ]
                     ),
-                    
-                    # Buttons to generate simulations and predictions
-                    html.Div(
-                        style={
-                            'display': 'flex',
-                            'flexDirection': 'column',
-                            'gap': '10px'  
-                        },
-                        
-                        children=[
-
-                            # Button for user to start monte carlo exploration
-                            html.Button("Predict Using Ensemble Generations", 
-                                id="btn-simulate-performance", 
-                                style=verified_button_style,
-                                disabled=False,
-                                className="simple" 
-                            ),
-                        ]
-                    ),
-
-                    # Options to generate monte carlo simulations
-                    html.Div(
-                        style={
-                            'display': 'flex',
-                            'flexDirection': 'column',
-                            'gap': '10px'  
-                        },
-
-                        children=[
-                            
-                            html.Label("Number of ensembles to generate:",
-                                    style={
-                                    'color': COLORS['primary'],
-                                    'fontWeight': 'bold',
-                                    'marginBottom': '10px',
-                                    'fontSize': '1rem'
-                                }
-                            ),
-
-                            # Slider to choose number of ensembles to generate
-                            dcc.Slider(
-                                id="num-ensemble-slider",
-                                min=10,
-                                max=1000,
-                                value=500,
-                                disabled=True,
-                                tooltip={"placement": "bottom", "always_visible": False}
-                            ),
-                        ]
-                    )
                 ]
             ),
                 
@@ -495,6 +488,14 @@ def set_budget_validation(verify_budget):
         Output("date-chooser-simulation", "disabled"),   
         Output("date-chooser-simulation", "min_date_allowed"),        
         Output("date-chooser-simulation", "max_date_allowed"), 
+
+        Output("num-ensemble-slider", "disabled"),
+
+        Output("model-selection-criterion", "options"),
+        Output("model-selection-criterion", "labelStyle"),
+        Output("model-selection-criterion", "inputStyle"),
+        Output("model-selection-criterion", "style"),
+
     ],
     Input("verify-budget", "data"),
     State("latest-date", "data")
@@ -506,19 +507,33 @@ def enable_initial_controls(verify_budget, latest_date):
         return (
             False, verified_button_style, "simple",
             False, next_business_day(latest_date), max_forecast_date(latest_date),
+            False,
+            [
+                {'label': 'AIC (Akaike)', 'value': 'AIC', 'disabled': False},
+                {'label': 'BIC (Bayesian)', 'value': 'BIC', 'disabled': False},
+                {'label': 'Log-Likelihood', 'value': 'LogLikelihood', 'disabled': False}
+            ],
+            active_labelStyle_radioitems,
+            active_inputStyle_radioitems,
+            active_style_radioitems
         )
     else:
         return (
             True, unverified_button_style, "",
             True, next_business_day(latest_date), max_forecast_date(latest_date),
+            True,
+            [
+                {'label': 'AIC (Akaike)', 'value': 'AIC', 'disabled': True},
+                {'label': 'BIC (Bayesian)', 'value': 'BIC', 'disabled': True},
+                {'label': 'Log-Likelihood', 'value': 'LogLikelihood', 'disabled': True}
+            ],
+            active_labelStyle_radioitems,
+            active_inputStyle_radioitems,
+            active_style_radioitems
         )
 
 @callback(
     [
-        Output("btn-simulate-performance", "disabled"),
-        Output("btn-simulate-performance", "style"),
-        Output("btn-simulate-performance", "className"),
-
         Output("btn-arima-performance", "disabled"),
         Output("btn-arima-performance", "style"),
         Output("btn-arima-performance", "className"),
@@ -526,13 +541,14 @@ def enable_initial_controls(verify_budget, latest_date):
         Output("btn-garch-performance", "disabled"),
         Output("btn-garch-performance", "style"),
         Output("btn-garch-performance", "className"),
+        
     ],
-    Input("date-chooser-simulation", "date")
+    Input("date-chooser-simulation", "date"),
+    Input("model-selection-criterion", "value")
 )
-def enable_post_datepicker_buttons(selected_date):
-    if selected_date:
+def enable_post_datepicker_buttons(selected_date, selected_criterion_information):
+    if selected_date and selected_criterion_information:
         return (
-            False, verified_button_style, "simple",
             False, verified_button_style, "simple",
             False, verified_button_style, "simple",
         )
@@ -540,19 +556,17 @@ def enable_post_datepicker_buttons(selected_date):
         return (
             True, unverified_button_style, "",
             True, unverified_button_style, "",
-            True, unverified_button_style, "",
         )
 
 @callback(
     [
         Output("portfolio-simulator-main-content", "children"),
-        Output("num-ensemble-slider", "disabled"),
     ],
     [
         Input("btn-portfolio-performance", "n_clicks"),
         Input("btn-arima-performance", "n_clicks"),
         Input("btn-garch-performance", "n_clicks"),
-        Input("btn-simulate-performance", "n_clicks"),
+        Input("model-selection-criterion", "value")
     ],
     [
         State("verify-budget", "data"),
@@ -562,15 +576,28 @@ def enable_post_datepicker_buttons(selected_date):
         State("budget-value", "data"),
         State("portfolio-risk-return", "data"),
         State("date-chooser-simulation", "date"),
+        State("num-ensemble-slider", "value"),
     ],
     prevent_initial_call=True
 )
-def update_portfolio_simulator_main_plot(_, __, ___, ____, verify_budget, portfolio_store, selected_tickers, weights, budget, risk_return, forecast_until):
+def update_portfolio_simulator_main_plot(_, __, ___, criterion_selector,
+                                         verify_budget, portfolio_store, 
+                                         selected_tickers, weights, budget,
+                                         risk_return, forecast_until, num_ensembles):
     button_id = ctx.triggered_id
 
     if not verify_budget.get("verified", False):
         raise dash.exceptions.PreventUpdate
+    
+    _, portfolio_value_ts = parse_ts_map(
+                                selected_tickers=selected_tickers,
+                                portfolio_weights=weights,
+                                portfolio_store=portfolio_store,
+                                budget=budget
+                            )
 
+    log_returns = np.log(portfolio_value_ts / portfolio_value_ts.shift(1)).dropna() 
+    
     if button_id == "btn-portfolio-performance":
         return (
             html.Div(
@@ -612,57 +639,63 @@ def update_portfolio_simulator_main_plot(_, __, ___, ____, verify_budget, portfo
                     html.Div(id="portfolio-plot-container", style={"flex": "1", "overflow": "hidden"}),
                 ]
             ),
-            True
         )
 
     elif button_id == "btn-arima-performance":
-        # ARIMA: compute and plot everything here
-        if not forecast_until:
-            raise dash.exceptions.PreventUpdate
+        best_model_info = grid_search_arima_model(log_returns, criterion=criterion_selector)
+        model_result = best_model_info['result']
+        best_order = best_model_info['order']
+        score = best_model_info['score']
 
-        _, portfolio_value_ts = parse_ts_map(
-            selected_tickers=selected_tickers,
-            portfolio_weights=weights,
-            portfolio_store=portfolio_store,
-            budget=budget
-        )
-        log_returns = np.log(portfolio_value_ts / portfolio_value_ts.shift(1))
-        log_returns.replace([np.inf, -np.inf], np.nan).dropna()
-        forecast_df = forecast_arima(log_returns, forecast_until)
+        simulations, forecast_index = simulate_arima_paths(model_result=model_result, 
+                                                           last_date=portfolio_value_ts.index[-1], 
+                                                           forecast_until=forecast_until, 
+                                                           num_ensembles=num_ensembles, 
+                                                           inferred_freq='B')
 
-        plot = arima_forecast_plot(
-            full_name="Portfolio (ARIMA Forecast)",
-            dates=portfolio_value_ts.index,
-            daily_prices=portfolio_value_ts.values,
-            log_returns=log_returns,
-            forecast_df=forecast_df,
-            COLORS=COLORS
-        )
+        title = f"ARIMA Simulation - Criterion: {criterion_selector}, Order: {best_order}, Score: {score:.2f}, Ensembles: {num_ensembles}"
 
         return (
             html.Div(
                 id="simulator-main-panel",
                 style={'display': 'flex', 'flexDirection': 'column', 'height': '100%', 'width': '100%', 'overflow': 'hidden'},
                 children=[
-                    html.Div(id="portfolio-plot-container", children=plot, style={"flex": "1", "overflow": "hidden"})
+                    html.Div(
+                        id="portfolio-plot-container",
+                        style={"flex": "1", "overflow": "hidden"},
+                        children=[
+                            arima_simulation_plot(
+                                title=title,
+                                dates=portfolio_value_ts.index,
+                                daily_prices=portfolio_value_ts.values,
+                                log_returns=log_returns,
+                                simulations=simulations,
+                                forecast_index=forecast_index,
+                                COLORS=COLORS
+                            )
+                        ],
+                    )
                 ]
             ),
-            True
         )
 
     elif button_id == "btn-garch-performance":
-        return (
-            html.Div("GARCH Plot Coming Soon...", style={"color": COLORS["primary"], "fontSize": "1.5rem"}),
-            True
+
+        best_models = select_best_garch_model(
+            log_returns,
+            p_range=range(1, 4),
+            q_range=range(1, 4),
+            criterions=['AIC', 'BIC', 'LogLikelihood'],
+            dists=['normal', 't', 'skewt']
         )
 
-    elif button_id == "btn-simulate-performance":
         return (
-            html.Div("Monte Carlo Simulation Coming Soon...", style={"color": COLORS["primary"], "fontSize": "1.5rem"}),
-            False
+            html.Div(
+                "TEMP!!"
+            ),
         )
 
-    return no_update, no_update
+    return no_update
 
 # Highlight buttons based on time-range selected
 @callback(
@@ -774,26 +807,3 @@ def update_plot_on_range_change(active_tab, selected_range, budget, portfolio_st
             daily_returns=portfolio_returns, 
             COLORS=COLORS),
         )
-
-"""
-@callback(
-    [
-        State("budget-value", "data"),
-        State("portfolio-store", "data"),
-        State("selected-tickers-store", "data"),
-        State("confirmed-weights-store", "data"),
-        State("portfolio-risk-return", "data"),
-    ],
-)
-def generate_ensembles(budget, portfolio_store, selected_tickers, weights):
-
-    # Compute budget-adjusted time series
-    _, portfolio_value_ts = parse_ts_map(
-        selected_tickers=selected_tickers,
-        portfolio_weights=weights,
-        portfolio_store=portfolio_store,
-        budget=budget
-    )
-
-    print(portfolio_value_ts)
-"""
