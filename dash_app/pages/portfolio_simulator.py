@@ -17,7 +17,7 @@ from helpers.portfolio_simulator import (
     parse_ts_map,
     portfolio_dash_range_selector,
     grid_search_arima_model, simulate_arima_paths, arima_simulation_plot,
-    select_best_garch_model
+    grid_search_garch_models, simulate_garch_paths, garch_simulation_plot
 )
 
 from helpers.portfolio_exploration import (
@@ -288,8 +288,8 @@ layout = html.Div(
                             dcc.Slider(
                                 id="num-ensemble-slider",
                                 min=10,
-                                max=1000,
-                                value=500,
+                                max=500,
+                                value=100,
                                 disabled=True,
                                 tooltip={"placement": "bottom", "always_visible": False}
                             ),                       
@@ -600,7 +600,13 @@ def update_portfolio_simulator_main_plot(_, __, ___, criterion_selector,
         return (
             html.Div(
                 id="simulator-main-panel",
-                style={'display': 'flex', 'flexDirection': 'column', 'height': '100%', 'width': '100%', 'overflow': 'hidden'},
+                style={'display': 'flex', 
+                       'flexDirection': 'column', 
+                       'height': '100%', 
+                       'width': '100%', 
+                       'overflow': 'hidden'
+                },
+
                 children=[
                     portfolio_dash_range_selector(default_style=default_style_time_range),
                     dcc.Tabs(
@@ -623,14 +629,47 @@ def update_portfolio_simulator_main_plot(_, __, ___, criterion_selector,
                             dcc.Tab(
                                 label="Price & Returns Plot",
                                 value='portfolio-tab-plot',
-                                style={...},  # keep styles
-                                selected_style={...}
+                                style={
+                                    "backgroundColor": COLORS['background'],
+                                    "color": COLORS['text'],
+                                    "padding": "6px 18px",
+                                    "fontSize": "14px",
+                                    "fontWeight": "bold",
+                                    "border": "none",
+                                    "borderBottom": f"2px solid transparent",
+                                },
+                                selected_style={
+                                    "backgroundColor": COLORS['background'],
+                                    "color": COLORS['primary'],
+                                    "padding": "6px 18px",
+                                    "fontSize": "14px",
+                                    "fontWeight": "bold",
+                                    "border": "none",
+                                    "borderBottom": f"2px solid {COLORS['primary']}",
+                                },
                             ),
                             dcc.Tab(
                                 label="Statistical Summary",
                                 value='portfolio-tab-stats',
-                                style={...},
-                                selected_style={...}
+                                style={
+                                    "backgroundColor": COLORS['background'],
+                                    "color": COLORS['text'],
+                                    "padding": "6px 18px",
+                                    "fontWeight": "bold",
+                                    "fontSize": "14px",
+                                    "border": "none",
+                                    "borderBottom": f"2px solid transparent",
+                                },
+                                selected_style={
+                                    "backgroundColor": COLORS['background'],
+                                    "color": COLORS['primary'],
+                                    "padding": "6px 18px",
+                                    "fontWeight": "bold",
+                                    "fontSize": "14px",
+                                    "border": "none",
+                                    "borderBottom": f"2px solid {COLORS['primary']}",
+                                },
+
                             ),
                         ]
                     ),
@@ -642,11 +681,11 @@ def update_portfolio_simulator_main_plot(_, __, ___, criterion_selector,
     elif button_id == "btn-arima-performance":
         arima_model = grid_search_arima_model(log_returns, criterion=criterion_selector)
 
-        simulations, forecast_index = simulate_arima_paths(model_result=arima_model['result'], 
-                                                           last_date=portfolio_value_ts.index[-1], 
-                                                           forecast_until=forecast_until, 
-                                                           num_ensembles=num_ensembles, 
-                                                           inferred_freq='B')
+        simulations, forecast_index, mean_ensembles, std_ensembles = simulate_arima_paths(model_result=arima_model['result'], 
+                                                                        last_date=portfolio_value_ts.index[-1], 
+                                                                        forecast_until=forecast_until, 
+                                                                        num_ensembles=num_ensembles, 
+                                                                        inferred_freq='B')
 
         title = f"ARIMA Simulation - Criterion: {criterion_selector}, Order: {arima_model["order"]}, Score: {arima_model["score"]:.2f}, Ensembles: {num_ensembles}"
 
@@ -659,6 +698,7 @@ def update_portfolio_simulator_main_plot(_, __, ___, criterion_selector,
                        'width': '100%', 
                        'overflow': 'hidden'
                        },
+                       
                 children=[
                     html.Div(
                         id="portfolio-plot-container",
@@ -671,6 +711,8 @@ def update_portfolio_simulator_main_plot(_, __, ___, criterion_selector,
                                 log_returns=log_returns,
                                 simulations=simulations,
                                 forecast_index=forecast_index,
+                                mean_ensembles=mean_ensembles,
+                                std_ensembles=std_ensembles,
                                 COLORS=COLORS
                             )
                         ],
@@ -681,17 +723,47 @@ def update_portfolio_simulator_main_plot(_, __, ___, criterion_selector,
 
     elif button_id == "btn-garch-performance":
 
-        best_models = select_best_garch_model(
-            log_returns,
-            p_range=range(1, 4),
-            q_range=range(1, 4),
-            criterions=['AIC', 'BIC', 'LogLikelihood'],
-            dists=['normal', 't', 'skewt']
-        )
+        garch_model = grid_search_garch_models(log_returns, criterion=criterion_selector)
+
+        simulations, forecast_index, mean_returns, std_returns = simulate_garch_paths(
+                                                                    model_result=garch_model['model'],
+                                                                    last_date=portfolio_value_ts.index[-1],
+                                                                    forecast_until=forecast_until,
+                                                                    num_ensembles=num_ensembles,
+                                                                    inferred_freq='B'
+                                                                )
+
+        title = f"GARCH Simulation - Criterion: {criterion_selector}, Model: {garch_model['model_type']}({garch_model['order']}), Dist: {garch_model['distribution']}, Score: {garch_model['score']:.2f}"
 
         return (
             html.Div(
-                "TEMP!!"
+                id="simulator-main-panel",
+                style={'display': 'flex', 
+                       'flexDirection': 'column', 
+                       'height': '100%', 
+                       'width': '100%', 
+                       'overflow': 'hidden'
+                       },
+                       
+                children=[
+                    html.Div(
+                        id="portfolio-plot-container",
+                        style={"flex": "1", "overflow": "hidden"},
+                        children=[
+                            garch_simulation_plot(
+                                title=title,
+                                dates=portfolio_value_ts.index,
+                                daily_prices=portfolio_value_ts.values,
+                                log_returns=log_returns,
+                                simulations=simulations,
+                                forecast_index=forecast_index,
+                                mean_ensembles=mean_returns,
+                                std_ensembles=std_returns,
+                                COLORS=COLORS
+                            )
+                        ],
+                    )
+                ]
             ),
         )
 

@@ -131,7 +131,6 @@ def grid_search_arima_model(
         'order': best_order
     }
 
-
 def simulate_arima_paths(model_result, last_date, forecast_until, num_ensembles, inferred_freq='B'):
     forecast_until = pd.to_datetime(forecast_until)
     forecast_index = pd.date_range(start=last_date + pd.Timedelta(1, unit='D'), 
@@ -142,9 +141,20 @@ def simulate_arima_paths(model_result, last_date, forecast_until, num_ensembles,
     for i in range(num_ensembles):
         simulations[:, i] = model_result.simulate(nsimulations=n_steps)
 
-    return simulations, forecast_index
+    return (simulations, forecast_index, np.mean(simulations, axis=1), np.std(simulations, axis=1))
 
-def arima_simulation_plot(title, dates, daily_prices, log_returns, simulations, forecast_index, COLORS):
+def arima_simulation_plot(
+        title, 
+        dates, 
+        daily_prices, 
+        log_returns, 
+        simulations, 
+        forecast_index, 
+        mean_ensembles,
+        std_ensembles, 
+        COLORS
+):
+    
     last_price = daily_prices[-1]
     _, num_ensembles = simulations.shape
 
@@ -153,6 +163,14 @@ def arima_simulation_plot(title, dates, daily_prices, log_returns, simulations, 
     for i in range(num_ensembles):
         cum_ret = np.cumsum(simulations[:, i])
         price_paths[:, i] = last_price * np.exp(cum_ret)
+
+    # Mean price path from mean log returns
+    mean_price_path = price_paths.mean(axis=1)
+    std_price_path = price_paths.std(axis=1)
+
+    # 95-percent confidence (mean +- 1.96)
+    lower_price_bound = mean_price_path - 1.96 * std_price_path
+    upper_price_bound = mean_price_path + 1.96 * std_price_path
 
     fig = make_subplots(
         rows=2, cols=1,
@@ -172,6 +190,26 @@ def arima_simulation_plot(title, dates, daily_prices, log_returns, simulations, 
                                  y=[daily_prices[-1]] + list(price_paths[:, i]),
                                  mode='lines', line=dict(width=1, color='rgba(255,255,255,0.1)'),
                                  showlegend=False), row=1, col=1)
+        
+    # Mean price path (in teal)
+    fig.add_trace(go.Scatter(
+        x=[dates[-1]] + list(forecast_index),
+        y=[daily_prices[-1]] + list(mean_price_path),
+        mode='lines',
+        name='Mean Simulated Price',
+        line=dict(color='#ED3500', width=2)
+    ), row=1, col=1)
+
+    # Confidence interval band for Price
+    fig.add_trace(go.Scatter(
+        x=[dates[-1]] + list(forecast_index) + list(forecast_index[::-1]) + [dates[-1]],
+        y=[daily_prices[-1]] + list(upper_price_bound) + list(lower_price_bound[::-1]) + [daily_prices[-1]],
+        fill='toself',
+        fillcolor='rgba(255, 87, 34, 0.2)',
+        line=dict(color='rgba(255,255,255,0)'),
+        hoverinfo='skip',
+        showlegend=False
+    ), row=1, col=1)
 
     fig.add_trace(go.Scatter(x=dates, y=log_returns, mode='lines', name='Log Returns',
                              line=dict(color=COLORS['primary'])), row=2, col=1)
@@ -181,6 +219,33 @@ def arima_simulation_plot(title, dates, daily_prices, log_returns, simulations, 
                                  y=[log_returns.iloc[-1]] + list(simulations[:, i]),
                                  mode='lines', line=dict(width=1, color='rgba(255,255,255,0.1)'),
                                  showlegend=False), row=2, col=1)
+
+    mean_returns = simulations.mean(axis=1)
+    std_returns = simulations.std(axis=1)
+
+    lower_return_bound = mean_returns - 1.96 * std_returns
+    upper_return_bound = mean_returns + 1.96 * std_returns
+
+    # Mean log return path (in teal)
+    fig.add_trace(go.Scatter(
+        x=[log_returns.index[-1]] + list(forecast_index),
+        y=[log_returns.iloc[-1]] + list(mean_ensembles),
+        mode='lines',
+        name='Mean Simulated Return',
+        line=dict(color='#ED3500', width=2)
+    ), row=2, col=1)
+
+    # Confidence interval band for Log Returns
+    fig.add_trace(go.Scatter(
+        x=[log_returns.index[-1]] + list(forecast_index) + list(forecast_index[::-1]) + [log_returns.index[-1]],
+        y=[log_returns.iloc[-1]] + list(upper_return_bound) + list(lower_return_bound[::-1]) + [log_returns.iloc[-1]],
+        fill='toself',
+        fillcolor='rgba(255, 87, 34, 0.2)',
+        line=dict(color='rgba(255,255,255,0)'),
+        hoverinfo='skip',
+        showlegend=False
+    ), row=2, col=1)
+
 
     fig.update_layout(
         template="plotly_dark",
@@ -201,58 +266,196 @@ def arima_simulation_plot(title, dates, daily_prices, log_returns, simulations, 
 
     return dcc.Graph(id="arima-simulation-plot", figure=fig, config={'responsive': True}, style={'height': '100%', 'width': '100%'})
 
-def select_best_garch_model(
+def grid_search_garch_models(
     returns,
+    criterion='aic',
     p_range=range(1, 4),
     q_range=range(1, 4),
-    criterions=('AIC', 'BIC', 'LogLikelihood'),
-    dists=('normal', 't', 'skewt')
+    model_types=('GARCH', 'EGARCH', 'GJR-GARCH'),
+    distribution_types=('gaussian', 'studentst', 'skewstudent', 'ged')
 ):
-    """
-    Evaluate GARCH(p,q) models across different error distributions and selection criteria.
 
-    Returns:
-        best_models: dict of {criterion: (result, (p,q), dist, score)}
-    """
-    best_models = {criterion: {'score': np.inf if criterion != 'LogLikelihood' else -np.inf,
-                               'result': None,
-                               'order': None,
-                               'dist': None}
-                   for criterion in criterions}
+    best_model = None
+    best_order = None
+    best_model_type = None
+    best_distribution = None
 
-    for p in p_range:
-        for q in q_range:
-            for dist in dists:
-                try:
-                    model = arch_model(returns, vol='Garch', p=p, q=q, dist=dist)
-                    res = model.fit(disp='off')
-                    
-                    scores = {
-                        'AIC': res.aic,
-                        'BIC': res.bic,
-                        'LogLikelihood': res.loglikelihood
-                    }
+    best_score = -np.inf if criterion == 'loglikelihood' else np.inf
 
-                    for criterion in criterions:
-                        if criterion == 'LogLikelihood':
-                            if scores[criterion] > best_models[criterion]['score']:
-                                best_models[criterion] = {
-                                    'score': scores[criterion],
-                                    'result': res,
-                                    'order': (p, q),
-                                    'dist': dist
-                                }
-                        else:
-                            if scores[criterion] < best_models[criterion]['score']:
-                                best_models[criterion] = {
-                                    'score': scores[criterion],
-                                    'result': res,
-                                    'order': (p, q),
-                                    'dist': dist
-                                }
-                except Exception as e:
-                    # Some combinations may not converge; skip silently
-                    continue
+    for model_type in model_types:
+        for dist in distribution_types:
+            for p in p_range:
+                for q in q_range:
+                    try:
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
 
-    return best_models
+                            model = arch_model(
+                                returns,
+                                vol=model_type.lower(),  # 'garch', 'egarch', 'gjr-garch'
+                                p=p,
+                                q=q,
+                                dist=dist
+                            )
+                            result = model.fit(disp='off')
 
+                            score = {
+                                'aic': result.aic,
+                                'bic': result.bic,
+                                'loglikelihood': result.loglikelihood
+                            }[criterion]
+
+                            is_better = (
+                                score > best_score if criterion == 'loglikelihood'
+                                else score < best_score
+                            )
+
+                            if is_better:
+                                best_score = score
+                                best_model = result
+                                best_order = (p, q)
+                                best_model_type = model_type
+                                best_distribution = dist
+
+                    except Exception:
+                        continue
+
+    return {
+        'model': best_model,
+        'model_type': best_model_type,
+        'order': best_order,
+        'distribution': best_distribution,
+        'score': best_score
+    }
+
+def simulate_garch_paths(model_result, last_date, forecast_until, num_ensembles, inferred_freq='B'):
+    forecast_until = pd.to_datetime(forecast_until)
+    forecast_index = pd.date_range(start=last_date + pd.Timedelta(1, unit='D'), 
+                                   end=forecast_until, freq=inferred_freq)
+    n_steps = len(forecast_index)
+
+    simulations = np.zeros((n_steps, num_ensembles))
+    
+    for i in range(num_ensembles):
+        sim_data = model_result.model.simulate(
+            params=model_result.params,
+            nobs=n_steps,
+            x=None,  # required for ConstantMean
+            initial_value=None,
+            burn=250  # optional
+        )
+        simulations[:, i] = sim_data['data']
+
+    return (simulations, forecast_index, np.mean(simulations, axis=1), np.std(simulations, axis=1))
+
+def garch_simulation_plot(
+        title, 
+        dates, 
+        daily_prices, 
+        log_returns, 
+        simulations, 
+        forecast_index, 
+        mean_ensembles,
+        std_ensembles, 
+        COLORS
+):
+    last_price = daily_prices[-1]
+    _, num_ensembles = simulations.shape
+
+    # Convert cumulative returns to price paths
+    price_paths = np.zeros_like(simulations)
+    for i in range(num_ensembles):
+        cum_ret = np.cumsum(simulations[:, i])
+        price_paths[:, i] = last_price * np.exp(cum_ret)
+
+    mean_price_path = price_paths.mean(axis=1)
+    std_price_path = price_paths.std(axis=1)
+
+    lower_price_bound = mean_price_path - 1.96 * std_price_path
+    upper_price_bound = mean_price_path + 1.96 * std_price_path
+
+    fig = make_subplots(
+        rows=2, cols=1,
+        subplot_titles=[
+            "Simulated Price Paths (GARCH)",
+            "Simulated Log Returns"
+        ],
+        shared_xaxes=True,
+        vertical_spacing=0.15,
+    )
+
+    fig.add_trace(go.Scatter(x=dates, y=daily_prices, mode='lines', name='Historical Price',
+                             line=dict(color=COLORS['primary'])), row=1, col=1)
+
+    for i in range(num_ensembles):
+        fig.add_trace(go.Scatter(x=[dates[-1]] + list(forecast_index),
+                                 y=[daily_prices[-1]] + list(price_paths[:, i]),
+                                 mode='lines', line=dict(width=1, color='rgba(255,255,255,0.1)'),
+                                 showlegend=False), row=1, col=1)
+        
+    fig.add_trace(go.Scatter(
+        x=[dates[-1]] + list(forecast_index),
+        y=[daily_prices[-1]] + list(mean_price_path),
+        mode='lines',
+        name='Mean Simulated Price',
+        line=dict(color='#ED3500', width=2)
+    ), row=1, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=[dates[-1]] + list(forecast_index) + list(forecast_index[::-1]) + [dates[-1]],
+        y=[daily_prices[-1]] + list(upper_price_bound) + list(lower_price_bound[::-1]) + [daily_prices[-1]],
+        fill='toself',
+        fillcolor='rgba(255, 87, 34, 0.2)',
+        line=dict(color='rgba(255,255,255,0)'),
+        hoverinfo='skip',
+        showlegend=False
+    ), row=1, col=1)
+
+    fig.add_trace(go.Scatter(x=dates, y=log_returns, mode='lines', name='Log Returns',
+                             line=dict(color=COLORS['primary'])), row=2, col=1)
+
+    for i in range(num_ensembles):
+        fig.add_trace(go.Scatter(x=[log_returns.index[-1]] + list(forecast_index),
+                                 y=[log_returns.iloc[-1]] + list(simulations[:, i]),
+                                 mode='lines', line=dict(width=1, color='rgba(255,255,255,0.1)'),
+                                 showlegend=False), row=2, col=1)
+
+    lower_return_bound = mean_ensembles - 1.96 * std_ensembles
+    upper_return_bound = mean_ensembles + 1.96 * std_ensembles
+
+    fig.add_trace(go.Scatter(
+        x=[log_returns.index[-1]] + list(forecast_index),
+        y=[log_returns.iloc[-1]] + list(mean_ensembles),
+        mode='lines',
+        name='Mean Simulated Return',
+        line=dict(color='#ED3500', width=2)
+    ), row=2, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=[log_returns.index[-1]] + list(forecast_index) + list(forecast_index[::-1]) + [log_returns.index[-1]],
+        y=[log_returns.iloc[-1]] + list(upper_return_bound) + list(lower_return_bound[::-1]) + [log_returns.iloc[-1]],
+        fill='toself',
+        fillcolor='rgba(255, 87, 34, 0.2)',
+        line=dict(color='rgba(255,255,255,0)'),
+        hoverinfo='skip',
+        showlegend=False
+    ), row=2, col=1)
+
+    fig.update_layout(
+        template="plotly_dark",
+        title=title,
+        paper_bgcolor=COLORS['background'],
+        plot_bgcolor=COLORS['background'],
+        font=dict(color=COLORS['text']),
+        title_font=dict(color=COLORS['primary']),
+        showlegend=False,
+        xaxis2=dict(
+            rangeslider=dict(visible=True),
+            type='date',
+            range=[dates[-1] - timedelta(days=30), forecast_index[-1]]
+        ),
+    )
+
+    fig.update_yaxes(tickformat=".2%", row=2, col=1)
+
+    return dcc.Graph(id="garch-simulation-plot", figure=fig, config={'responsive': True}, style={'height': '100%', 'width': '100%'})
