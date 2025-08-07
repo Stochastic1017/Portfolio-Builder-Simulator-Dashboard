@@ -82,12 +82,16 @@ def parse_ts_map(selected_tickers, portfolio_weights, portfolio_store, budget, t
 
 def grid_search_arima_model(
     y,
-    criterion='AIC',
+    criterion='aic',             # Options: 'aic', 'bic', 'loglikelihood'
     p_range=range(0, 4),
-    d_range=range(1, 3),
+    d_range=range(0, 3),
     q_range=range(0, 4)
 ):
-    best_score = np.inf if criterion != 'LogLikelihood' else -np.inf
+    criterion = criterion.lower()
+    if criterion not in ['aic', 'bic', 'loglikelihood']:
+        raise ValueError("criterion must be one of: 'aic', 'bic', or 'loglikelihood'")
+
+    best_score = -np.inf if criterion == 'loglikelihood' else np.inf
     best_model = None
     best_order = None
 
@@ -98,20 +102,24 @@ def grid_search_arima_model(
                     with warnings.catch_warnings():
                         warnings.filterwarnings("ignore", category=UserWarning)
                         warnings.filterwarnings("ignore", category=ConvergenceWarning)
-                        
+
                         model = ARIMA(y, order=(p, d, q))
-                        res = model.fit()
+                        result = model.fit()
 
                     score = {
-                        'AIC': res.aic,
-                        'BIC': res.bic,
-                        'LogLikelihood': res.llf
+                        'aic': result.aic,
+                        'bic': result.bic,
+                        'loglikelihood': result.llf
                     }[criterion]
 
-                    if ((criterion == 'LogLikelihood' and score > best_score) or
-                        (criterion != 'LogLikelihood' and score < best_score)):
+                    is_better = (
+                        score > best_score if criterion == 'loglikelihood'
+                        else score < best_score
+                    )
+
+                    if is_better:
                         best_score = score
-                        best_model = res
+                        best_model = result
                         best_order = (p, d, q)
 
                 except Exception:
@@ -122,6 +130,7 @@ def grid_search_arima_model(
         'result': best_model,
         'order': best_order
     }
+
 
 def simulate_arima_paths(model_result, last_date, forecast_until, num_ensembles, inferred_freq='B'):
     forecast_until = pd.to_datetime(forecast_until)

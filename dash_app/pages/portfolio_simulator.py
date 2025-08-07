@@ -5,7 +5,6 @@ import sys
 import uuid
 import dash
 import numpy as np
-import pandas as pd
 import dash_bootstrap_components as dbc
 
 from datetime import datetime, timedelta
@@ -309,9 +308,9 @@ layout = html.Div(
                             dcc.RadioItems(
                                 id='model-selection-criterion',
                                 options=[
-                                    {'label': 'AIC (Akaike)', 'value': 'AIC', 'disabled': True},
-                                    {'label': 'BIC (Bayesian)', 'value': 'BIC', 'disabled': True},
-                                    {'label': 'Log-Likelihood', 'value': 'LogLikelihood', 'disabled': True}
+                                    {'label': 'AIC (Akaike)', 'value': 'aic', 'disabled': True},
+                                    {'label': 'BIC (Bayesian)', 'value': 'bic', 'disabled': True},
+                                    {'label': 'LogLikelihood', 'value': 'loglikelihood', 'disabled': True}
                                 ],
                             ),
                         ]
@@ -395,7 +394,6 @@ layout = html.Div(
                         ])
                     ]
                 ),
-            
             ]
         ),    
     ]
@@ -509,9 +507,9 @@ def enable_initial_controls(verify_budget, latest_date):
             False, next_business_day(latest_date), max_forecast_date(latest_date),
             False,
             [
-                {'label': 'AIC (Akaike)', 'value': 'AIC', 'disabled': False},
-                {'label': 'BIC (Bayesian)', 'value': 'BIC', 'disabled': False},
-                {'label': 'Log-Likelihood', 'value': 'LogLikelihood', 'disabled': False}
+                {'label': 'AIC (Akaike)', 'value': 'aic', 'disabled': False},
+                {'label': 'BIC (Bayesian)', 'value': 'bic', 'disabled': False},
+                {'label': 'LogLikelihood', 'value': 'loglikelihood', 'disabled': False}
             ],
             active_labelStyle_radioitems,
             active_inputStyle_radioitems,
@@ -523,9 +521,9 @@ def enable_initial_controls(verify_budget, latest_date):
             True, next_business_day(latest_date), max_forecast_date(latest_date),
             True,
             [
-                {'label': 'AIC (Akaike)', 'value': 'AIC', 'disabled': True},
-                {'label': 'BIC (Bayesian)', 'value': 'BIC', 'disabled': True},
-                {'label': 'Log-Likelihood', 'value': 'LogLikelihood', 'disabled': True}
+                {'label': 'AIC (Akaike)', 'value': 'aic', 'disabled': True},
+                {'label': 'BIC (Bayesian)', 'value': 'bic', 'disabled': True},
+                {'label': 'LogLikelihood', 'value': 'loglikelihood', 'disabled': True}
             ],
             active_labelStyle_radioitems,
             active_inputStyle_radioitems,
@@ -596,7 +594,7 @@ def update_portfolio_simulator_main_plot(_, __, ___, criterion_selector,
                                 budget=budget
                             )
 
-    log_returns = np.log(portfolio_value_ts / portfolio_value_ts.shift(1)).dropna() 
+    log_returns = np.log(portfolio_value_ts / portfolio_value_ts.shift(1)).shift(-1).dropna() 
     
     if button_id == "btn-portfolio-performance":
         return (
@@ -642,23 +640,25 @@ def update_portfolio_simulator_main_plot(_, __, ___, criterion_selector,
         )
 
     elif button_id == "btn-arima-performance":
-        best_model_info = grid_search_arima_model(log_returns, criterion=criterion_selector)
-        model_result = best_model_info['result']
-        best_order = best_model_info['order']
-        score = best_model_info['score']
+        arima_model = grid_search_arima_model(log_returns, criterion=criterion_selector)
 
-        simulations, forecast_index = simulate_arima_paths(model_result=model_result, 
+        simulations, forecast_index = simulate_arima_paths(model_result=arima_model['result'], 
                                                            last_date=portfolio_value_ts.index[-1], 
                                                            forecast_until=forecast_until, 
                                                            num_ensembles=num_ensembles, 
                                                            inferred_freq='B')
 
-        title = f"ARIMA Simulation - Criterion: {criterion_selector}, Order: {best_order}, Score: {score:.2f}, Ensembles: {num_ensembles}"
+        title = f"ARIMA Simulation - Criterion: {criterion_selector}, Order: {arima_model["order"]}, Score: {arima_model["score"]:.2f}, Ensembles: {num_ensembles}"
 
         return (
             html.Div(
                 id="simulator-main-panel",
-                style={'display': 'flex', 'flexDirection': 'column', 'height': '100%', 'width': '100%', 'overflow': 'hidden'},
+                style={'display': 'flex', 
+                       'flexDirection': 'column', 
+                       'height': '100%', 
+                       'width': '100%', 
+                       'overflow': 'hidden'
+                       },
                 children=[
                     html.Div(
                         id="portfolio-plot-container",
