@@ -16,8 +16,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from helpers.portfolio_simulator import (
     parse_ts_map,
     portfolio_dash_range_selector,
-    grid_search_arima_model, simulate_arima_paths, arima_simulation_plot,
-    grid_search_garch_models, simulate_garch_paths, garch_simulation_plot
+    grid_search_arima_model, simulate_arima_paths,
+    grid_search_garch_models, simulate_garch_paths,
+    train_lstm_model, simulate_lstm_paths,
+    simulation_plot
 )
 
 from helpers.portfolio_exploration import (
@@ -316,7 +318,7 @@ layout = html.Div(
                         ]
                     ),
 
-                    # Buttons to generate ARIMA/GARCH predictions
+                    # Buttons to generate ARIMA, GARCH, LSTM predictions
                     html.Div(
                         style={
                             'display': 'flex',
@@ -326,7 +328,15 @@ layout = html.Div(
                         
                         children=[
 
-                            # Button for user to start monte carlo exploration
+                            html.Label("Classical Prediction Methods:",
+                                    style={
+                                        'color': COLORS['primary'],
+                                        'fontWeight': 'bold',
+                                        'fontSize': '1rem'
+                                    }
+                            ),
+
+                            # ARIMA model
                             html.Button("Predict Using ARIMA process", 
                                 id="btn-arima-performance", 
                                 style=verified_button_style,
@@ -334,9 +344,27 @@ layout = html.Div(
                                 className="simple" 
                             ),
 
-                            # Button for user to start monte carlo exploration
+                            # GARCH model
                             html.Button("Predict Using GARCH process", 
                                 id="btn-garch-performance", 
+                                style=verified_button_style,
+                                disabled=False,
+                                className="simple" 
+                            ),
+
+                            html.Br(),
+
+                            html.Label("Machine Learning Predicition Methods:",
+                                    style={
+                                        'color': COLORS['primary'],
+                                        'fontWeight': 'bold',
+                                        'fontSize': '1rem'
+                                    }
+                            ),
+
+                            # Button for user to start monte carlo exploration
+                            html.Button("Predict Using LSTM process", 
+                                id="btn-lstm-performance", 
                                 style=verified_button_style,
                                 disabled=False,
                                 className="simple" 
@@ -513,8 +541,9 @@ def enable_initial_controls(verify_budget, latest_date):
             ],
             active_labelStyle_radioitems,
             active_inputStyle_radioitems,
-            active_style_radioitems
+            active_style_radioitems,
         )
+
     else:
         return (
             True, unverified_button_style, "",
@@ -527,9 +556,28 @@ def enable_initial_controls(verify_budget, latest_date):
             ],
             active_labelStyle_radioitems,
             active_inputStyle_radioitems,
-            active_style_radioitems
+            active_style_radioitems,
         )
 
+# Activate LSTM button after user inputs date and a valid budget
+@callback(
+        [
+            Output("btn-lstm-performance", "disabled"),
+            Output("btn-lstm-performance", "style"),
+            Output("btn-lstm-performance", "className"),
+        ],
+        Input("date-chooser-simulation", "date")
+)
+def activate_lstm_button(selected_date):
+
+    if selected_date:
+        return (False, verified_button_style, "simple",)
+    
+    else:
+        return (True, unverified_button_style, "")
+
+# Activate ARIMA and GARCH button after user inputs date, valid budget,
+# and preferred criterion information.
 @callback(
     [
         Output("btn-arima-performance", "disabled"),
@@ -538,18 +586,21 @@ def enable_initial_controls(verify_budget, latest_date):
 
         Output("btn-garch-performance", "disabled"),
         Output("btn-garch-performance", "style"),
-        Output("btn-garch-performance", "className"),
-        
+        Output("btn-garch-performance", "className"),        
     ],
-    Input("date-chooser-simulation", "date"),
-    Input("model-selection-criterion", "value")
+    [
+        Input("date-chooser-simulation", "date"),
+        Input("model-selection-criterion", "value")
+    ]
 )
-def enable_post_datepicker_buttons(selected_date, selected_criterion_information):
+def activate_arima_garch_buttons(selected_date, selected_criterion_information):
+    
     if selected_date and selected_criterion_information:
         return (
             False, verified_button_style, "simple",
             False, verified_button_style, "simple",
         )
+    
     else:
         return (
             True, unverified_button_style, "",
@@ -564,7 +615,8 @@ def enable_post_datepicker_buttons(selected_date, selected_criterion_information
         Input("btn-portfolio-performance", "n_clicks"),
         Input("btn-arima-performance", "n_clicks"),
         Input("btn-garch-performance", "n_clicks"),
-        Input("model-selection-criterion", "value")
+        Input("btn-lstm-performance", "n_clicks"),
+        Input("model-selection-criterion", "value"),
     ],
     [
         State("verify-budget", "data"),
@@ -578,7 +630,7 @@ def enable_post_datepicker_buttons(selected_date, selected_criterion_information
     ],
     prevent_initial_call=True
 )
-def update_portfolio_simulator_main_plot(_, __, ___, criterion_selector,
+def update_portfolio_simulator_main_plot(_, __, ___, ____, criterion_selector,
                                          verify_budget, portfolio_store, 
                                          selected_tickers, weights, budget,
                                          risk_return, forecast_until, num_ensembles):
@@ -687,7 +739,13 @@ def update_portfolio_simulator_main_plot(_, __, ___, criterion_selector,
                                                                         num_ensembles=num_ensembles, 
                                                                         inferred_freq='B')
 
-        title = f"ARIMA Simulation - Criterion: {criterion_selector}, Order: {arima_model["order"]}, Score: {arima_model["score"]:.2f}, Ensembles: {num_ensembles}"
+        title = (
+            f"ARIMA Simulation - "
+            f"Criterion: {criterion_selector}, "
+            f"Order: {arima_model["order"]}, "
+            f"Score: {arima_model["score"]:.2f}, "
+            f"Ensembles: {num_ensembles}"
+        )
 
         return (
             html.Div(
@@ -704,7 +762,8 @@ def update_portfolio_simulator_main_plot(_, __, ___, criterion_selector,
                         id="portfolio-plot-container",
                         style={"flex": "1", "overflow": "hidden"},
                         children=[
-                            arima_simulation_plot(
+                            simulation_plot(
+                                model_used="arima",
                                 title=title,
                                 dates=portfolio_value_ts.index,
                                 daily_prices=portfolio_value_ts.values,
@@ -733,7 +792,13 @@ def update_portfolio_simulator_main_plot(_, __, ___, criterion_selector,
                                                                     inferred_freq='B'
                                                                 )
 
-        title = f"GARCH Simulation - Criterion: {criterion_selector}, Model: {garch_model['model_type']}({garch_model['order']}), Dist: {garch_model['distribution']}, Score: {garch_model['score']:.2f}"
+        title = (
+            f"GARCH Simulation - "
+            f"Criterion: {criterion_selector}, "
+            f"Model: {garch_model['model_type']}({garch_model['order']}), "
+            f"Dist: {garch_model['distribution']}, "
+            f"Score: {garch_model['score']:.2f}"
+        )
 
         return (
             html.Div(
@@ -750,7 +815,63 @@ def update_portfolio_simulator_main_plot(_, __, ___, criterion_selector,
                         id="portfolio-plot-container",
                         style={"flex": "1", "overflow": "hidden"},
                         children=[
-                            garch_simulation_plot(
+                            simulation_plot(
+                                model_used="garch",
+                                title=title,
+                                dates=portfolio_value_ts.index,
+                                daily_prices=portfolio_value_ts.values,
+                                log_returns=log_returns,
+                                simulations=simulations,
+                                forecast_index=forecast_index,
+                                mean_ensembles=mean_returns,
+                                std_ensembles=std_returns,
+                                COLORS=COLORS
+                            )
+                        ],
+                    )
+                ]
+            ),
+        )
+
+    elif button_id == "btn-lstm-performance":
+
+        lstm_model = train_lstm_model(log_returns)
+
+        simulations, forecast_index, mean_returns, std_returns = simulate_lstm_paths(
+                                                                    model_result=lstm_model, 
+                                                                    last_date=portfolio_value_ts.index[-1], 
+                                                                    forecast_until=forecast_until, 
+                                                                    num_ensembles=num_ensembles, 
+                                                                    historical_returns=log_returns, 
+                                                                    inferred_freq='B'
+                                                                )
+
+        # Title for LSTM — Show architecture info instead
+        title = (
+            f"LSTM Simulation - "
+            f"Lookback: {lstm_model['lookback']}, "
+            f"Units: {lstm_model['units']}, "
+            f"Epochs: {lstm_model['epochs']}, "
+            f"Loss: {lstm_model['loss']:.6f}"
+        )
+
+        return (
+            html.Div(
+                id="simulator-main-panel",
+                style={'display': 'flex', 
+                       'flexDirection': 'column', 
+                       'height': '100%', 
+                       'width': '100%', 
+                       'overflow': 'hidden'
+                       },
+                       
+                children=[
+                    html.Div(
+                        id="portfolio-plot-container",
+                        style={"flex": "1", "overflow": "hidden"},
+                        children=[
+                            simulation_plot(
+                                model_used="lstm",
                                 title=title,
                                 dates=portfolio_value_ts.index,
                                 daily_prices=portfolio_value_ts.values,
