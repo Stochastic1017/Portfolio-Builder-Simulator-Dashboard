@@ -725,7 +725,7 @@ def update_portfolio_simulator_main_plot(_, __, ___, ____, criterion_selector,
                             ),
                         ]
                     ),
-                    html.Div(id="portfolio-plot-container", style={"flex": "1", "overflow": "hidden"}),
+                    html.Div(id="portfolio-plot-container", style={'display': 'flex', 'flexDirection': 'column', "flex": "1", "overflow": "hidden", "height": "100%", "width": "100%"}),
                 ]
             ),
         )
@@ -748,37 +748,25 @@ def update_portfolio_simulator_main_plot(_, __, ___, ____, criterion_selector,
         )
 
         return (
-            html.Div(
-                id="simulator-main-panel",
-                style={'display': 'flex', 
-                       'flexDirection': 'column', 
-                       'height': '100%', 
-                       'width': '100%', 
-                       'overflow': 'hidden'
-                       },
-                       
-                children=[
-                    html.Div(
-                        id="portfolio-plot-container",
-                        style={"flex": "1", "overflow": "hidden"},
-                        children=[
-                            simulation_plot(
-                                model_used="arima",
-                                title=title,
-                                dates=portfolio_value_ts.index,
-                                daily_prices=portfolio_value_ts.values,
-                                log_returns=log_returns,
-                                simulations=simulations,
-                                forecast_index=forecast_index,
-                                mean_ensembles=mean_ensembles,
-                                std_ensembles=std_ensembles,
-                                COLORS=COLORS
-                            )
-                        ],
-                    )
-                ]
+                html.Div(
+                    id="portfolio-plot-container",
+                    style={'display': 'flex', 'flexDirection': 'column', "flex": "1", "overflow": "hidden", "height": "100%", "width": "100%"},
+                    children=[
+                        simulation_plot(
+                            model_used="arima",
+                            title=title,
+                            dates=portfolio_value_ts.index,
+                            daily_prices=portfolio_value_ts.values,
+                            log_returns=log_returns,
+                            simulations=simulations,
+                            forecast_index=forecast_index,
+                            mean_ensembles=mean_ensembles,
+                            std_ensembles=std_ensembles,
+                            COLORS=COLORS
+                        )
+                    ],
+                )
             ),
-        )
 
     elif button_id == "btn-garch-performance":
 
@@ -801,37 +789,26 @@ def update_portfolio_simulator_main_plot(_, __, ___, ____, criterion_selector,
         )
 
         return (
-            html.Div(
-                id="simulator-main-panel",
-                style={'display': 'flex', 
-                       'flexDirection': 'column', 
-                       'height': '100%', 
-                       'width': '100%', 
-                       'overflow': 'hidden'
-                       },
-                       
-                children=[
-                    html.Div(
-                        id="portfolio-plot-container",
-                        style={"flex": "1", "overflow": "hidden"},
-                        children=[
-                            simulation_plot(
-                                model_used="garch",
-                                title=title,
-                                dates=portfolio_value_ts.index,
-                                daily_prices=portfolio_value_ts.values,
-                                log_returns=log_returns,
-                                simulations=simulations,
-                                forecast_index=forecast_index,
-                                mean_ensembles=mean_returns,
-                                std_ensembles=std_returns,
-                                COLORS=COLORS
-                            )
-                        ],
-                    )
-                ]
+                html.Div(
+                    id="portfolio-plot-container",
+                    style={'display': 'flex', 'flexDirection': 'column', "flex": "1", "overflow": "hidden", "height": "100%", "width": "100%"},
+                    children=[
+                        simulation_plot(
+                            model_used="garch",
+                            title=title,
+                            dates=portfolio_value_ts.index,
+                            daily_prices=portfolio_value_ts.values,
+                            log_returns=log_returns,
+                            simulations=simulations,
+                            forecast_index=forecast_index,
+                            mean_ensembles=mean_returns,
+                            std_ensembles=std_returns,
+                            COLORS=COLORS
+                        )
+                    ],
+                )
             ),
-        )
+
 
     elif button_id == "btn-lstm-performance":
 
@@ -856,37 +833,25 @@ def update_portfolio_simulator_main_plot(_, __, ___, ____, criterion_selector,
         )
 
         return (
-            html.Div(
-                id="simulator-main-panel",
-                style={'display': 'flex', 
-                       'flexDirection': 'column', 
-                       'height': '100%', 
-                       'width': '100%', 
-                       'overflow': 'hidden'
-                       },
-                       
-                children=[
-                    html.Div(
-                        id="portfolio-plot-container",
-                        style={"flex": "1", "overflow": "hidden"},
-                        children=[
-                            simulation_plot(
-                                model_used="lstm",
-                                title=title,
-                                dates=portfolio_value_ts.index,
-                                daily_prices=portfolio_value_ts.values,
-                                log_returns=log_returns,
-                                simulations=simulations,
-                                forecast_index=forecast_index,
-                                mean_ensembles=mean_returns,
-                                std_ensembles=std_returns,
-                                COLORS=COLORS
-                            )
-                        ],
-                    )
-                ]
+                html.Div(
+                    id="portfolio-plot-container",
+                    style={'display': 'flex', 'flexDirection': 'column', "flex": "1", "overflow": "hidden", "height": "100%", "width": "100%"},
+                    children=[
+                        simulation_plot(
+                            model_used="lstm",
+                            title=title,
+                            dates=portfolio_value_ts.index,
+                            daily_prices=portfolio_value_ts.values,
+                            log_returns=log_returns,
+                            simulations=simulations,
+                            forecast_index=forecast_index,
+                            mean_ensembles=mean_returns,
+                            std_ensembles=std_returns,
+                            COLORS=COLORS
+                        )
+                    ],
+                )
             ),
-        )
 
     return no_update
 
