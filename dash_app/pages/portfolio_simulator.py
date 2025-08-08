@@ -19,6 +19,7 @@ from helpers.portfolio_simulator import (
     grid_search_arima_model, simulate_arima_paths,
     grid_search_garch_models, simulate_garch_paths,
     train_lstm_model, simulate_lstm_paths,
+    train_gbm_sde_model, simulate_gbm_sde_paths,
     simulation_plot
 )
 
@@ -249,7 +250,7 @@ layout = html.Div(
                         ]
                     ),
 
-                    # Date picker, Criterion Selector, and Ensemble Generator for prediction
+                    # Date picker and Ensemble Generator for prediction
                     html.Div(
                         style={
                             'display': 'flex',
@@ -295,16 +296,26 @@ layout = html.Div(
                                 disabled=True,
                                 tooltip={"placement": "bottom", "always_visible": False}
                             ),                       
+                        ]
+                    ),
 
-                            html.Br(),
+                    # Criterion selection and ARIMA/GARCH modeling
+                    html.Div(
+                        style={
+                            'display': 'flex',
+                            'flexDirection': 'column',
+                            'gap': '10px'  
+                        },
 
-                            html.Label("Model selection criterion:",
-                                    style={
-                                        'color': COLORS['primary'],
-                                        'fontWeight': 'bold',
-                                        'fontSize': '1rem',
-                                        'marginTop': '20px'
-                                    }
+                        children=[
+
+                            html.Label(
+                                "Classical Forecasting:",
+                                style={
+                                    'color': COLORS['primary'],
+                                    'fontWeight': 'bold',
+                                    'fontSize': '1rem',
+                                }
                             ),
 
                             dcc.RadioItems(
@@ -315,10 +326,31 @@ layout = html.Div(
                                     {'label': 'LogLikelihood', 'value': 'loglikelihood', 'disabled': True}
                                 ],
                             ),
+                            
+                            html.Br(),
+
+                            # ARIMA model
+                            html.Button("ARIMA Forecast", 
+                                id="btn-arima-performance",
+                                style=verified_button_style,
+                                disabled=False,
+                                className="simple" 
+                            ),
+
+                            # GARCH model
+                            html.Button("GARCH Forecast", 
+                                id="btn-garch-performance", 
+                                style=verified_button_style,
+                                disabled=False,
+                                className="simple" 
+                            ),
+
+                            html.Br()
+
                         ]
                     ),
 
-                    # Buttons to generate ARIMA, GARCH, LSTM predictions
+                    # Buttons to generate LSTM and GBM predictions
                     html.Div(
                         style={
                             'display': 'flex',
@@ -328,47 +360,32 @@ layout = html.Div(
                         
                         children=[
 
-                            html.Label("Classical Prediction Methods:",
+                            html.Label("Machine Learning Forecasting:",
                                     style={
                                         'color': COLORS['primary'],
                                         'fontWeight': 'bold',
                                         'fontSize': '1rem'
                                     }
-                            ),
-
-                            # ARIMA model
-                            html.Button("Predict Using ARIMA process", 
-                                id="btn-arima-performance", 
-                                style=verified_button_style,
-                                disabled=False,
-                                className="simple" 
-                            ),
-
-                            # GARCH model
-                            html.Button("Predict Using GARCH process", 
-                                id="btn-garch-performance", 
-                                style=verified_button_style,
-                                disabled=False,
-                                className="simple" 
                             ),
 
                             html.Br(),
 
-                            html.Label("Machine Learning Predicition Methods:",
-                                    style={
-                                        'color': COLORS['primary'],
-                                        'fontWeight': 'bold',
-                                        'fontSize': '1rem'
-                                    }
+                            # Button for user to start monte carlo exploration
+                            html.Button("Gradient Boosting Forecast", 
+                                id="btn-gbm-performance", 
+                                style=verified_button_style,
+                                disabled=False,
+                                className="simple" 
                             ),
 
                             # Button for user to start monte carlo exploration
-                            html.Button("Predict Using LSTM process", 
+                            html.Button("LSTM Forecast", 
                                 id="btn-lstm-performance", 
                                 style=verified_button_style,
                                 disabled=False,
                                 className="simple" 
                             ),
+
                         ]
                     ),
                 ]
@@ -565,16 +582,26 @@ def enable_initial_controls(verify_budget, latest_date):
             Output("btn-lstm-performance", "disabled"),
             Output("btn-lstm-performance", "style"),
             Output("btn-lstm-performance", "className"),
+
+            Output("btn-gbm-performance", "disabled"),
+            Output("btn-gbm-performance", "style"),
+            Output("btn-gbm-performance", "className"),
         ],
         Input("date-chooser-simulation", "date")
 )
-def activate_lstm_button(selected_date):
+def activate_lstm_nnsde_button(selected_date):
 
     if selected_date:
-        return (False, verified_button_style, "simple",)
+        return (
+            False, verified_button_style, "simple",
+            False, verified_button_style, "simple"
+        )
     
     else:
-        return (True, unverified_button_style, "")
+        return (
+            True, unverified_button_style, "",
+            True, unverified_button_style, ""
+        )
 
 # Activate ARIMA and GARCH button after user inputs date, valid budget,
 # and preferred criterion information.
@@ -616,6 +643,7 @@ def activate_arima_garch_buttons(selected_date, selected_criterion_information):
         Input("btn-arima-performance", "n_clicks"),
         Input("btn-garch-performance", "n_clicks"),
         Input("btn-lstm-performance", "n_clicks"),
+        Input("btn-gbm-performance", "n_clicks"),
         Input("model-selection-criterion", "value"),
     ],
     [
@@ -630,7 +658,7 @@ def activate_arima_garch_buttons(selected_date, selected_criterion_information):
     ],
     prevent_initial_call=True
 )
-def update_portfolio_simulator_main_plot(_, __, ___, ____, criterion_selector,
+def update_portfolio_simulator_main_plot(_, __, ___, ____, _____, criterion_selector,
                                          verify_budget, portfolio_store, 
                                          selected_tickers, weights, budget,
                                          risk_return, forecast_until, num_ensembles):
@@ -739,22 +767,14 @@ def update_portfolio_simulator_main_plot(_, __, ___, ____, criterion_selector,
                                                                         num_ensembles=num_ensembles, 
                                                                         inferred_freq='B')
 
-        title = (
-            f"ARIMA Simulation - "
-            f"Criterion: {criterion_selector}, "
-            f"Order: {arima_model["order"]}, "
-            f"Score: {arima_model["score"]:.2f}, "
-            f"Ensembles: {num_ensembles}"
-        )
-
         return (
                 html.Div(
                     id="portfolio-plot-container",
                     style={'display': 'flex', 'flexDirection': 'column', "flex": "1", "overflow": "hidden", "height": "100%", "width": "100%"},
                     children=[
                         simulation_plot(
-                            model_used="arima",
-                            title=title,
+                            model_used="ARIMA",
+                            risk_return=risk_return,
                             dates=portfolio_value_ts.index,
                             daily_prices=portfolio_value_ts.values,
                             log_returns=log_returns,
@@ -780,22 +800,14 @@ def update_portfolio_simulator_main_plot(_, __, ___, ____, criterion_selector,
                                                                     inferred_freq='B'
                                                                 )
 
-        title = (
-            f"GARCH Simulation - "
-            f"Criterion: {criterion_selector}, "
-            f"Model: {garch_model['model_type']}({garch_model['order']}), "
-            f"Dist: {garch_model['distribution']}, "
-            f"Score: {garch_model['score']:.2f}"
-        )
-
         return (
                 html.Div(
                     id="portfolio-plot-container",
                     style={'display': 'flex', 'flexDirection': 'column', "flex": "1", "overflow": "hidden", "height": "100%", "width": "100%"},
                     children=[
                         simulation_plot(
-                            model_used="garch",
-                            title=title,
+                            model_used="GARCH",
+                            risk_return=risk_return,
                             dates=portfolio_value_ts.index,
                             daily_prices=portfolio_value_ts.values,
                             log_returns=log_returns,
@@ -808,7 +820,6 @@ def update_portfolio_simulator_main_plot(_, __, ___, ____, criterion_selector,
                     ],
                 )
             ),
-
 
     elif button_id == "btn-lstm-performance":
 
@@ -823,23 +834,14 @@ def update_portfolio_simulator_main_plot(_, __, ___, ____, criterion_selector,
                                                                     inferred_freq='B'
                                                                 )
 
-        # Title for LSTM — Show architecture info instead
-        title = (
-            f"LSTM Simulation - "
-            f"Lookback: {lstm_model['lookback']}, "
-            f"Units: {lstm_model['units']}, "
-            f"Epochs: {lstm_model['epochs']}, "
-            f"Loss: {lstm_model['loss']:.6f}"
-        )
-
         return (
                 html.Div(
                     id="portfolio-plot-container",
                     style={'display': 'flex', 'flexDirection': 'column', "flex": "1", "overflow": "hidden", "height": "100%", "width": "100%"},
                     children=[
                         simulation_plot(
-                            model_used="lstm",
-                            title=title,
+                            model_used="LSTM",
+                            risk_return=risk_return,
                             dates=portfolio_value_ts.index,
                             daily_prices=portfolio_value_ts.values,
                             log_returns=log_returns,
@@ -852,6 +854,41 @@ def update_portfolio_simulator_main_plot(_, __, ___, ____, criterion_selector,
                     ],
                 )
             ),
+
+    elif button_id == "btn-gbm-performance":
+        
+        gbm_model = train_gbm_sde_model(log_returns, lookback=10)
+        
+        simulations, forecast_index, mean_returns, std_returns = simulate_gbm_sde_paths(
+            model_result=gbm_model,
+            last_value=log_returns.iloc[-1],
+            last_date=portfolio_value_ts.index[-1],
+            forecast_until=forecast_until,
+            num_ensembles=num_ensembles,
+            historical_returns=log_returns,
+            inferred_freq='B'
+        )
+
+        return (
+            html.Div(
+                id="portfolio-plot-container",
+                style={'display': 'flex', 'flexDirection': 'column', "flex": "1", "overflow": "hidden", "height": "100%", "width": "100%"},
+                children=[
+                    simulation_plot(
+                        model_used="Multilayered_Perceptron",
+                        risk_return=risk_return,
+                        dates=portfolio_value_ts.index,
+                        daily_prices=portfolio_value_ts.values,
+                        log_returns=log_returns,
+                        simulations=simulations,
+                        forecast_index=forecast_index,
+                        mean_ensembles=mean_returns,
+                        std_ensembles=std_returns,
+                        COLORS=COLORS
+                    )
+                ],
+            )
+        ),
 
     return no_update
 

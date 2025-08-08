@@ -1,10 +1,14 @@
 
 import os
 import sys
+import torch
 import warnings
+
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers # type: ignore
 import plotly.graph_objects as go
 
 from io import StringIO
@@ -19,6 +23,9 @@ from keras.layers import LSTM, Dense, Dropout # type: ignore
 from tensorflow.keras import backend as K # type: ignore
 from sklearn.preprocessing import MinMaxScaler
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
+
+from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.model_selection import train_test_split
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -354,7 +361,7 @@ def simulate_lstm_paths(
 
 def simulation_plot(
         model_used,
-        title, 
+        risk_return,
         dates, 
         daily_prices, 
         log_returns, 
@@ -382,11 +389,11 @@ def simulation_plot(
     fig = make_subplots(
         rows=2, cols=1,
         subplot_titles=[
-            "Simulated Price Paths (GARCH)",
-            "Simulated Log Returns"
+            f"Simulated Prices ({model_used})",
+            f"Simulated Log Returns ({model_used})"
         ],
         shared_xaxes=True,
-        vertical_spacing=0.15,
+        vertical_spacing=0.1,
     )
 
     fig.add_trace(go.Scatter(x=dates, y=daily_prices, mode='lines', name='Historical Price',
@@ -448,7 +455,7 @@ def simulation_plot(
 
     fig.update_layout(
         template="plotly_dark",
-        title=title,
+        title=f"{model_used} forecasts for Portfolio (Risk: {round(risk_return['risk'], 4)*100:.2f}%, Return: {round(risk_return['return'], 4)*100:.2f}%)",
         paper_bgcolor=COLORS['background'],
         plot_bgcolor=COLORS['background'],
         font=dict(color=COLORS['text']),
@@ -464,3 +471,176 @@ def simulation_plot(
     fig.update_yaxes(tickformat=".2%", row=2, col=1)
 
     return dcc.Graph(id=f"{model_used}-simulation-plot", figure=fig, config={'responsive': True}, style={'height': '100%', 'width': '100%'})
+
+def _build_features_from_series(series, lookback):
+    """
+    Build feature matrix for each time t using previous `lookback` raw lags,
+    rolling mean, rolling std, and a normalized time index.
+    Returns X (n_samples x n_features), y_delta (n_samples, ).
+    """
+    if isinstance(series, pd.Series):
+        arr = series.values.astype(float)
+    else:
+        arr = np.asarray(series, dtype=float)
+
+    n = len(arr)
+    if n <= lookback + 1:
+        raise ValueError("Not enough data for the chosen lookback.")
+
+    X = []
+    y = []
+    for i in range(lookback, n - 1):  # predict delta at i+1 using history ending at i
+        window = arr[i - lookback + 1:i + 1]  # last `lookback` values including arr[i]
+        # features: flattened lags, rolling mean, rolling std
+        mean_w = window.mean()
+        std_w = window.std(ddof=0)
+        # time index normalized (helps capture slow nonstationarity)
+        time_idx = np.array([(i - lookback) / (n - lookback)], dtype=float)
+        feat = np.hstack([window, mean_w, std_w, time_idx])
+        X.append(feat)
+        # target: delta next step (X_{i+1} - X_i)
+        y.append(arr[i + 1] - arr[i])
+    X = np.vstack(X).astype(np.float32)
+    y = np.array(y, dtype=np.float32).reshape(-1, 1)
+    return X, y.squeeze()
+
+
+def train_gbm_sde_model(log_returns,
+                        lookback=10,
+                        mu_params=None,
+                        var_params=None,
+                        test_size=0.1,
+                        random_state=42):
+    """
+    Train two gradient-boosting regressors to estimate drift (mu) and log-variance.
+    Returns a dictionary with models and metadata.
+    """
+    # defaults for the GB models (fast, CPU-friendly)
+    if mu_params is None:
+        mu_params = dict(max_iter=200, learning_rate=0.05, max_depth=4, random_state=random_state)
+    if var_params is None:
+        var_params = dict(max_iter=200, learning_rate=0.05, max_depth=4, random_state=random_state)
+
+    X, y_delta = _build_features_from_series(log_returns, lookback=lookback)
+
+    # train/val split
+    X_train, X_val, y_train, y_val = train_test_split(
+        X, y_delta, test_size=test_size, random_state=random_state, shuffle=False
+    )
+
+    # 1) fit mu model (predict ΔX)
+    mu_model = HistGradientBoostingRegressor(**mu_params)
+    mu_model.fit(X_train, y_train)
+    # training predictions
+    mu_pred_train = mu_model.predict(X_train)
+    mu_pred_val = mu_model.predict(X_val)
+
+    # residuals on full training portion (use X_train to compute residuals)
+    residuals = y_train - mu_pred_train
+    # small epsilon to avoid log(0)
+    eps = 1e-8
+    log_var_target = np.log(residuals ** 2 + eps)
+
+    # 2) fit log-variance model on same features
+    log_var_model = HistGradientBoostingRegressor(**var_params)
+    log_var_model.fit(X_train, log_var_target)
+
+    # Compute simple diagnostics
+    val_resid = y_val - mu_pred_val
+    val_log_var_pred = log_var_model.predict(X_val)
+    # Estimated sigma on validation
+    val_sigma_est = np.exp(0.5 * val_log_var_pred)
+    mu_rmse_val = np.sqrt(np.mean((y_val - mu_pred_val) ** 2))
+    mean_sigma_val = val_sigma_est.mean()
+
+    return{
+        "mu_model": mu_model,
+        "log_var_model": log_var_model,
+        "lookback": lookback,
+        "mu_params": mu_params,
+        "var_params": var_params,
+        "mu_rmse_val": float(mu_rmse_val),
+        "mean_sigma_val": float(mean_sigma_val),
+    }
+
+def simulate_gbm_sde_paths(model_result,
+                           last_value,
+                           last_date,
+                           forecast_until,
+                           num_ensembles,
+                           historical_returns,
+                           inferred_freq='B',
+                           mu_clip=0.05,
+                           sigma_clip=(1e-6, 0.05),
+                           seed=None):
+    """
+    Simulate future log-return paths using Euler-Maruyama with GBM-fitted mu and log-variance.
+    - model_result: dict output from train_gbm_sde_model
+    - last_value: last observed log-return value (scalar)
+    - last_date: pd.Timestamp (last date in history)
+    - forecast_until: end date (str or Timestamp)
+    - historical_returns: the series/array used for lookback (must contain at least lookback values)
+    """
+
+    np.random.seed(seed)
+
+    mu_model = model_result["mu_model"]
+    log_var_model = model_result["log_var_model"]
+    lookback = model_result["lookback"]
+
+    if isinstance(historical_returns, pd.Series):
+        hist_arr = historical_returns.values.astype(float)
+    else:
+        hist_arr = np.asarray(historical_returns, dtype=float)
+
+    if len(hist_arr) < lookback:
+        raise ValueError("historical_returns too short for lookback")
+
+    forecast_until = pd.to_datetime(forecast_until)
+    forecast_index = pd.date_range(start=pd.to_datetime(last_date) + pd.Timedelta(days=1),
+                                   end=forecast_until, freq=inferred_freq)
+    n_steps = len(forecast_index)
+
+    simulations = np.zeros((n_steps, num_ensembles), dtype=np.float32)
+
+    # Pre-allocate feature array for speed reuse
+    for j in range(num_ensembles):
+        # start with last lookback window from historical data
+        hist = hist_arr[-lookback:].copy()
+        current_value = float(last_value)
+
+        for t in range(n_steps):
+            # build features for this step (same as training)
+            mean_w = hist.mean()
+            std_w = hist.std(ddof=0)
+            time_idx = ( (len(hist_arr) - lookback + t) / max(1, n_steps) )
+            feat = np.hstack([hist, mean_w, std_w, time_idx]).astype(np.float32).reshape(1, -1)
+
+            # predict mu and log-var
+            mu_pred = mu_model.predict(feat)[0]          # ΔX prediction
+            log_var_pred = log_var_model.predict(feat)[0]  # log(residual^2)
+
+            # convert to sigma
+            sigma_pred = np.exp(0.5 * log_var_pred)
+
+            # Clip for stability (user-provided sensible caps)
+            mu = float(np.clip(mu_pred, -mu_clip, mu_clip))
+            sigma = float(np.clip(sigma_pred, sigma_clip[0], sigma_clip[1]))
+
+            # Euler-Maruyama (Δt = 1)
+            eps = np.random.normal()
+            delta_x = mu + sigma * eps
+            current_value = current_value + delta_x
+            simulations[t, j] = current_value
+
+            # update rolling history with the new simulated return (so path evolves)
+            hist = np.roll(hist, -1)
+            hist[-1] = current_value
+
+    mean_returns = simulations.mean(axis=1)
+    std_returns = simulations.std(axis=1)
+
+    return simulations, forecast_index, mean_returns, std_returns
+
+
+
