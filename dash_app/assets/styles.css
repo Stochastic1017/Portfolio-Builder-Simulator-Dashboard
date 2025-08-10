@@ -1,62 +1,62 @@
-
 .custom-input::placeholder {
     color: #aaa;
     opacity: 1;
 }
 
 .button-container {
-  overflow: visible;
+    overflow: visible;
 }
 
 /* General button base style */
 button {
-  transition: all 0.3s ease-in-out;
-  border-radius: 10px;
-  cursor: pointer;
-  border: none;
-  font-size: 16px;
-  padding: 10px 20px;
+    transition: all 0.3s ease-in-out;
+    border-radius: 10px;
+    cursor: pointer;
+    border: none;
+    font-size: 16px;
+    padding: 10px 20px;
 }
 
 /* Disabled Button Styles */
 button:disabled {
-  background-color: #ddd;
-  color: #aaa;
-  cursor: not-allowed;
-  box-shadow: none !important;
-  transform: none !important;
+    background-color: #ddd;
+    color: #aaa;
+    cursor: not-allowed;
+    box-shadow: none !important;
+    transform: none !important;
 }
 
 /* Special: Verify & Add buttons */
 button.special {
-  background-color: #FFD700;
-  color: white;
-  box-shadow: 0 4px 15px rgba(106, 90, 205, 0.3);
+    background-color: #FFD700;
+    color: white;
+    box-shadow: 0 4px 15px rgba(106, 90, 205, 0.3);
 }
 
 button.special:hover {
-  transform: scale(1.05);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  transform-origin: center;
-  box-shadow: 0 6px 20px rgba(106, 90, 205, 0.5);
-  background: linear-gradient(45deg, #efe5ac, #edd81c);
+    transform: scale(1.05);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transform-origin: center;
+    box-shadow: 0 6px 20px rgba(106, 90, 205, 0.5);
+    background: linear-gradient(45deg, #efe5ac, #edd81c);
 }
 
 /* Simple: News & Performance buttons */
 button.simple {
-  background-color: #ffffff;
-  color: #333;
-  border: 2px solid #ccc;
+    background-color: #ffffff;
+    color: #333;
+    border: 2px solid #ccc;
 }
 
 button.simple:hover {
-  background-color: #f0f0f0;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+    background-color: #f0f0f0;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
 }
 
 .custom-label {
-    color: #FFD700; /* primary color */
+    color: #FFD700;
+    /* primary color */
     font-weight: bold;
     font-size: 1.1rem;
     margin-bottom: 0rem;
@@ -70,12 +70,14 @@ button.simple:hover {
 
 .custom-slider .rc-slider-rail {
     height: 6px;
-    background-color: #444; /* darker rail for contrast */
+    background-color: #444;
+    /* darker rail for contrast */
 }
 
 .custom-slider .rc-slider-track {
     height: 6px;
-    background-color: #FFD700; /* primary */
+    background-color: #FFD700;
+    /* primary */
 }
 
 .custom-slider .rc-slider-handle {
@@ -96,8 +98,10 @@ button.simple:hover {
 
 /* Dropdown input and menu */
 .custom-dropdown .Select-control {
-    background-color: #1A1A1A;  /* background */
-    color: #FFD700;             /* yellow text */
+    background-color: #1A1A1A;
+    /* background */
+    color: #FFD700;
+    /* yellow text */
     border-color: #FFD700;
 }
 
@@ -130,23 +134,28 @@ button.simple:hover {
 
 /* Track line */
 .rc-slider-track {
-    background-color: #FFD700 !important; /* COLORS['primary'] */
+    background-color: #FFD700 !important;
+    /* COLORS['primary'] */
 }
 
 /* Handle (thumb) */
 .rc-slider-handle {
-    border: 2px solid #FFD700 !important; /* Golden border */
-    background-color: #1A1A1A !important; /* Dark background */
+    border: 2px solid #FFD700 !important;
+    /* Golden border */
+    background-color: #1A1A1A !important;
+    /* Dark background */
     box-shadow: 0 0 5px #FFD700 !important;
 }
 
 .rc-slider-handle:hover {
-    border-color: #FFF4B8 !important; /* Light yellow on hover */
+    border-color: #FFF4B8 !important;
+    /* Light yellow on hover */
 }
 
 /* Rail (unselected track) */
 .rc-slider-rail {
-    background-color: #1A1A1A !important; /* COLORS['card'] */
+    background-color: #1A1A1A !important;
+    /* COLORS['card'] */
 }
 
 /* Dots on slider if used */
@@ -176,7 +185,8 @@ button.simple:hover {
 
 /* Core input box style */
 .DateInput_input {
-    background-color: #1A1A1A !important;  /* card color */
-    color: #FFD700 !important;            /* text color */
+    background-color: #1A1A1A !important;
+    /* card color */
+    color: #FFD700 !important;
+    /* text color */
 }
-

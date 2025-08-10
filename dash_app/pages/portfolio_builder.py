@@ -1,4 +1,3 @@
-
 import os
 import sys
 import json
@@ -8,342 +7,385 @@ import dash_bootstrap_components as dbc
 
 from datetime import datetime
 from scipy.special import comb
-from dash import (html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no_update)
+from dash import html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no_update
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from helpers.portfolio_builder import (
     portfolio_optimization,
-    plot_efficient_frontier, 
-    summary_table
+    plot_efficient_frontier,
+    summary_table,
 )
 
 from helpers.button_styles import (
-    COLORS, 
-    verified_button_portfolio, unverified_button_portfolio,
-    verified_button_style, unverified_button_style,
-    verified_toggle_button, unverified_toggle_button, 
-    default_style_time_range, active_style_time_range
+    COLORS,
+    verified_button_portfolio,
+    unverified_button_portfolio,
+    verified_button_style,
+    unverified_button_style,
+    verified_toggle_button,
+    unverified_toggle_button,
+    default_style_time_range,
+    active_style_time_range,
 )
 
 dash.register_page(__name__, path="/pages/portfolio-builder")
 
 layout = html.Div(
-    
     style={
-        'background': COLORS['background'],
-        'minHeight': '100vh',
-        'padding': '20px',
-        'color': COLORS['text'],
-        'fontFamily': '"Inter", system-ui, -apple-system, sans-serif'
+        "background": COLORS["background"],
+        "minHeight": "100vh",
+        "padding": "20px",
+        "color": COLORS["text"],
+        "fontFamily": '"Inter", system-ui, -apple-system, sans-serif',
     },
-
     children=[
-
         #################
-        ### Pop-up Toast 
+        ### Pop-up Toast
         #################
-
         # Add at the end of layout (outside left console/right panel)
         dbc.Toast(
-            id="portfolio-toast",
-            header="Success",
-            icon="success",
+            id="portfolio-builder-toast",
+            header="Info",
             is_open=False,
             duration=4000,
             dismissable=True,
         ),
-
         ################
         ### Page Header
         ################
-
         html.Div(
             style={
-                'marginBottom': '30px',
-                'textAlign': 'center',
-                'borderBottom': f'2px solid {COLORS["primary"]}',
-                'paddingBottom': '20px'
+                "marginBottom": "20px",
+                "textAlign": "center",
+                "borderBottom": f'2px solid {COLORS["primary"]}',
+                "paddingBottom": "12px",
             },
-
             children=[
-
                 # Header Title
                 html.H1(
                     "Portfolio Builder",
                     style={
-                        'color': COLORS['primary'],
-                        'fontSize': '2.5em',
-                        'marginBottom': '10px'
-                    }
+                        "color": COLORS["primary"],
+                        "fontSize": "2.5em",
+                        "marginBottom": "10px",
+                    },
                 )
-            ]
+            ],
         ),
-
         #####################
         ### Left console
         ### Right content
         #####################
-
         # Left console + Right content
         html.Div(
             style={
-                'display': 'grid',
-                'gridTemplateColumns': '320px 1fr',
-                'gap': '20px',
-                'height': '100vh',
-                'padding': '20px',
-                'boxSizing': 'border-box',
+                "display": "grid",
+                "gridTemplateColumns": "320px 1fr",
+                "gap": "20px",
+                "height": "100vh",
+                "padding": "20px",
+                "boxSizing": "border-box",
             },
-            
             children=[
-
-            # Left console
-            html.Div(
-                id="portfolio-builder-console",
-                style={
-                    'backgroundColor': COLORS['card'],
-                    'borderRadius': '10px',
-                    'padding': '20px',
-                    'display': 'flex',
-                    'flexDirection': 'column',
-                    'gap': '15px',
-                    'height': '100%',
-                    'boxSizing': 'border-box',
-                    'boxShadow': '0 4px 12px rgba(0, 0, 0, 0.1)',  
-                    'overflow': 'hidden', 
-                },
-
-                children=[
-
-                    # Selected Tickers and Dropdown
-                    html.Div([
-                        html.Label("Add Tickers to Portfolio", style={
-                            'color': COLORS['primary'],
-                            'fontSize': '1em',
-                            'marginBottom': '4px',
-                            'fontWeight': 'bold'
-                        }),
-
-                        dcc.Dropdown(
-                            id="dropdown-ticker-selection",
-                            placeholder="Select tickers...",
-                            multi=False,
-                            clearable=True,
-                            searchable=True,
-                            className="custom-dropdown",
-                            style={
-                                'backgroundColor': COLORS['background'],
-                                'color': COLORS['primary'],
-                                'borderRadius': '6px',
-                            },
-                        ),
-
-                        html.Br(),
-
+                # Left console
+                html.Div(
+                    id="portfolio-builder-console",
+                    style={
+                        "backgroundColor": COLORS["card"],
+                        "borderRadius": "10px",
+                        "padding": "20px 20px 40px 20px",
+                        "display": "flex",
+                        "flexDirection": "column",
+                        "gap": "12px",
+                        "height": "100%",
+                        "boxSizing": "border-box",
+                        "boxShadow": "0 4px 12px rgba(0, 0, 0, 0.1)",
+                        "overflow": "hidden",
+                    },
+                    children=[
+                        # Selected Tickers and Dropdown
                         html.Div(
-                            id="selected-ticker-card",
+                            [
+                                html.Label(
+                                    "Add Tickers to Portfolio",
+                                    style={
+                                        "color": COLORS["primary"],
+                                        "fontSize": "1em",
+                                        "marginBottom": "4px",
+                                        "fontWeight": "bold",
+                                    },
+                                ),
+                                dcc.Dropdown(
+                                    id="dropdown-ticker-selection",
+                                    placeholder="Select tickers...",
+                                    multi=False,
+                                    clearable=True,
+                                    searchable=True,
+                                    className="custom-dropdown",
+                                    style={
+                                        "backgroundColor": COLORS["background"],
+                                        "color": COLORS["primary"],
+                                        "borderRadius": "6px",
+                                    },
+                                ),
+                                html.Br(),
+                                html.Div(
+                                    id="selected-ticker-card",
+                                    style={
+                                        "backgroundColor": COLORS["background"],
+                                        "padding": "10px",
+                                        "borderRadius": "6px",
+                                        "minHeight": "200px",
+                                        "maxHeight": "200px",
+                                        "overflowY": "auto",
+                                        "display": "flex",
+                                        "flexWrap": "wrap",
+                                        "gap": "10px",
+                                        "border": f'1px solid {COLORS["primary"]}',
+                                    },
+                                ),
+                            ]
+                        ),
+                        # Buttons to explore portfolio weights and performance
+                        html.Div(
                             style={
-                                'backgroundColor': COLORS['background'],
-                                'padding': '10px',
-                                'borderRadius': '6px',
-                                'minHeight': '200px',
-                                'maxHeight': '200px',
-                                'overflowY': 'auto',
-                                'display': 'flex',
-                                'flexWrap': 'wrap',
-                                'gap': '10px',
-                                'border': f'1px solid {COLORS["primary"]}'
-                            }
+                                "display": "flex",
+                                "flexDirection": "column",
+                                "gap": "10px",
+                            },
+                            children=[
+                                # Button for user to explore weights via MPT
+                                html.Button(
+                                    "Explore Efficient Frontier",
+                                    id="btn-efficient-frontier",
+                                    style=verified_button_style,
+                                    disabled=False,
+                                    className="simple",
+                                ),
+                            ],
+                        ),
+                        # Toggle switch for Max Sharpe / Min Variance
+                        # Four toggle buttons to highlight important portfolio
+                        html.Div(
+                            style={
+                                "width": "100%",
+                                "maxWidth": "400px",
+                                "padding": "10px",
+                                "display": "flex",
+                                "flexDirection": "column",
+                                "gap": "10px",
+                            },
+                            children=[
+                                html.Label(
+                                    "Highlight Portfolios",
+                                    style={
+                                        "color": COLORS["primary"],
+                                        "fontWeight": "bold",
+                                        "marginBottom": "10px",
+                                        "fontSize": "1rem",
+                                    },
+                                ),
+                                # Maximum Sharpe Ratio toggle
+                                html.Div(
+                                    id="toggle-max-sharpe",
+                                    style=unverified_toggle_button,
+                                    children=[
+                                        html.Span(
+                                            "Maximum Sharpe:",
+                                            style={
+                                                "color": COLORS["text"],
+                                                "fontWeight": "400",
+                                                "fontSize": "0.8rem",
+                                            },
+                                        ),
+                                        daq.ToggleSwitch(
+                                            id="max-sharpe-button",
+                                            value=False,
+                                            size=40,
+                                            style={"marginLeft": "auto"},
+                                            color=COLORS["primary"],
+                                            disabled=True,
+                                        ),
+                                    ],
+                                ),
+                                # Maximum Diversification Ratio toggle
+                                html.Div(
+                                    id="toggle-max-diversification",
+                                    style=unverified_toggle_button,
+                                    children=[
+                                        html.Span(
+                                            "Maximum Diversification:",
+                                            style={
+                                                "color": COLORS["text"],
+                                                "fontWeight": "400",
+                                                "fontSize": "0.8rem",
+                                            },
+                                        ),
+                                        daq.ToggleSwitch(
+                                            id="max-diversification-button",
+                                            value=False,
+                                            size=40,
+                                            style={"marginLeft": "auto"},
+                                            color=COLORS["primary"],
+                                            disabled=True,
+                                        ),
+                                    ],
+                                ),
+                                # Minimum Variance toggle
+                                html.Div(
+                                    id="toggle-min-variance",
+                                    style=unverified_toggle_button,
+                                    children=[
+                                        html.Span(
+                                            "Minimum Variance:",
+                                            style={
+                                                "color": COLORS["text"],
+                                                "fontWeight": "400",
+                                                "fontSize": "0.8rem",
+                                            },
+                                        ),
+                                        daq.ToggleSwitch(
+                                            id="min-variance-button",
+                                            value=False,
+                                            size=40,
+                                            color=COLORS["primary"],
+                                            disabled=True,
+                                        ),
+                                    ],
+                                ),
+                                # Minimum Variance toggle
+                                html.Div(
+                                    id="toggle-equal-weights",
+                                    style=unverified_toggle_button,
+                                    children=[
+                                        html.Span(
+                                            "Equal Weights:",
+                                            style={
+                                                "color": COLORS["text"],
+                                                "fontWeight": "400",
+                                                "fontSize": "0.8rem",
+                                            },
+                                        ),
+                                        daq.ToggleSwitch(
+                                            id="equal-weights-button",
+                                            value=False,
+                                            size=40,
+                                            color=COLORS["primary"],
+                                            disabled=True,
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        # A stylized button for users to add stock ticker to portfolio
+                        html.Button(
+                            "Confirm Portfolio",
+                            id="btn-confirm-portfolio",
+                            n_clicks=0,
+                            disabled=True,
+                        ),
+                    ],
+                ),
+                # Right content
+                html.Div(
+                    style={
+                        "display": "flex",
+                        "flexDirection": "column",
+                        "height": "100%",
+                        "minHeight": 0,
+                    },
+                    children=[
+                        dcc.Loading(
+                            id="portfolio-exploration-loading",
+                            type="cube",
+                            color=COLORS["primary"],
+                            style={
+                                "height": "50%",
+                                "width": "100%",
+                                "display": "flex",
+                                "flexDirection": "column",
+                                "flex": "1",
+                                "minHeight": 0,
+                            },
+                            children=[
+                                html.Div(
+                                    id="portfolio-builder-main-content",
+                                    style={
+                                        "backgroundColor": COLORS["background"],
+                                        "borderRadius": "10px",
+                                        "height": "100vh",
+                                        "width": "100%",
+                                        "boxSizing": "border-box",
+                                        "display": "flex",
+                                        "flexDirection": "column",
+                                        "justifyContent": "center",
+                                        "alignItems": "center",
+                                        "textAlign": "center",
+                                        "padding": "2rem",
+                                        "overflow": "hidden",
+                                    },
+                                    children=[
+                                        html.H3(
+                                            "Welcome to Portfolio Builder Page!",
+                                            style={
+                                                "color": COLORS["primary"],
+                                                "marginBottom": "1rem",
+                                            },
+                                        ),
+                                        html.Br(),
+                                        html.Div(
+                                            [
+                                                html.P(
+                                                    "To find the appropriate portfolio, please follow the steps below:",
+                                                    style={
+                                                        "color": COLORS["text"],
+                                                        "fontSize": "1.1rem",
+                                                    },
+                                                ),
+                                                html.Ol(
+                                                    [
+                                                        html.Li(
+                                                            "Choose a subset of tickers you wish to have in the portfolio.",
+                                                            style={
+                                                                "color": COLORS["text"]
+                                                            },
+                                                        ),
+                                                        html.Li(
+                                                            "Explore efficient frontier to find the optimum risk/return ratio.",
+                                                            style={
+                                                                "color": COLORS["text"]
+                                                            },
+                                                        ),
+                                                        html.Li(
+                                                            "Confirm the portfolio weights and proceed.",
+                                                            style={
+                                                                "color": COLORS["text"]
+                                                            },
+                                                        ),
+                                                    ],
+                                                    style={
+                                                        "textAlign": "left",
+                                                        "color": COLORS["text"],
+                                                        "maxWidth": "600px",
+                                                        "margin": "1rem auto",
+                                                    },
+                                                ),
+                                            ],
+                                            style={"maxWidth": "700px"},
+                                        ),
+                                    ],
+                                )
+                            ],
                         )
-                    ]),
-
-                    # Buttons to explore portfolio weights and performance
-                    html.Div(
-                        style={
-                            'display': 'flex',
-                            'flexDirection': 'column',
-                            'gap': '10px'  
-                        },
-                        
-                        children=[
-
-                            # Button for user to explore weights via MPT
-                            html.Button("Explore Efficient Frontier", 
-                                id="btn-efficient-frontier", 
-                                style=verified_button_style,
-                                disabled=False,
-                                className="simple" 
-                            ),
-
-                        ]
-                    ),
-
-                            # Toggle switch for Max Sharpe / Min Variance
-
-                    # Four toggle buttons to highlight important portfolio
-                    html.Div(
-                        style={
-                            'width': '100%',         
-                            'maxWidth': '400px',     
-                            'padding': '10px',      
-                            'display': 'flex',
-                            'flexDirection': 'column',
-                            'gap': '10px'            
-                        },
-
-                        children=[
-                            html.Label("Highlight Portfolios", 
-                                       style={
-                                        'color': COLORS['primary'],
-                                        'fontWeight': 'bold',
-                                        'marginBottom': '10px',
-                                        'fontSize': '1rem'
-                                    }
-                            ),
-
-                            # Maximum Sharpe Ratio toggle
-                            html.Div(
-                                id="toggle-max-sharpe",
-                                style=unverified_toggle_button,
-                                
-                                children=[
-                                    html.Span("Maximum Sharpe:", style={
-                                        'color': COLORS['text'],
-                                        'fontWeight': '400',
-                                        'fontSize': '0.8rem'
-                                    }),
-                                    daq.ToggleSwitch(
-                                        id="max-sharpe-button",
-                                        value=False,
-                                        size=40,
-                                        style={'marginLeft': 'auto'},
-                                        color=COLORS['primary'],
-                                        disabled=True
-                                    )
-                                ]
-                            ),
-
-                            # Maximum Diversification Ratio toggle
-                            html.Div(
-                                id="toggle-max-diversification",
-                                style=unverified_toggle_button,
-                                
-                                children=[
-                                    html.Span("Maximum Diversification:", style={
-                                        'color': COLORS['text'],
-                                        'fontWeight': '400',
-                                        'fontSize': '0.8rem'
-                                    }),
-                                    daq.ToggleSwitch(
-                                        id="max-diversification-button",
-                                        value=False,
-                                        size=40,
-                                        style={'marginLeft': 'auto'},
-                                        color=COLORS['primary'],
-                                        disabled=True
-                                    )
-                                ]
-                            ),
-
-                            # Minimum Variance toggle
-                            html.Div(
-                                id="toggle-min-variance",
-                                style=unverified_toggle_button,
-                                
-                                children=[
-                                    html.Span("Minimum Variance:", style={
-                                        'color': COLORS['text'],
-                                        'fontWeight': '400',
-                                        'fontSize': '0.8rem'
-                                    }),
-                                    daq.ToggleSwitch(
-                                        id="min-variance-button",
-                                        value=False,
-                                        size=40,
-                                        color=COLORS['primary'],
-                                        disabled=True,
-                                    )
-                                ]
-                            ),
-
-                            # Minimum Variance toggle
-                            html.Div(
-                                id="toggle-equal-weights",
-                                style=unverified_toggle_button,
-                                
-                                children=[
-                                    html.Span("Equal Weights:", style={
-                                        'color': COLORS['text'],
-                                        'fontWeight': '400',
-                                        'fontSize': '0.8rem'
-                                    }),
-                                    daq.ToggleSwitch(
-                                        id="equal-weights-button",
-                                        value=False,
-                                        size=40,
-                                        color=COLORS['primary'],
-                                        disabled=True,
-                                    )
-                                ]
-                            ),
-                        ]
-                    ),
-                
-                    # A stylized button for users to add stock ticker to portfolio
-                    html.Button("Confirm Portfolio", 
-                        id="btn-confirm-portfolio", 
-                        n_clicks=0,
-                        disabled=True,
-                    ),
-
-                ]
-            ),
-                
-            # Right content
-            html.Div(
-                id="portfolio-builder-main-content",
-                style={
-                    'backgroundColor': COLORS['background'],
-                    'borderRadius': '10px',
-                    'height': '100%',
-                    'width': '100%',
-                    'boxSizing': 'border-box',
-                    'display': 'flex',
-                    'flexDirection': 'column',
-                    'justifyContent': "center",
-                    'alignItems': 'center',
-                    'textAlign': 'center',
-                    'padding': '2rem',
-                    'overflow': 'hidden'
-                },
-                
-                children=[
-                    html.H3("Welcome to Portfolio Builder Page!", style={'color': COLORS['primary'], 'marginBottom': '1rem'}),
-                    html.Br(),
-                    html.Div([
-                        html.P("To find the appropriate portfolio, please follow the steps below:",
-                            style={'color': COLORS['text'], 'fontSize': '1.1rem'}),
-                        html.Ol([
-                            html.Li("Choose a subset of tickers you wish to have in the portfolio.", style={'color': COLORS['text']}),
-                            html.Li("Explore efficient frontier to find the optimum risk/return ratio.", style={'color': COLORS['text']}),
-                            html.Li("Confirm the portfolio weights and proceed.", style={'color': COLORS['text']}),
-                        ], style={
-                            'textAlign': 'left',
-                            'color': COLORS['text'],
-                            'maxWidth': '600px',
-                            'margin': '1rem auto'
-                        })
-                    ], style={'maxWidth': '700px'})
-                ]
-            )]
+                    ],
+                ),
+            ],
         ),
-
         ##################
         ### Summary Table
         ##################
-
         html.Div(
             id="summary-table-container",
             style={
@@ -355,10 +397,9 @@ layout = html.Div(
                 "maxWidth": "1200px",
                 "marginLeft": "auto",
                 "marginRight": "auto",
-                "justifyContent": "center", 
-                "alignItems": "center",     
+                "justifyContent": "center",
+                "alignItems": "center",
             },
-
             children=[
                 html.P(
                     "Open the Efficient Frontier and choose a portfolio to view its details.",
@@ -367,28 +408,25 @@ layout = html.Div(
                         "fontWeight": "750",
                         "color": COLORS["text"],
                         "textAlign": "center",
-                        "marginBottom": "20px"
-                    }
+                        "marginBottom": "20px",
+                    },
                 ),
             ],
         ),
-    
         # Go to portfolio simulator
         html.Div(
             style={
-                'display': 'flex',
-                'justifyContent': 'flex-end',
-                'marginTop': '20px',
-                'marginLeft': '320px',
-                'maxWidth': 'calc(100% - 320px)',
-                'paddingRight': '20px',
-                'overflow': 'hidden',
+                "display": "flex",
+                "justifyContent": "flex-end",
+                "marginTop": "20px",
+                "marginLeft": "320px",
+                "maxWidth": "calc(100% - 320px)",
+                "paddingRight": "20px",
+                "overflow": "hidden",
             },
-            
             children=[
-
                 html.Div(
-                    className='button-container', 
+                    className="button-container",
                     children=[
                         # Go to portfolio simulator page
                         dcc.Link(
@@ -399,32 +437,65 @@ layout = html.Div(
                                 disabled=True,
                             ),
                             href="/pages/portfolio-simulator",
-                            refresh=False  # Set to True if you want full page reload
+                            refresh=False,  # Set to True if you want full page reload
                         )
-                    ]
+                    ],
                 )
-            ]
+            ],
         ),
-    ]
+        ################
+        ### Page Footer
+        ################
+        html.Footer(
+            style={
+                "backgroundColor": COLORS["background"],
+                "padding": "8px 12px",
+                "textAlign": "center",
+                "fontsize": "0.8em",
+                "borderRadius": "8px",
+                "marginTop": "12px",
+                "lineheight": "1.2",
+            },
+            children=[
+                html.P(
+                    "Developed by Shrivats Sudhir | Contact: shrivats.sudhir@gmail.com"
+                ),
+                html.P(
+                    [
+                        "GitHub Repository: ",
+                        html.A(
+                            "Portfolio Optimization and Visualization Dashboard",
+                            href="https://github.com/Stochastic1017/Portfolio-Analysis-Dashboard",
+                            target="_blank",
+                            style={
+                                "color": COLORS["primary"],
+                                "textDecoration": "none",
+                            },
+                        ),
+                    ]
+                ),
+            ],
+        ),
+    ],
 )
+
 
 # Populate dropdown with tickers
 @callback(
     [
         Output("dropdown-ticker-selection", "options"),
-        Output("dropdown-ticker-selection", "value")
+        Output("dropdown-ticker-selection", "value"),
     ],
-    [
-        Input("portfolio-store", "data")
-    ],
-    prevent_initial_call=True
+    [Input("portfolio-store", "data")],
+    prevent_initial_call=True,
 )
 def populate_dropdown_options(data):
 
     options = [{"label": entry["ticker"], "value": entry["ticker"]} for entry in data]
     default_selected = [entry["ticker"] for entry in data]
-    
+
     return options, default_selected
+
 
 # Track selected tickers
 @callback(
@@ -446,23 +517,29 @@ def populate_dropdown_options(data):
     ],
     [
         Input({"type": "remove-ticker", "index": ALL}, "n_clicks"),
-        Input("dropdown-ticker-selection", "value")
+        Input("dropdown-ticker-selection", "value"),
     ],
     [
         State("portfolio-store", "data"),
         State("dropdown-ticker-selection", "options"),
-        State("selected-ticker-card", "children")
+        State("selected-ticker-card", "children"),
     ],
-    prevent_initial_call=True
+    prevent_initial_call=True,
 )
-def update_ticker_selection(_, dropdown_value, portfolio_data, current_options, current_children):
-    
+def update_ticker_selection(
+    _, dropdown_value, portfolio_data, current_options, current_children
+):
+
     trigger = ctx.triggered_id
 
     full_tickers = [entry["ticker"] for entry in portfolio_data]
 
     # Reconstruct current selected list from tag buttons
-    current_selected = [child["props"]["id"]["index"] for child in current_children] if current_children else full_tickers
+    current_selected = (
+        [child["props"]["id"]["index"] for child in current_children]
+        if current_children
+        else full_tickers
+    )
 
     # 1. Remove ticker if "x" clicked
     if isinstance(trigger, dict) and trigger.get("type") == "remove-ticker":
@@ -483,42 +560,49 @@ def update_ticker_selection(_, dropdown_value, portfolio_data, current_options, 
 
     # Filter dropdown options
     new_options = [
-        {"label": t, "value": t}
-        for t in full_tickers
-        if t not in current_selected
+        {"label": t, "value": t} for t in full_tickers if t not in current_selected
     ]
 
     # Build card tags
     selected_tags = [
-        html.Div([
-            html.Span(ticker, style={
-                'marginRight': '6px',
-                'fontSize': '0.8em',
-                'fontWeight': '500',
-                'color': COLORS['background'],
-            }),
-            html.Button("×", id={"type": "remove-ticker", "index": ticker}, n_clicks=0,
-                style={
-                    'border': 'none',
-                    'background': 'transparent',
-                    'color': COLORS['background'],
-                    'fontSize': '0.8em',
-                    'cursor': 'pointer',
-                    'padding': '0',
-                    'lineHeight': '1'
-                })
-        ],
-        style={
-            'padding': '4px 10px',
-            'backgroundColor': COLORS['primary'],
-            'borderRadius': '14px',
-            'display': 'flex',
-            'alignItems': 'center',
-            'gap': '4px',
-            'height': '28px',
-            'overflow': 'hidden'
-        },
-        id={"type": "ticker-tag", "index": ticker})
+        html.Div(
+            [
+                html.Span(
+                    ticker,
+                    style={
+                        "marginRight": "6px",
+                        "fontSize": "0.8em",
+                        "fontWeight": "500",
+                        "color": COLORS["background"],
+                    },
+                ),
+                html.Button(
+                    "×",
+                    id={"type": "remove-ticker", "index": ticker},
+                    n_clicks=0,
+                    style={
+                        "border": "none",
+                        "background": "transparent",
+                        "color": COLORS["background"],
+                        "fontSize": "0.8em",
+                        "cursor": "pointer",
+                        "padding": "0",
+                        "lineHeight": "1",
+                    },
+                ),
+            ],
+            style={
+                "padding": "4px 10px",
+                "backgroundColor": COLORS["primary"],
+                "borderRadius": "14px",
+                "display": "flex",
+                "alignItems": "center",
+                "gap": "4px",
+                "height": "28px",
+                "overflow": "hidden",
+            },
+            id={"type": "ticker-tag", "index": ticker},
+        )
         for ticker in current_selected
     ]
 
@@ -528,16 +612,17 @@ def update_ticker_selection(_, dropdown_value, portfolio_data, current_options, 
         selected_tags,
         [{"value": t, "label": t} for t in current_selected],
         no_update,
-        True,  
+        True,
         unverified_toggle_button,
-        True,  
+        True,
         unverified_toggle_button,
-        True,  
+        True,
         unverified_toggle_button,
-        True,  
+        True,
         unverified_toggle_button,
-        no_update
-)
+        no_update,
+    )
+
 
 # Plot efficient frontier and conduct optimizations
 @callback(
@@ -550,18 +635,20 @@ def update_ticker_selection(_, dropdown_value, portfolio_data, current_options, 
         State("portfolio-store", "data"),
         State("selected-tickers-store", "data"),
     ],
-    prevent_initial_call=True
+    prevent_initial_call=True,
 )
 def compute_optimization(_, cache_data, selected_tickers):
     if not selected_tickers:
         raise dash.exceptions.PreventUpdate
 
     filtered_data = [
-        entry for entry in cache_data
+        entry
+        for entry in cache_data
         if entry["ticker"] in [item["value"] for item in selected_tickers]
     ]
 
     return portfolio_optimization(filtered_data), True
+
 
 @callback(
     [
@@ -583,20 +670,30 @@ def compute_optimization(_, cache_data, selected_tickers):
         Input("portfolio-weights-store", "data"),
     ],
     State("efficient-frontier-clicked", "data"),
-    prevent_initial_call=True
+    prevent_initial_call=True,
 )
-def update_plot(max_sharpe_on, max_diversification_on, min_variance_on, equal_weights_on, 
-                optimization_dict, has_clicked):
+def update_plot(
+    max_sharpe_on,
+    max_diversification_on,
+    min_variance_on,
+    equal_weights_on,
+    optimization_dict,
+    has_clicked,
+):
 
     if not has_clicked:
         return (
             no_update,
-            True, unverified_toggle_button,
-            True, unverified_toggle_button,
-            True, unverified_toggle_button,
-            True, unverified_toggle_button
+            True,
+            unverified_toggle_button,
+            True,
+            unverified_toggle_button,
+            True,
+            unverified_toggle_button,
+            True,
+            unverified_toggle_button,
         )
-    
+
     if not optimization_dict:
         raise dash.exceptions.PreventUpdate
 
@@ -607,13 +704,18 @@ def update_plot(max_sharpe_on, max_diversification_on, min_variance_on, equal_we
             max_diversification_on,
             equal_weights_on,
             optimization_dict,
-            COLORS
+            COLORS,
         ),
-        False, verified_toggle_button,
-        False, verified_toggle_button,
-        False, verified_toggle_button,
-        False, verified_toggle_button
+        False,
+        verified_toggle_button,
+        False,
+        verified_toggle_button,
+        False,
+        verified_toggle_button,
+        False,
+        verified_toggle_button,
     )
+
 
 # Summary table for chosen portfolio
 @callback(
@@ -625,17 +727,12 @@ def update_plot(max_sharpe_on, max_diversification_on, min_variance_on, equal_we
         Output("confirmed-weights-store", "data"),
         Output("portfolio-clicked-risk-return", "data"),
     ],
-    [
-        Input("efficient-frontier-graph", "clickData")
-    ],
-    [
-        State("portfolio-store", "data"),
-        State("selected-tickers-store", "data")
-    ],
-    prevent_initial_call=True
+    [Input("efficient-frontier-graph", "clickData")],
+    [State("portfolio-store", "data"), State("selected-tickers-store", "data")],
+    prevent_initial_call=True,
 )
 def display_summary_table(clickData, cache_data, selected_tickers):
-    
+
     if not clickData:
         return no_update
 
@@ -649,7 +746,8 @@ def display_summary_table(clickData, cache_data, selected_tickers):
 
     # Filter portfolio data using selected tickers
     filtered_data = [
-        entry for entry in cache_data
+        entry
+        for entry in cache_data
         if entry["ticker"] in [item["value"] for item in selected_tickers]
     ]
 
@@ -660,10 +758,10 @@ def display_summary_table(clickData, cache_data, selected_tickers):
                 style={
                     "color": COLORS["primary"],
                     "textAlign": "center",
-                    "marginBottom": "20px"
-                }
+                    "marginBottom": "20px",
+                },
             ),
-            summary_table(filtered_data, COLORS, weights=weights)
+            summary_table(filtered_data, COLORS, weights=weights),
         ],
         False,
         verified_button_portfolio,
@@ -672,37 +770,38 @@ def display_summary_table(clickData, cache_data, selected_tickers):
         {"risk": risk, "return": ret},
     )
 
+
 # Confirm portfolio and display appropriate message
 @callback(
     [
-        Output("portfolio-toast", "is_open"),
-        Output("portfolio-toast", "children"),
-        Output("portfolio-toast", "style"),
+        Output("portfolio-builder-toast", "is_open"),
+        Output("portfolio-builder-toast", "children"),
+        Output("portfolio-builder-toast", "style"),
         Output("portfolio-risk-return", "data"),
-        Output("latest-date", "data")
+        Output("latest-date", "data"),
     ],
-    [
-        Input("btn-confirm-portfolio", "n_clicks")
-    ],
+    [Input("btn-confirm-portfolio", "n_clicks")],
     [
         State("portfolio-clicked-risk-return", "data"),
         State("portfolio-store", "data"),
     ],
-    prevent_initial_call=True
+    prevent_initial_call=True,
 )
 def confirm_portfolio(_, risk_return, cache_data):
-    
+
     latest_date_str = None
 
     for asset in cache_data:
         try:
             history = json.loads(asset["historical_json"])
             latest_ts = max(entry["date"] for entry in history if "date" in entry)
-            latest_date_str = datetime.fromtimestamp(latest_ts / 1000).strftime("%Y-%m-%d")
+            latest_date_str = datetime.fromtimestamp(latest_ts / 1000).strftime(
+                "%Y-%m-%d"
+            )
             break  # stop after first successful parse
         except Exception:
             continue
-        
+
     if not risk_return or "risk" not in risk_return or "return" not in risk_return:
         raise dash.exceptions.PreventUpdate
 
@@ -720,14 +819,15 @@ def confirm_portfolio(_, risk_return, cache_data):
             "boxShadow": "0 2px 8px rgba(0,0,0,0.3)",
             "padding": "12px 16px",
             "borderRadius": "6px",
-            "width": "350px"
+            "width": "350px",
         },
         {
             "risk": risk_return["risk"],
             "return": risk_return["return"],
         },
-        latest_date_str
+        latest_date_str,
     )
+
 
 # Allow users to navigate to portfolio simulator page
 @callback(
@@ -737,11 +837,11 @@ def confirm_portfolio(_, risk_return, cache_data):
         Output("btn-portfolio-simulator", "className"),
     ],
     Input("btn-confirm-portfolio", "n_clicks"),
-    prevent_initial_call=True
+    prevent_initial_call=True,
 )
 def update_portfolio_analytics_button(n_clicks):
-    
+
     if n_clicks:
         return False, verified_button_portfolio, "special"
-    
+
     return True, unverified_button_portfolio, ""
