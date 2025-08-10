@@ -123,7 +123,66 @@ class StockTickerInformation:
             raise Exception(f"HTTP request failed: {error}")
 
 
-def dash_range_selector(default_style):
+# Stock ticker validation procedure
+def validate_stock_ticker(
+        ticker, 
+        api_key
+):
+
+    if not ticker or not ticker.strip():
+        return {"error": "Ticker is empty or invalid."}
+
+    try:
+        polygon_api = StockTickerInformation(
+            ticker=ticker.upper().strip(), api_key=api_key
+        )
+
+        # Metadata verification
+        metadata = polygon_api.get_metadata()
+        if not metadata or "results" not in metadata:
+            return {"error": "No metadata found for this ticker."}
+
+        company_info = metadata["results"]
+        if not company_info or "name" not in company_info:
+            return {"error": "Company information is incomplete."}
+
+        branding = company_info.get("branding", {})
+        if not branding.get("logo_url"):
+            return {"error": "Branding/logo missing."}
+
+        logo_url_with_key = f"{branding['logo_url']}?apiKey={api_key}"
+        address = company_info.get("address", {})
+        if not address:
+            return {"error": "Company address is missing."}
+
+        # News verification
+        news = polygon_api.get_news()
+        if not news or len(news) == 0:
+            return {"error": "No news found for this ticker."}
+
+        # Historical performance verification
+        historical_df = polygon_api.get_all_data()
+        if historical_df is None or historical_df.empty:
+            return {"error": "No historical data available."}
+
+        return {
+            "verified": True,
+            "ticker": ticker,
+            "company_info": company_info,
+            "branding": branding,
+            "logo_url_with_key": logo_url_with_key,
+            "address": address,
+            "news": news,
+            "historical_json": historical_df.to_json(orient="records"),
+        }
+
+    except Exception as e:
+        return {"error": f"Ticker verification failed: {str(e)}"}
+
+
+def dash_range_selector(
+        default_style
+):
 
     return html.Div(
         id="range-selector-container",
@@ -179,7 +238,13 @@ def dash_range_selector(default_style):
     )
 
 
-def create_historic_plots(full_name, dates, daily_prices, daily_log_returns, COLORS):
+def create_historic_plots(
+        full_name, 
+        dates, 
+        daily_prices, 
+        daily_log_returns, 
+        COLORS
+):
 
     ######################
     ### Defining Subplots
@@ -367,7 +432,11 @@ def create_historic_plots(full_name, dates, daily_prices, daily_log_returns, COL
     )
 
 
-def summarize_daily_returns(dates, daily_prices, daily_log_returns):
+def summarize_daily_returns(
+        dates, 
+        daily_prices, 
+        daily_log_returns
+):
 
     dates = pd.Series(dates).dropna()
     daily_prices = pd.Series(daily_prices).dropna()
@@ -412,7 +481,12 @@ def summarize_daily_returns(dates, daily_prices, daily_log_returns):
     }
 
 
-def create_statistics_table(dates, daily_prices, daily_log_returns, COLORS):
+def create_statistics_table(
+        dates, 
+        daily_prices, 
+        daily_log_returns, 
+        COLORS
+):
 
     stats_dict = summarize_daily_returns(dates, daily_prices, daily_log_returns)
 
@@ -486,7 +560,7 @@ def create_statistics_table(dates, daily_prices, daily_log_returns, COLORS):
                     "overflowY": "auto",
                     "maxHeight": "75vh",
                     "marginTop": "10px",
-                    "fontSize": "13px",
+                    "fontSize": "15px",
                     "marginBottom": "10px",
                     "padding": "10px 20px",
                 },
@@ -504,7 +578,13 @@ def create_statistics_table(dates, daily_prices, daily_log_returns, COLORS):
     )
 
 
-def company_metadata_layout(company_info, branding, logo_url_with_key, address, COLORS):
+def company_metadata_layout(
+        company_info, 
+        branding, 
+        logo_url_with_key, 
+        address, 
+        COLORS
+):
     return html.Div(
         style={
             "padding": "30px",
@@ -622,7 +702,10 @@ def company_metadata_layout(company_info, branding, logo_url_with_key, address, 
     )
 
 
-def news_article_card_layout(article, COLORS):
+def news_article_card_layout(
+        article, 
+        COLORS
+):
 
     sentiment_color = {
         "positive": "success",
@@ -726,3 +809,4 @@ def news_article_card_layout(article, COLORS):
         className="mb-4 shadow-sm",
         style={"backgroundColor": COLORS["card"], "border": "none"},
     )
+

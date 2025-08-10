@@ -7,6 +7,10 @@ from dash import dcc, html
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+import callbacks.portfolio_exploration
+import callbacks.portfolio_builder
+import callbacks.portfolio_simulator 
+
 # Create the Dash app
 app = dash.Dash(
     __name__,

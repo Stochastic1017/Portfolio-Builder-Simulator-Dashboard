@@ -75,15 +75,8 @@ def portfolio_dash_range_selector(default_style):
                         className="simple",
                     ),
                     html.Button(
-                        "5Y",
-                        id="portfolio-range-5Y",
-                        n_clicks=0,
-                        style=default_style,
-                        className="simple",
-                    ),
-                    html.Button(
-                        "All",
-                        id="portfolio-range-all",
+                        "2Y",
+                        id="portfolio-range-2Y",
                         n_clicks=0,
                         style=default_style,
                         className="simple",
