@@ -5,12 +5,69 @@ import pandas as pd
 import dash.dash_table as dt
 import plotly.graph_objects as go
 
-from dash import dcc
+from datetime import timedelta
+from dash import dcc, html
 from io import StringIO
 from scipy.optimize import minimize
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+
+def efficient_frontier_dash_range_selector(default_style):
+
+    return html.Div(
+        id="efficient-frontier-range-selector-container",
+        children=[
+            html.Div(
+                style={
+                    "display": "flex",
+                    "justifyContent": "start",
+                    "flexWrap": "wrap",
+                    "gap": "10px",
+                    "paddingTop": "10px",
+                    "marginBottom": "10px",
+                },
+                children=[
+                    html.Button(
+                        "1M",
+                        id="efficient-frontier-range-1M",
+                        n_clicks=0,
+                        style=default_style,
+                        className="simple",
+                    ),
+                    html.Button(
+                        "3M",
+                        id="efficient-frontier-range-3M",
+                        n_clicks=0,
+                        style=default_style,
+                        className="simple",
+                    ),
+                    html.Button(
+                        "6M",
+                        id="efficient-frontier-range-6M",
+                        n_clicks=0,
+                        style=default_style,
+                        className="simple",
+                    ),
+                    html.Button(
+                        "1Y",
+                        id="efficient-frontier-range-1Y",
+                        n_clicks=0,
+                        style=default_style,
+                        className="simple",
+                    ),
+                    html.Button(
+                        "2Y",
+                        id="efficient-frontier-range-2Y",
+                        n_clicks=0,
+                        style=default_style,
+                        className="simple",
+                    ),
+                ],
+            )
+        ],
+    )
 
 
 def summary_table(cache_data, COLORS, weights=None):
@@ -94,16 +151,25 @@ def portfolio_volatility(weights, cov_matrix):
     return np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
 
 
-def portfolio_optimization(cache_data):
+def portfolio_optimization(cache_data, selected_range="2Y"):
+
+    cutoff_days = {"1M": 30, "3M": 90, "6M": 180, "1Y": 365, "2Y": None}
 
     ### Maximum expected returns for given risk optimization
     tickers = []
     returns_list = []
 
     for entry in cache_data:
+
         df = pd.read_json(StringIO(entry["historical_json"]), orient="records")
         df["date"] = pd.to_datetime(df["date"])
         df.set_index("date", inplace=True)
+
+        # Apply date filter
+        days = cutoff_days.get(selected_range.upper())
+        if days is not None:
+            cutoff_date = df.index[-1] - timedelta(days=days)
+            df = df[df.index >= cutoff_date]
 
         returns = df["close"].pct_change().dropna()
         tickers.append(entry["ticker"])
@@ -217,7 +283,7 @@ def portfolio_optimization(cache_data):
 def plot_efficient_frontier(
     max_sharpe_on,
     min_variance_on,
-    min_diversification_on,
+    max_diversification_on,
     equal_weights_on,
     optimization_dict,
     COLORS,
@@ -280,7 +346,7 @@ def plot_efficient_frontier(
         )
 
     # Most Diversified Portfolio (MDP)
-    if min_diversification_on:
+    if max_diversification_on:
         efficient_frontier_fig.add_trace(
             go.Scatter(
                 x=[mdp["x"]],

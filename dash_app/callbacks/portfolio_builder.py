@@ -1,4 +1,3 @@
-
 import os
 import sys
 import json
@@ -16,6 +15,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 
 from helpers.portfolio_builder import (
+    efficient_frontier_dash_range_selector,
     portfolio_optimization,
     plot_efficient_frontier,
     summary_table,
@@ -32,6 +32,7 @@ from helpers.button_styles import (
     default_style_time_range,
     active_style_time_range,
 )
+
 
 # Populate dropdown with tickers
 @callback(
@@ -177,32 +178,6 @@ def update_ticker_selection(
     )
 
 
-# Plot efficient frontier and conduct optimizations
-@callback(
-    [
-        Output("portfolio-weights-store", "data"),
-        Output("efficient-frontier-clicked", "data"),
-    ],
-    Input("btn-efficient-frontier", "n_clicks"),
-    [
-        State("portfolio-store", "data"),
-        State("selected-tickers-store", "data"),
-    ],
-    prevent_initial_call=True,
-)
-def compute_optimization(_, cache_data, selected_tickers):
-    if not selected_tickers:
-        raise dash.exceptions.PreventUpdate
-
-    filtered_data = [
-        entry
-        for entry in cache_data
-        if entry["ticker"] in [item["value"] for item in selected_tickers]
-    ]
-
-    return portfolio_optimization(filtered_data), True
-
-
 @callback(
     [
         Output("portfolio-builder-main-content", "children"),
@@ -214,27 +189,19 @@ def compute_optimization(_, cache_data, selected_tickers):
         Output("toggle-min-variance", "style"),
         Output("equal-weights-button", "disabled"),
         Output("toggle-equal-weights", "style"),
+        Output("efficient-frontier-clicked", "data"),
     ],
-    [
-        Input("max-sharpe-button", "value"),
-        Input("max-diversification-button", "value"),
-        Input("min-variance-button", "value"),
-        Input("equal-weights-button", "value"),
-        Input("portfolio-weights-store", "data"),
-    ],
-    State("efficient-frontier-clicked", "data"),
+    Input("btn-efficient-frontier", "n_clicks"),
     prevent_initial_call=True,
 )
-def update_plot(
-    max_sharpe_on,
-    max_diversification_on,
-    min_variance_on,
-    equal_weights_on,
-    optimization_dict,
-    has_clicked,
+def update_portfolio_builder_main_output(
+    _,
 ):
 
-    if not has_clicked:
+    if not _:
+        raise dash.exceptions.PreventUpdate
+
+    if not ctx.triggered_id == "btn-efficient-frontier":
         return (
             no_update,
             True,
@@ -245,10 +212,124 @@ def update_plot(
             unverified_toggle_button,
             True,
             unverified_toggle_button,
+            False,
         )
 
-    if not optimization_dict:
-        raise dash.exceptions.PreventUpdate
+    return (
+        html.Div(
+            style={
+                "display": "flex",
+                "flexDirection": "column",
+                "minHeight": 0,
+                "height": "100%",
+                "width": "100%",
+                "overflow": "hidden",
+            },
+            children=[
+                efficient_frontier_dash_range_selector(
+                    default_style=default_style_time_range
+                ),
+                html.Div(
+                    id="efficient-frontier-plot-container",
+                    style={"flex": "1", "overflow": "hidden"},
+                ),
+            ],
+        ),
+        False,
+        verified_toggle_button,
+        False,
+        verified_toggle_button,
+        False,
+        verified_toggle_button,
+        False,
+        verified_toggle_button,
+        True,
+    )
+
+
+# Highlight buttons based on time-range selected
+@callback(
+    [
+        Output("efficient-frontier-range-1M", "style"),
+        Output("efficient-frontier-range-3M", "style"),
+        Output("efficient-frontier-range-6M", "style"),
+        Output("efficient-frontier-range-1Y", "style"),
+        Output("efficient-frontier-range-2Y", "style"),
+        Output("efficient-frontier-selected-range", "data"),
+    ],
+    [
+        Input("efficient-frontier-range-1M", "n_clicks"),
+        Input("efficient-frontier-range-3M", "n_clicks"),
+        Input("efficient-frontier-range-6M", "n_clicks"),
+        Input("efficient-frontier-range-1Y", "n_clicks"),
+        Input("efficient-frontier-range-2Y", "n_clicks"),
+    ],
+)
+def update_range_styles(*btn_clicks):
+    button_ids = [
+        "efficient-frontier-range-1M",
+        "efficient-frontier-range-3M",
+        "efficient-frontier-range-6M",
+        "efficient-frontier-range-1Y",
+        "efficient-frontier-range-2Y",
+    ]
+
+    # If no button has been clicked yet, fall back to "2Y"
+    if not any(click and click > 0 for click in btn_clicks):
+        selected = "efficient-frontier-range-2Y"
+    else:
+        selected = ctx.triggered_id or "efficient-frontier-range-2Y"
+
+    style_map = {btn_id: default_style_time_range for btn_id in button_ids}
+    style_map[selected] = active_style_time_range
+
+    # return the last token (e.g. '1M', '3M', '2Y')
+    selected_range_value = selected.rsplit("-", 1)[-1]
+
+    return (
+        style_map["efficient-frontier-range-1M"],
+        style_map["efficient-frontier-range-3M"],
+        style_map["efficient-frontier-range-6M"],
+        style_map["efficient-frontier-range-1Y"],
+        style_map["efficient-frontier-range-2Y"],
+        selected_range_value,
+    )
+
+
+@callback(
+    [
+        Output("efficient-frontier-plot-container", "children"),
+    ],
+    [
+        Input("max-sharpe-button", "value"),
+        Input("max-diversification-button", "value"),
+        Input("min-variance-button", "value"),
+        Input("equal-weights-button", "value"),
+        Input("efficient-frontier-selected-range", "data"),
+    ],
+    [
+        State("portfolio-store", "data"),
+        State("selected-tickers-store", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def update_efficient_frontier_on_range_change(
+    max_sharpe_on,
+    max_diversification_on,
+    min_variance_on,
+    equal_weights_on,
+    selected_range,
+    cache_data,
+    selected_tickers,
+):
+
+    filtered_data = [
+        entry
+        for entry in cache_data
+        if entry["ticker"] in [item["value"] for item in selected_tickers]
+    ]
+
+    optimization_dict = portfolio_optimization(filtered_data, selected_range)
 
     return (
         plot_efficient_frontier(
@@ -259,14 +340,6 @@ def update_plot(
             optimization_dict,
             COLORS,
         ),
-        False,
-        verified_toggle_button,
-        False,
-        verified_toggle_button,
-        False,
-        verified_toggle_button,
-        False,
-        verified_toggle_button,
     )
 
 
@@ -329,6 +402,8 @@ def display_summary_table(clickData, cache_data, selected_tickers):
     [
         Output("portfolio-builder-toast", "is_open"),
         Output("portfolio-builder-toast", "children"),
+        Output("portfolio-builder-toast", "header"),
+        Output("portfolio-builder-toast", "icon"),
         Output("portfolio-builder-toast", "style"),
         Output("portfolio-risk-return", "data"),
         Output("latest-date", "data"),
@@ -361,6 +436,8 @@ def confirm_portfolio(_, risk_return, cache_data):
     return (
         True,
         "Portfolio confirmed! You're ready to simulate.",
+        "Success",
+        "success",  # bootstrap icons style
         {
             "position": "fixed",
             "top": "70px",
@@ -368,7 +445,7 @@ def confirm_portfolio(_, risk_return, cache_data):
             "zIndex": 9999,
             "backgroundColor": COLORS["card"],
             "color": COLORS["text"],
-            "borderLeft": f"6px solid {COLORS['primary']}",
+            "borderLeft": f"6px solid green",
             "boxShadow": "0 2px 8px rgba(0,0,0,0.3)",
             "padding": "12px 16px",
             "borderRadius": "6px",

@@ -1,38 +1,15 @@
 import os
-import uuid
 import sys
 import dash
-import numpy as np
-import pandas as pd
 import dash.dash_table as dt
 import dash_bootstrap_components as dbc
 
-from io import StringIO
-from datetime import timedelta
-from dotenv import load_dotenv
-from dash import html, dcc, Input, Output, State, callback, ctx, no_update
+from dash import html, dcc
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from helpers.portfolio_exploration import (
-    StockTickerInformation,
-    dash_range_selector,
-    create_historic_plots,
-    create_statistics_table,
-    company_metadata_layout,
-    news_article_card_layout,
-)
-
-from helpers.button_styles import (
-    COLORS,
-    verified_button_portfolio,
-    unverified_button_portfolio,
-    verified_button_style,
-    unverified_button_style,
-    default_style_time_range,
-    active_style_time_range,
-)
+from helpers.button_styles import COLORS
 
 # Register the page
 dash.register_page(__name__, path="/pages/portfolio-exploration")
@@ -57,28 +34,6 @@ layout = html.Div(
             is_open=False,
             duration=4000,
             dismissable=True,
-        ),
-        ################
-        ### Page Header
-        ################
-        html.Div(
-            style={
-                "marginBottom": "20px",
-                "textAlign": "center",
-                "borderBottom": f'2px solid {COLORS["primary"]}',
-                "paddingBottom": "12px",
-            },
-            children=[
-                # Header Title
-                html.H1(
-                    "Stock Exploration",
-                    style={
-                        "color": COLORS["primary"],
-                        "fontSize": "2.2em",
-                        "marginBottom": "8px",
-                    },
-                )
-            ],
         ),
         #####################
         ### Left console
@@ -289,7 +244,7 @@ layout = html.Div(
                                         html.Div(
                                             [
                                                 html.H3(
-                                                    "Welcome!",
+                                                    "Welcome to the Portfolio Exploration Page!",
                                                     style={
                                                         "color": COLORS["primary"],
                                                         "marginBottom": "1rem",
@@ -298,33 +253,6 @@ layout = html.Div(
                                                 html.Br(),
                                                 html.Div(
                                                     [
-                                                        html.P(
-                                                            "This application was built by a single individual with a passion for coding, finance, mathematics, and statistics. "
-                                                            "It is a personal project and does not represent the views or interests of any company or institution.",
-                                                            style={
-                                                                "color": COLORS["text"],
-                                                                "fontSize": "0.95rem",
-                                                                "marginBottom": "0.5rem",
-                                                            },
-                                                        ),
-                                                        html.P(
-                                                            "The insights provided are grounded in classical statistical theory, but rest on strong assumptions that often do not reflect real-world markets. "
-                                                            "Please exercise caution and do not rely solely on this tool for financial decisions.",
-                                                            style={
-                                                                "color": COLORS["text"],
-                                                                "fontSize": "0.95rem",
-                                                                "marginBottom": "0.5rem",
-                                                            },
-                                                        ),
-                                                        html.P(
-                                                            "All market data is sourced from the Polygon.io API. "
-                                                            "The free tier limits requests to 10 API calls per minute, which allows approximately 3 tickers to be analyzed every 60 seconds.",
-                                                            style={
-                                                                "color": COLORS["text"],
-                                                                "fontSize": "0.95rem",
-                                                            },
-                                                        ),
-                                                        html.Br(),
                                                         html.P(
                                                             "To get started, please follow the steps below:",
                                                             style={
@@ -359,7 +287,7 @@ layout = html.Div(
                                                                     },
                                                                 ),
                                                                 html.Li(
-                                                                    "Enter at least two tickers in portfolio before proceeding.",
+                                                                    "Navigate to Portfolio Builder.",
                                                                     style={
                                                                         "color": COLORS[
                                                                             "text"
@@ -385,35 +313,6 @@ layout = html.Div(
                         )
                     ],
                 ),
-            ],
-        ),
-        # Go to portfolio builder
-        html.Div(
-            style={
-                "display": "flex",
-                "justifyContent": "flex-end",
-                "marginTop": "20px",
-                "marginLeft": "320px",
-                "maxWidth": "calc(100% - 320px)",
-                "paddingRight": "20px",
-                "overflow": "hidden",
-            },
-            children=[
-                html.Div(
-                    className="button-container",
-                    children=[
-                        # Go to portfolio builder page
-                        dcc.Link(
-                            html.Button(
-                                "Go to Portfolio Builder",
-                                id="btn-portfolio-builder",
-                                n_clicks=0,
-                            ),
-                            href="/pages/portfolio-builder",
-                            refresh=False,  # Set to True if you want full page reload
-                        )
-                    ],
-                )
             ],
         ),
         ################

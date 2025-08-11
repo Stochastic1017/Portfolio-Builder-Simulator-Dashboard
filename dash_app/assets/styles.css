@@ -190,3 +190,42 @@ button.simple:hover {
     color: #FFD700 !important;
     /* text color */
 }
+
+/* In assets/styles.css */
+body {
+    background: linear-gradient(-45deg, #2D2D2D, #1A1A1A, #2D2D2D, #1A1A1A);
+    background-size: 400% 400%;
+    animation: gradientBG 60s ease infinite;
+    color: white;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+@keyframes gradientBG {
+    0% {background-position: 0% 50%;}
+    50% {background-position: 100% 50%;}
+    100% {background-position: 0% 50%;}
+}
+
+.zoomin {
+    overflow: hidden;
+    border-right: .15em solid #ffffff;
+    white-space: nowrap;
+    animation:
+        typing 3s steps(40, end) forwards,
+        blink-caret .75s step-end 3s,
+        hide-caret 0.3s forwards 3s;
+}
+
+@keyframes typing {
+    from { width: 0 }
+    to { width: 100% }
+}
+
+@keyframes blink-caret {
+    from, to { border-color: transparent }
+    50% { border-color: #ffffff }
+}
+
+@keyframes hide-caret {
+    to { border-color: transparent; }
+}

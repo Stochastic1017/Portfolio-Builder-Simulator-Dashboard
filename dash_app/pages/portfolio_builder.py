@@ -14,22 +14,10 @@ from dash import html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no_
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 
-from helpers.portfolio_builder import (
-    portfolio_optimization,
-    plot_efficient_frontier,
-    summary_table,
-)
-
 from helpers.button_styles import (
     COLORS,
-    verified_button_portfolio,
-    unverified_button_portfolio,
     verified_button_style,
-    unverified_button_style,
-    verified_toggle_button,
     unverified_toggle_button,
-    default_style_time_range,
-    active_style_time_range,
 )
 
 
@@ -55,28 +43,6 @@ layout = html.Div(
             is_open=False,
             duration=4000,
             dismissable=True,
-        ),
-        ################
-        ### Page Header
-        ################
-        html.Div(
-            style={
-                "marginBottom": "20px",
-                "textAlign": "center",
-                "borderBottom": f'2px solid {COLORS["primary"]}',
-                "paddingBottom": "12px",
-            },
-            children=[
-                # Header Title
-                html.H1(
-                    "Portfolio Builder",
-                    style={
-                        "color": COLORS["primary"],
-                        "fontSize": "2.5em",
-                        "marginBottom": "10px",
-                    },
-                )
-            ],
         ),
         #####################
         ### Left console
@@ -170,7 +136,6 @@ layout = html.Div(
                                 ),
                             ],
                         ),
-                        # Toggle switch for Max Sharpe / Min Variance
                         # Four toggle buttons to highlight important portfolio
                         html.Div(
                             style={
@@ -415,36 +380,6 @@ layout = html.Div(
                         "marginBottom": "20px",
                     },
                 ),
-            ],
-        ),
-        # Go to portfolio simulator
-        html.Div(
-            style={
-                "display": "flex",
-                "justifyContent": "flex-end",
-                "marginTop": "20px",
-                "marginLeft": "320px",
-                "maxWidth": "calc(100% - 320px)",
-                "paddingRight": "20px",
-                "overflow": "hidden",
-            },
-            children=[
-                html.Div(
-                    className="button-container",
-                    children=[
-                        # Go to portfolio simulator page
-                        dcc.Link(
-                            html.Button(
-                                "Go to Portfolio Simulator",
-                                id="btn-portfolio-simulator",
-                                n_clicks=0,
-                                disabled=True,
-                            ),
-                            href="/pages/portfolio-simulator",
-                            refresh=False,  # Set to True if you want full page reload
-                        )
-                    ],
-                )
             ],
         ),
         ################

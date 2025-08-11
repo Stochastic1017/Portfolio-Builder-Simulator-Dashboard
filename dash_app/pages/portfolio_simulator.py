@@ -12,35 +12,8 @@ from dash import html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no_
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from helpers.portfolio_simulator import (
-    parse_ts_map,
-    portfolio_dash_range_selector,
-    grid_search_arima_model,
-    simulate_arima_paths,
-    grid_search_garch_models,
-    simulate_garch_paths,
-    train_lstm_model,
-    simulate_lstm_paths,
-    train_gbm_sde_model,
-    simulate_gbm_sde_paths,
-    simulation_plot,
-)
 
-from helpers.portfolio_exploration import (
-    create_historic_plots,
-    create_statistics_table,
-)
-
-from helpers.button_styles import (
-    COLORS,
-    verified_button_style,
-    unverified_button_style,
-    default_style_time_range,
-    active_style_time_range,
-    active_labelStyle_radioitems,
-    active_inputStyle_radioitems,
-    active_style_radioitems,
-)
+from helpers.button_styles import COLORS, verified_button_style
 
 dash.register_page(__name__, path="/pages/portfolio-simulator")
 
@@ -64,28 +37,6 @@ layout = html.Div(
             is_open=False,
             duration=4000,
             dismissable=True,
-        ),
-        ################
-        ### Page Header
-        ################
-        html.Div(
-            style={
-                "marginBottom": "30px",
-                "textAlign": "center",
-                "borderBottom": f'2px solid {COLORS["primary"]}',
-                "paddingBottom": "20px",
-            },
-            children=[
-                # Header Title
-                html.H1(
-                    "Portfolio Simulator",
-                    style={
-                        "color": COLORS["primary"],
-                        "fontSize": "2.5em",
-                        "marginBottom": "10px",
-                    },
-                )
-            ],
         ),
         #####################
         ### Left console

@@ -14,7 +14,10 @@ import callbacks.portfolio_simulator
 # Create the Dash app
 app = dash.Dash(
     __name__,
-    external_stylesheets=[dbc.themes.BOOTSTRAP],
+    external_stylesheets=[
+        dbc.themes.BOOTSTRAP,
+        "https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"
+    ],
     use_pages=True,  # Enables multi-page support, automatically reads from pages/
     suppress_callback_exceptions=True,
 )
@@ -41,38 +44,45 @@ else:
 # App layout
 app.layout = html.Div(
     children=[
+
         ################
         ### Cache store
         ################
+
         ### Stock exploration dashboard page
-        dcc.Store(id="verify-ticker", data={"verified": False}),  # verify ticker
-        dcc.Store(id="selected-range", data="2Y"),  # selected range
-        dcc.Store(id="portfolio-store", data=temp),  # portfolio table
+        dcc.Store(id="verify-ticker", 
+                  data={"verified": False}),                        # verify ticker
+        dcc.Store(id="selected-range", 
+                  data="range-2Y"),                                 # selected range
+        dcc.Store(id="portfolio-store", 
+                  data=temp),                                       # portfolio table
+        
         ### Portfolio builder page
-        dcc.Store(id="selected-tickers-store"),  # subset of tickers chosen
-        dcc.Store(
-            id="efficient-frontier-clicked", data=False
-        ),  # efficient frontier clicked or not
-        dcc.Store(id="portfolio-weights-store"),  # for all optimizations
-        dcc.Store(
-            id="confirmed-weights-store"
-        ),  # for the selected/confirmed portfolio weights
-        dcc.Store(
-            id="portfolio-clicked-risk-return"
-        ),  # temporary placeholder for risk/return
-        dcc.Store(id="portfolio-risk-return"),  # risk/return for confirmed portfolio
-        dcc.Store(id="latest-date"),  # latest date (last row value)
+        dcc.Store(id="selected-tickers-store"),                     # subset of tickers chosen
+        dcc.Store(id="efficient-frontier-clicked", 
+                  data=False),                                      # efficient frontier clicked or not
+        dcc.Store(id="portfolio-weights-store"),                    # for all optimizations
+        dcc.Store(id="confirmed-weights-store"),                    # for the selected/confirmed portfolio weights
+        dcc.Store(id="portfolio-clicked-risk-return"),              # temporary placeholder for risk/return
+        dcc.Store(id="portfolio-risk-return"),                      # risk/return for confirmed portfolio
+        dcc.Store(id="latest-date"),                                # latest date (last row value)
+        dcc.Store(id="efficient-frontier-selected-range", 
+                  data="efficient-frontier-range-2Y"),
+
         ### Portfolio simulation page
-        dcc.Store(id="verify-budget", data={"verified": False}),  # verify budget
-        dcc.Store(id="budget-value"),  # budget (in $) input
-        dcc.Store(
-            id="portfolio-selected-range", data="portfolio-range-all"
-        ),  # portfolio selected range
+        dcc.Store(id="verify-budget", 
+                  data={"verified": False}),                        # verify budget
+        dcc.Store(id="budget-value"),                               # budget (in $) input
+        dcc.Store(id="portfolio-selected-range", 
+                  data="portfolio-range-2Y"),                       # portfolio selected range
+        
         #################
         ### Landing Page
         #################
-        dcc.Location(id="url", refresh=True, pathname="/pages/portfolio-exploration"),
+        
+        dcc.Location(id="url", refresh=True, pathname="/pages/landing-page"),
         dash.page_container,
+        
     ]
 )
 
