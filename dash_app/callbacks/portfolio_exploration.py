@@ -415,11 +415,22 @@ def update_plot_on_range_change(active_tab, selected_range, data):
 
     if active_tab == "tab-plot":
         return create_historic_plots(
-            data["company_info"]["name"], dates, daily_prices, daily_log_returns, COLORS
+            data["company_info"]["name"],
+            dates,
+            daily_prices,
+            daily_log_returns,
+            selected_range,
+            COLORS,
         )
 
     elif active_tab == "tab-stats":
-        return create_statistics_table(dates, daily_prices, daily_log_returns, COLORS)
+        return create_statistics_table(
+            dates, 
+            daily_prices, 
+            daily_log_returns, 
+            selected_range, 
+            COLORS
+        )
 
 
 # Upon "add to portfolio" click, append to table and cache data

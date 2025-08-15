@@ -401,7 +401,19 @@ def dash_range_selector(default_style):
     )
 
 
-def create_historic_plots(full_name, dates, daily_prices, daily_log_returns, COLORS):
+def create_historic_plots(
+    full_name, dates, daily_prices, daily_log_returns, selected_range, COLORS
+):
+
+    # Map selected_range codes to readable text
+    range_labels = {
+        "1M": "past 1 month",
+        "3M": "past 3 months",
+        "6M": "past 6 months",
+        "1Y": "past 1 year",
+        "2Y": "past 2 years",
+    }
+    period_text = range_labels.get(selected_range, f"past {selected_range}")
 
     ######################
     ### Defining Subplots
@@ -499,7 +511,7 @@ def create_historic_plots(full_name, dates, daily_prices, daily_log_returns, COL
 
     # Combined range to align both histogram and normal PDF
     return_range = np.linspace(daily_log_returns.min(), daily_log_returns.max(), 500)
-    hist_counts, bin_edges = np.histogram(daily_log_returns, bins=50, density=True)
+    hist_counts, _ = np.histogram(daily_log_returns, bins=50, density=True)
 
     # Histogram of daily returns
     historical_daily_plot.add_trace(
@@ -560,7 +572,19 @@ def create_historic_plots(full_name, dates, daily_prices, daily_log_returns, COL
         col=2,
     )
 
-    # Final layout matching dash color theme
+    # Calculate last change
+    last_price = daily_prices[-1]
+    first_price = daily_prices[1]
+    change_abs = last_price - first_price
+    change_pct = (change_abs / first_price) * 100
+    arrow = "↑" if change_abs > 0 else "↓" if change_abs < 0 else "→"
+
+    # Format with sign
+    change_text = f"{change_abs:+.2f} ({change_pct:+.2f}%) {arrow} {period_text}"
+    change_color = (
+        "limegreen" if change_abs > 0 else "red" if change_abs < 0 else "gray"
+    )
+
     historical_daily_plot.update_layout(
         template="plotly_dark",
         title=f"Historical Daily Performance Analysis for {full_name}",
@@ -571,6 +595,18 @@ def create_historic_plots(full_name, dates, daily_prices, daily_log_returns, COL
         showlegend=False,
         autosize=True,
         height=None,
+        annotations=[
+            dict(
+                text=change_text,
+                xref="paper",
+                yref="paper",
+                x=1,  # right aligned
+                y=1.12,  # just above the title
+                showarrow=False,
+                font=dict(color=change_color, size=16, family="Arial Black"),
+                xanchor="right",
+            )
+        ],
     )
 
     # Format y-axes as percentage
@@ -589,11 +625,25 @@ def create_historic_plots(full_name, dates, daily_prices, daily_log_returns, COL
     )
 
 
-def summarize_daily_returns(dates, daily_prices, daily_log_returns):
+def summarize_daily_returns(dates, daily_prices, daily_log_returns, selected_range):
+
+    # Map selected_range codes to readable text
+    range_labels = {
+        "1M": "past 1 month",
+        "3M": "past 3 months",
+        "6M": "past 6 months",
+        "1Y": "past 1 year",
+        "2Y": "past 2 years",
+    }
+    period_text = range_labels.get(selected_range, f"past {selected_range}")
 
     dates = pd.Series(dates).dropna()
     daily_prices = pd.Series(daily_prices).dropna()
     daily_log_returns = pd.Series(daily_log_returns).dropna()
+    change_abs = daily_prices.iloc[-1] - daily_prices.iloc[1]
+    change_pct = (change_abs / daily_prices[1]) * 100
+    arrow = "↑" if change_abs > 0 else "↓" if change_abs < 0 else "→"
+    change_text = f"{change_abs:+.2f} ({change_pct:+.2f}%) {arrow} {period_text}"
 
     # Basic stats
     latest_date = dates.iloc[-1]
@@ -619,6 +669,8 @@ def summarize_daily_returns(dates, daily_prices, daily_log_returns):
         "Latest Date": latest_date.strftime("%A, %d %B %Y"),
         "Latest Price": latest_price,
         "Latest Log Return": latest_returns,
+        "Price / Percentage Change": change_text,
+        "ChangeAbs": change_abs,
         "Mean Log Returns": mean,
         "Median Log Returns": median,
         "Standard Deviation Log Returns": std,
@@ -634,15 +686,20 @@ def summarize_daily_returns(dates, daily_prices, daily_log_returns):
     }
 
 
-def create_statistics_table(dates, daily_prices, daily_log_returns, COLORS):
+def create_statistics_table(
+    dates, daily_prices, daily_log_returns, selected_range, COLORS
+):
 
-    stats_dict = summarize_daily_returns(dates, daily_prices, daily_log_returns)
+    stats_dict = summarize_daily_returns(
+        dates, daily_prices, daily_log_returns, selected_range
+    )
 
     sections = {
         "Current Price and Returns": [
             "Latest Date",
             "Latest Price",
             "Latest Log Return",
+            "Price / Percentage Change",
         ],
         "Sample Statistics": [
             "Mean Log Returns",
@@ -665,11 +722,17 @@ def create_statistics_table(dates, daily_prices, daily_log_returns, COLORS):
 
     table_rows = []
     for section, metrics in sections.items():
-        # Add section header as a row
-        table_rows.append({"Metric": f"{section}", "Value": ""})
-        # Add each metric under the section
+        table_rows.append({"Metric": section, "Value": "", "ChangeAbs": None})
         for metric in metrics:
-            table_rows.append({"Metric": metric, "Value": stats_dict.get(metric, "")})
+            val = stats_dict.get(metric, "")
+            change_abs_val = (
+                stats_dict.get("ChangeAbs", None)
+                if metric == "Price / Percentage Change"
+                else None
+            )
+            table_rows.append(
+                {"Metric": metric, "Value": val, "ChangeAbs": change_abs_val}
+            )
 
     return html.Div(
         style={
@@ -700,7 +763,23 @@ def create_statistics_table(dates, daily_prices, daily_log_returns, COLORS):
                         "fontWeight": "bold",
                         "backgroundColor": COLORS["background"],
                         "color": COLORS["primary"],
-                    }
+                    },
+                    {
+                        "if": {
+                            "filter_query": '{Metric} = "Price / Percentage Change" && {ChangeAbs} > 0',
+                            "column_id": "Value",
+                        },
+                        "color": "limegreen",
+                        "fontWeight": "bold",
+                    },
+                    {
+                        "if": {
+                            "filter_query": '{Metric} = "Price / Percentage Change" && {ChangeAbs} < 0',
+                            "column_id": "Value",
+                        },
+                        "color": "red",
+                        "fontWeight": "bold",
+                    },
                 ],
                 style_header={"display": "none"},
                 style_table={
