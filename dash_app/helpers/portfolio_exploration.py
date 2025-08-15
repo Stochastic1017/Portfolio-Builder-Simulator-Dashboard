@@ -50,15 +50,6 @@ class StockTickerInformation:
             raise Exception(f"HTTP request failed: {error}")
 
     def get_news(self):
-        """
-        Retrieve detailed news about specific stock ticker from the Polygon.io API.
-
-        Returns:
-            dict: A dictionary containing news and sentiments about the specified stock ticker.
-
-        Raises:
-            requests.RequestException: If the HTTP request fails.
-        """
 
         try:
             url = f"https://api.polygon.io/v2/reference/news?ticker={self.ticker}&apiKey={self.api_key}"
@@ -124,10 +115,7 @@ class StockTickerInformation:
 
 
 # Stock ticker validation procedure
-def validate_stock_ticker(
-        ticker, 
-        api_key
-):
+def validate_stock_ticker(ticker, api_key):
 
     if not ticker or not ticker.strip():
         return {"error": "Ticker is empty or invalid."}
@@ -137,42 +125,30 @@ def validate_stock_ticker(
             ticker=ticker.upper().strip(), api_key=api_key
         )
 
-        # Metadata verification
+        # Metadata
         metadata = polygon_api.get_metadata()
-        if not metadata or "results" not in metadata:
-            return {"error": "No metadata found for this ticker."}
+        company_info = metadata.get("results", {}) if metadata else {}
 
-        company_info = metadata["results"]
-        if not company_info or "name" not in company_info:
-            return {"error": "Company information is incomplete."}
-
-        branding = company_info.get("branding", {})
-        if not branding.get("logo_url"):
-            return {"error": "Branding/logo missing."}
-
-        logo_url_with_key = f"{branding['logo_url']}?apiKey={api_key}"
+        # Address
         address = company_info.get("address", {})
-        if not address:
-            return {"error": "Company address is missing."}
 
-        # News verification
-        news = polygon_api.get_news()
-        if not news or len(news) == 0:
-            return {"error": "No news found for this ticker."}
+        # News
+        news = polygon_api.get_news() or []
 
-        # Historical performance verification
+        # Historical performance (hard fail if missing essential fields)
         historical_df = polygon_api.get_all_data()
         if historical_df is None or historical_df.empty:
-            return {"error": "No historical data available."}
+            return {"error": "Historical data missing."}
+
+        if not {"close", "date"}.issubset(historical_df.columns):
+            return {"error": "Historical data incomplete (missing close or date)."}
 
         return {
             "verified": True,
             "ticker": ticker,
-            "company_info": company_info,
-            "branding": branding,
-            "logo_url_with_key": logo_url_with_key,
-            "address": address,
-            "news": news,
+            "company_info": company_info or None,
+            "address": address or None,
+            "news": news or None,
             "historical_json": historical_df.to_json(orient="records"),
         }
 
@@ -180,9 +156,196 @@ def validate_stock_ticker(
         return {"error": f"Ticker verification failed: {str(e)}"}
 
 
-def dash_range_selector(
-        default_style
-):
+def company_metadata_layout(company_info, address, COLORS):
+    # Placeholder helper
+    def placeholder(text):
+        return html.Span(
+            text,
+            style={
+                "color": COLORS.get("warning", "#FF5733"),  # orange-ish by default
+                "fontStyle": "italic",
+            },
+        )
+
+    return html.Div(
+        style={
+            "padding": "30px",
+            "height": "100%",
+            "width": "100%",
+            "boxSizing": "border-box",
+            "overflowY": "auto",
+            "display": "flex",
+            "flexDirection": "column",
+            "gap": "20px",
+        },
+        children=[
+            # Company name and logo
+            html.Div(
+                style={"display": "flex", "alignItems": "center", "gap": "20px"},
+                children=[
+                    html.H2(
+                        company_info.get("name", "Name Not Found"),
+                        style={"margin": 0, "color": COLORS["primary"]},
+                    ),
+                ],
+            ),
+            # Description
+            html.P(
+                company_info.get("description", "Description Not Found"),
+                style={
+                    "fontSize": "1.1em",
+                    "textAlign": "justify",
+                    "textAlignLast": "left",
+                    "fontStyle": (
+                        "italic" if not company_info.get("description") else "normal"
+                    ),
+                    "color": (
+                        "#666" if not company_info.get("description") else "inherit"
+                    ),
+                },
+            ),
+            # Basic info section
+            html.Div(
+                style={
+                    "display": "grid",
+                    "gridTemplateColumns": "repeat(auto-fit, minmax(220px, 1fr))",
+                    "gap": "15px",
+                },
+                children=[
+                    html.Div(
+                        [
+                            html.Strong("Ticker: "),
+                            company_info.get("ticker") or placeholder("Not Found"),
+                        ]
+                    ),
+                    html.Div(
+                        [
+                            html.Strong("Market: "),
+                            company_info.get("market") or placeholder("Not Found"),
+                        ]
+                    ),
+                    html.Div(
+                        [
+                            html.Strong("Exchange: "),
+                            company_info.get("primary_exchange")
+                            or placeholder("Not Found"),
+                        ]
+                    ),
+                    html.Div(
+                        [
+                            html.Strong("Locale: "),
+                            company_info.get("locale", "").upper()
+                            or placeholder("Not Found"),
+                        ]
+                    ),
+                    html.Div(
+                        [
+                            html.Strong("Type: "),
+                            company_info.get("type") or placeholder("Not Found"),
+                        ]
+                    ),
+                    html.Div(
+                        [
+                            html.Strong("Active: "),
+                            (
+                                str(company_info.get("active"))
+                                if "active" in company_info
+                                else placeholder("Not Found")
+                            ),
+                        ]
+                    ),
+                    html.Div(
+                        [
+                            html.Strong("Currency: "),
+                            company_info.get("currency_name", "").upper()
+                            or placeholder("Not Found"),
+                        ]
+                    ),
+                    html.Div(
+                        [
+                            html.Strong("SIC: "),
+                            (
+                                f"{company_info.get('sic_code', '')} – {company_info.get('sic_description', '')}"
+                                if company_info.get("sic_code")
+                                else placeholder("Not Found")
+                            ),
+                        ]
+                    ),
+                    html.Div(
+                        [
+                            html.Strong("Market Cap: "),
+                            (
+                                f"${company_info.get('market_cap', 0):,.0f}"
+                                if company_info.get("market_cap")
+                                else placeholder("Not Found")
+                            ),
+                        ]
+                    ),
+                    html.Div(
+                        [
+                            html.Strong("Employees: "),
+                            (
+                                f"{company_info.get('total_employees', 'N/A'):,}"
+                                if company_info.get("total_employees")
+                                else placeholder("Not Found")
+                            ),
+                        ]
+                    ),
+                    html.Div(
+                        [
+                            html.Strong("List Date: "),
+                            company_info.get("list_date") or placeholder("Not Found"),
+                        ]
+                    ),
+                ],
+            ),
+            # Address and Contact
+            html.Div(
+                [
+                    html.H4(
+                        "Contact",
+                        style={"color": COLORS["primary"], "marginTop": "20px"},
+                    ),
+                    html.P(
+                        company_info.get("phone_number")
+                        or placeholder("Phone Not Found")
+                    ),
+                    html.P(
+                        f"{address.get('address1', '')}, {address.get('city', '')}, {address.get('state', '')} {address.get('postal_code', '')}"
+                        if address
+                        else placeholder("Address Not Found")
+                    ),
+                    html.A(
+                        (
+                            "Visit Website"
+                            if company_info.get("homepage_url")
+                            else "Website Not Found"
+                        ),
+                        href=company_info.get("homepage_url") or "#",
+                        target="_blank",
+                        style={
+                            "color": (
+                                COLORS["primary"]
+                                if company_info.get("homepage_url")
+                                else "#999"
+                            ),
+                            "textDecoration": (
+                                "underline"
+                                if company_info.get("homepage_url")
+                                else "none"
+                            ),
+                            "pointerEvents": (
+                                "auto" if company_info.get("homepage_url") else "none"
+                            ),
+                        },
+                    ),
+                ]
+            ),
+        ],
+    )
+
+
+def dash_range_selector(default_style):
 
     return html.Div(
         id="range-selector-container",
@@ -238,13 +401,7 @@ def dash_range_selector(
     )
 
 
-def create_historic_plots(
-        full_name, 
-        dates, 
-        daily_prices, 
-        daily_log_returns, 
-        COLORS
-):
+def create_historic_plots(full_name, dates, daily_prices, daily_log_returns, COLORS):
 
     ######################
     ### Defining Subplots
@@ -432,11 +589,7 @@ def create_historic_plots(
     )
 
 
-def summarize_daily_returns(
-        dates, 
-        daily_prices, 
-        daily_log_returns
-):
+def summarize_daily_returns(dates, daily_prices, daily_log_returns):
 
     dates = pd.Series(dates).dropna()
     daily_prices = pd.Series(daily_prices).dropna()
@@ -481,12 +634,7 @@ def summarize_daily_returns(
     }
 
 
-def create_statistics_table(
-        dates, 
-        daily_prices, 
-        daily_log_returns, 
-        COLORS
-):
+def create_statistics_table(dates, daily_prices, daily_log_returns, COLORS):
 
     stats_dict = summarize_daily_returns(dates, daily_prices, daily_log_returns)
 
@@ -578,134 +726,7 @@ def create_statistics_table(
     )
 
 
-def company_metadata_layout(
-        company_info, 
-        branding, 
-        logo_url_with_key, 
-        address, 
-        COLORS
-):
-    return html.Div(
-        style={
-            "padding": "30px",
-            "height": "100%",
-            "width": "100%",
-            "boxSizing": "border-box",
-            "overflowY": "auto",
-            "display": "flex",
-            "flexDirection": "column",
-            "gap": "20px",
-        },
-        children=[
-            # Company name and logo
-            html.Div(
-                style={"display": "flex", "alignItems": "center", "gap": "20px"},
-                children=[
-                    (
-                        html.Div(
-                            style={
-                                "backgroundColor": "#ffffff",  # light background
-                                "padding": "6px",
-                                "borderRadius": "10px",
-                                "display": "flex",
-                                "alignItems": "center",
-                                "justifyContent": "center",
-                            },
-                            children=[
-                                html.Img(
-                                    src=logo_url_with_key,
-                                    style={
-                                        "height": "60px",
-                                        "objectFit": "contain",
-                                        "filter": "none",  # prevent any inversion
-                                    },
-                                )
-                            ],
-                        )
-                        if branding.get("logo_url")
-                        else None
-                    ),
-                    html.H2(
-                        company_info["name"],
-                        style={"margin": 0, "color": COLORS["primary"]},
-                    ),
-                ],
-            ),
-            # Description
-            html.P(company_info.get("description", ""), style={"fontSize": "1.1em"}),
-            # Basic info section
-            html.Div(
-                style={
-                    "display": "grid",
-                    "gridTemplateColumns": "repeat(auto-fit, minmax(220px, 1fr))",
-                    "gap": "15px",
-                },
-                children=[
-                    html.Div([html.Strong("Ticker: "), company_info["ticker"]]),
-                    html.Div([html.Strong("Market: "), company_info["market"]]),
-                    html.Div(
-                        [html.Strong("Exchange: "), company_info["primary_exchange"]]
-                    ),
-                    html.Div([html.Strong("Locale: "), company_info["locale"].upper()]),
-                    html.Div([html.Strong("Type: "), company_info["type"]]),
-                    html.Div([html.Strong("Active: "), str(company_info["active"])]),
-                    html.Div(
-                        [
-                            html.Strong("Currency: "),
-                            company_info["currency_name"].upper(),
-                        ]
-                    ),
-                    html.Div(
-                        [
-                            html.Strong("SIC: "),
-                            f"{company_info['sic_code']} – {company_info['sic_description']}",
-                        ]
-                    ),
-                    html.Div(
-                        [
-                            html.Strong("Market Cap: "),
-                            f"${company_info['market_cap']:,.0f}",
-                        ]
-                    ),
-                    html.Div(
-                        [
-                            html.Strong("Employees: "),
-                            f"{company_info.get('total_employees', 'N/A'):,}",
-                        ]
-                    ),
-                    html.Div([html.Strong("List Date: "), company_info["list_date"]]),
-                ],
-            ),
-            # Address and Contact
-            html.Div(
-                [
-                    html.H4(
-                        "Contact",
-                        style={"color": COLORS["primary"], "marginTop": "20px"},
-                    ),
-                    html.P(company_info.get("phone_number", "N/A")),
-                    html.P(
-                        f"{address.get('address1', '')}, {address.get('city', '')}, {address.get('state', '')} {address.get('postal_code', '')}"
-                    ),
-                    html.A(
-                        "Visit Website",
-                        href=company_info["homepage_url"],
-                        target="_blank",
-                        style={
-                            "color": COLORS["primary"],
-                            "textDecoration": "underline",
-                        },
-                    ),
-                ]
-            ),
-        ],
-    )
-
-
-def news_article_card_layout(
-        article, 
-        COLORS
-):
+def news_article_card_layout(article, COLORS):
 
     sentiment_color = {
         "positive": "success",
@@ -809,4 +830,3 @@ def news_article_card_layout(
         className="mb-4 shadow-sm",
         style={"backgroundColor": COLORS["card"], "border": "none"},
     )
-

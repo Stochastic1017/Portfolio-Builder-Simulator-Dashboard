@@ -280,6 +280,122 @@ def portfolio_optimization(cache_data, selected_range="2Y"):
     }
 
 
+def plot_single_ticker( 
+        max_sharpe_on,
+        min_variance_on,
+        max_diversification_on,
+        equal_weights_on,
+        daily_log_returns,
+        COLORS
+):
+
+    mean_log_returns = daily_log_returns.mean()
+    std_log_returns = daily_log_returns.std()
+
+    efficient_frontier_fig = go.Figure()
+
+    # Just one point for the single ticker
+    efficient_frontier_fig.add_trace(
+        go.Scatter(
+            x=[std_log_returns],
+            y=[mean_log_returns],
+            mode="lines+markers",
+            name="Efficient Frontier",
+            line=dict(color=COLORS["primary"], width=2),
+            hovertemplate="Risk: %{x:.2%}<br>Return: %{y:.2%}<extra></extra>",
+            customdata=[[1.0]],
+        )
+    )
+
+    # Max Sharpe
+    if max_sharpe_on:
+        efficient_frontier_fig.add_trace(
+            go.Scatter(
+                x=[std_log_returns],
+                y=[mean_log_returns],
+                mode="markers",
+                marker=dict(size=12, color="red", symbol="x"),
+                name="Maximum Sharpe Ratio",
+                hovertemplate="Maximum Sharpe<br>Risk: %{x:.2%}<br>Return: %{y:.2%}<extra></extra>",
+            )
+        )
+
+    # Min Variance
+    if min_variance_on:
+        efficient_frontier_fig.add_trace(
+            go.Scatter(
+                x=[std_log_returns],
+                y=[mean_log_returns],
+                mode="markers",
+                marker=dict(size=12, color="white", symbol="hexagram"),
+                name="Minimum Variance",
+                hovertemplate="Minimum Variance<br>Risk: %{x:.2%}<br>Return: %{y:.2%}<extra></extra>",
+            )
+        )
+
+    # Most Diversified Portfolio (MDP)
+    if max_diversification_on:
+        efficient_frontier_fig.add_trace(
+            go.Scatter(
+                x=[std_log_returns],
+                y=[mean_log_returns],
+                mode="markers",
+                marker=dict(size=12, color="lightblue", symbol="triangle-up"),
+                name="Most Diversified Portfolio",
+                hovertemplate="Most Diversified<br>Risk: %{x:.2%}<br>Return: %{y:.2%}<extra></extra>",
+            )
+        )
+
+    # Equal Weights
+    if equal_weights_on:
+        efficient_frontier_fig.add_trace(
+            go.Scatter(
+                x=[std_log_returns],
+                y=[mean_log_returns],
+                mode="markers",
+                marker=dict(size=12, color="orange", symbol="star"),
+                name="Equal-Weight Portfolio",
+                hovertemplate="Equal Weight<br>Risk: %{x:.2%}<br>Return: %{y:.2%}<extra></extra>",
+            )
+        )
+
+
+    efficient_frontier_fig.update_layout(
+        template="plotly_dark",
+        title="Efficient Frontier (Risk vs Return MPT Framework)",
+        title_font=dict(color=COLORS["primary"]),
+        xaxis=dict(
+            title="Risk (Standard Deviation of Daily Returns)",
+            color=COLORS["text"],
+            tickformat=".2%",
+            range=[std_log_returns - 0.0005, std_log_returns + 0.0005],
+            showgrid=True,
+            gridcolor="rgba(0, 130, 180, 0.2)",
+        ),
+        yaxis=dict(
+            title="Expected (Mean) Daily Return",
+            color=COLORS["text"],
+            tickformat=".2%",
+            range=[mean_log_returns - 0.0005, mean_log_returns + 0.0005],
+            showgrid=True,
+            gridcolor="rgba(0, 130, 180, 0.2)",
+        ),
+        plot_bgcolor=COLORS["background"],
+        paper_bgcolor=COLORS["background"],
+        font=dict(color=COLORS["text"]),
+        showlegend=False,
+        autosize=True,
+        height=None,
+    )
+
+    return dcc.Graph(
+        id="efficient-frontier-graph",
+        figure=efficient_frontier_fig,
+        config={"responsive": True},
+        style={"height": "100%", "width": "100%"},
+    )
+
+
 def plot_efficient_frontier(
     max_sharpe_on,
     min_variance_on,

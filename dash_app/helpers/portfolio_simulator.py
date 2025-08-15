@@ -88,10 +88,14 @@ def portfolio_dash_range_selector(default_style):
 
 
 def parse_ts_map(
-    selected_tickers, portfolio_weights, portfolio_store, budget, threshold=1e-6
+    selected_tickers, 
+    portfolio_weights, 
+    portfolio_store, 
+    budget, 
+    threshold=1e-6
 ):
     ts_map = {}
-    selected_values = {t["value"] for t in selected_tickers}
+    selected_values = {ticker for ticker in selected_tickers}
     total_value = None
 
     for entry, weight in zip(portfolio_store, portfolio_weights):

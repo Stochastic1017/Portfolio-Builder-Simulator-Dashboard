@@ -4,7 +4,6 @@ import sys
 import dash
 import numpy as np
 import pandas as pd
-import dash.dash_table as dt
 import dash_bootstrap_components as dbc
 
 from io import StringIO
@@ -39,10 +38,9 @@ from helpers.button_styles import (
     active_style_time_range,
 )
 
+
 # Function to mask api_key in error toast
-def mask_api_key_in_url(
-        url
-):
+def mask_api_key_in_url(url):
     if not url:
         return url
     if "apiKey=" in url:
@@ -69,10 +67,7 @@ def mask_api_key_in_url(
     ],
     prevent_initial_call=True,
 )
-def verify_and_display(
-    _, 
-    ticker
-):
+def verify_and_display(_, ticker):
     trigger_id = ctx.triggered_id
 
     # User is typing → reset verification
@@ -109,8 +104,6 @@ def verify_and_display(
 
         # Success → green success toast + metadata layout
         company_info = result["company_info"]
-        branding = result["branding"]
-        logo_url_with_key = result["logo_url_with_key"]
         address = result["address"]
 
         return (
@@ -132,9 +125,7 @@ def verify_and_display(
                 "borderRadius": "6px",
                 "width": "350px",
             },
-            company_metadata_layout(
-                company_info, branding, logo_url_with_key, address, COLORS
-            ),
+            company_metadata_layout(company_info, address, COLORS),
         )
 
     return no_update
@@ -150,9 +141,7 @@ def verify_and_display(
     Input("verify-ticker", "data"),
     prevent_initial_call=True,
 )
-def set_ticker_validation(
-    verify_ticker
-):
+def set_ticker_validation(verify_ticker):
     is_verified = verify_ticker.get("verified", False)
 
     # Change the key so Dash forces a component refresh
@@ -176,9 +165,7 @@ def set_ticker_validation(
     ],
     Input("verify-ticker", "data"),
 )
-def toggle_button_states(
-    verify_status
-):
+def toggle_button_states(verify_status):
     is_verified = verify_status.get("verified", False)
 
     if is_verified:
@@ -220,13 +207,7 @@ def toggle_button_states(
     [State("verify-ticker", "data")],
     prevent_initial_call=True,
 )
-def update_main_output(
-    _, 
-    __, 
-    ___, 
-    ____, 
-    cache_data
-):
+def update_main_output(_, __, ___, ____, cache_data):
 
     # Recovering cached data from API call
     company_info = cache_data["company_info"]
@@ -373,9 +354,7 @@ def update_main_output(
         Input("range-2Y", "n_clicks"),
     ],
 )
-def update_range_styles(
-    *btn_clicks
-):
+def update_range_styles(*btn_clicks):
     button_ids = ["range-1M", "range-3M", "range-6M", "range-1Y", "range-2Y"]
 
     # If no button has been clicked yet, fall back to "All"
@@ -404,11 +383,7 @@ def update_range_styles(
     State("verify-ticker", "data"),
     prevent_initial_call=True,
 )
-def update_plot_on_range_change(
-    active_tab, 
-    selected_range, 
-    data
-):
+def update_plot_on_range_change(active_tab, selected_range, data):
 
     historical_df = pd.read_json(StringIO(data["historical_json"]), orient="records")
     historical_df["date"] = pd.to_datetime(historical_df["date"])
@@ -457,11 +432,7 @@ def update_plot_on_range_change(
     ],
     prevent_initial_call=True,
 )
-def add_to_portfolio(
-    _, 
-    verify_data, 
-    portfolio_data
-):
+def add_to_portfolio(_, verify_data, portfolio_data):
 
     if not verify_data.get("verified"):
         return portfolio_data
@@ -483,9 +454,7 @@ def add_to_portfolio(
 
 # Update table visual
 @callback(Output("portfolio-table", "data"), Input("portfolio-store", "data"))
-def update_portfolio_table(
-    data
-):
+def update_portfolio_table(data):
     return data
 
 
@@ -499,9 +468,7 @@ def update_portfolio_table(
     ],
     Input("portfolio-store", "data"),
 )
-def update_portfolio_analytics_button(
-    tickers
-):
+def update_portfolio_analytics_button(tickers):
     if tickers is None or len(tickers) < 2:
         return True, unverified_button_portfolio, ""
 

@@ -2,12 +2,13 @@ import os
 import sys
 import json
 import dash
-import dash_daq as daq
-import dash_bootstrap_components as dbc
+import numpy as np
+import pandas as pd
 
+from io import StringIO
 from datetime import datetime
-from scipy.special import comb
-from dash import html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no_update
+from datetime import timedelta
+from dash import html, Input, Output, State, callback, ctx, no_update
 
 
 # Append the current directory to the system path for imports
@@ -18,6 +19,7 @@ from helpers.portfolio_builder import (
     efficient_frontier_dash_range_selector,
     portfolio_optimization,
     plot_efficient_frontier,
+    plot_single_ticker,
     summary_table,
 )
 
@@ -25,8 +27,6 @@ from helpers.button_styles import (
     COLORS,
     verified_button_portfolio,
     unverified_button_portfolio,
-    verified_button_style,
-    unverified_button_style,
     verified_toggle_button,
     unverified_toggle_button,
     default_style_time_range,
@@ -51,133 +51,6 @@ def populate_dropdown_options(data):
     return options, default_selected
 
 
-# Track selected tickers
-@callback(
-    [
-        Output("dropdown-ticker-selection", "options", allow_duplicate=True),
-        Output("dropdown-ticker-selection", "value", allow_duplicate=True),
-        Output("selected-ticker-card", "children", allow_duplicate=True),
-        Output("selected-tickers-store", "data", allow_duplicate=True),
-        Output("portfolio-builder-main-content", "children", allow_duplicate=True),
-        Output("max-sharpe-button", "disabled", allow_duplicate=True),
-        Output("toggle-max-sharpe", "style", allow_duplicate=True),
-        Output("max-diversification-button", "disabled", allow_duplicate=True),
-        Output("toggle-max-diversification", "style", allow_duplicate=True),
-        Output("min-variance-button", "disabled", allow_duplicate=True),
-        Output("toggle-min-variance", "style", allow_duplicate=True),
-        Output("equal-weights-button", "disabled", allow_duplicate=True),
-        Output("toggle-equal-weights", "style", allow_duplicate=True),
-        Output("summary-table-container", "children", allow_duplicate=True),
-    ],
-    [
-        Input({"type": "remove-ticker", "index": ALL}, "n_clicks"),
-        Input("dropdown-ticker-selection", "value"),
-    ],
-    [
-        State("portfolio-store", "data"),
-        State("dropdown-ticker-selection", "options"),
-        State("selected-ticker-card", "children"),
-    ],
-    prevent_initial_call=True,
-)
-def update_ticker_selection(
-    _, dropdown_value, portfolio_data, current_options, current_children
-):
-
-    trigger = ctx.triggered_id
-
-    full_tickers = [entry["ticker"] for entry in portfolio_data]
-
-    # Reconstruct current selected list from tag buttons
-    current_selected = (
-        [child["props"]["id"]["index"] for child in current_children]
-        if current_children
-        else full_tickers
-    )
-
-    # 1. Remove ticker if "x" clicked
-    if isinstance(trigger, dict) and trigger.get("type") == "remove-ticker":
-        ticker_to_remove = trigger["index"]
-
-        # Prevent removal if it would leave fewer than 2
-        if len(current_selected) <= 2:
-            return no_update, no_update, no_update
-
-        current_selected = [t for t in current_selected if t != ticker_to_remove]
-        dropdown_value = None
-
-    # 2. Add from dropdown
-    elif isinstance(trigger, str) and dropdown_value:
-        if dropdown_value not in current_selected:
-            current_selected.append(dropdown_value)
-        dropdown_value = None  # clear dropdown after adding
-
-    # Filter dropdown options
-    new_options = [
-        {"label": t, "value": t} for t in full_tickers if t not in current_selected
-    ]
-
-    # Build card tags
-    selected_tags = [
-        html.Div(
-            [
-                html.Span(
-                    ticker,
-                    style={
-                        "marginRight": "6px",
-                        "fontSize": "0.8em",
-                        "fontWeight": "500",
-                        "color": COLORS["background"],
-                    },
-                ),
-                html.Button(
-                    "×",
-                    id={"type": "remove-ticker", "index": ticker},
-                    n_clicks=0,
-                    style={
-                        "border": "none",
-                        "background": "transparent",
-                        "color": COLORS["background"],
-                        "fontSize": "0.8em",
-                        "cursor": "pointer",
-                        "padding": "0",
-                        "lineHeight": "1",
-                    },
-                ),
-            ],
-            style={
-                "padding": "4px 10px",
-                "backgroundColor": COLORS["primary"],
-                "borderRadius": "14px",
-                "display": "flex",
-                "alignItems": "center",
-                "gap": "4px",
-                "height": "28px",
-                "overflow": "hidden",
-            },
-            id={"type": "ticker-tag", "index": ticker},
-        )
-        for ticker in current_selected
-    ]
-
-    return (
-        new_options,
-        dropdown_value,
-        selected_tags,
-        [{"value": t, "label": t} for t in current_selected],
-        no_update,
-        True,
-        unverified_toggle_button,
-        True,
-        unverified_toggle_button,
-        True,
-        unverified_toggle_button,
-        True,
-        unverified_toggle_button,
-        no_update,
-    )
-
-
 @callback(
     [
         Output("portfolio-builder-main-content", "children"),
@@ -191,17 +64,18 @@ def update_ticker_selection(
         Output("toggle-equal-weights", "style"),
         Output("efficient-frontier-clicked", "data"),
     ],
-    Input("btn-efficient-frontier", "n_clicks"),
+    [
+        Input("btn-efficient-frontier", "n_clicks"),
+        Input("dropdown-ticker-selection", "value"),
+    ],
     prevent_initial_call=True,
 )
-def update_portfolio_builder_main_output(
-    _,
-):
+def update_portfolio_builder_main_output(_, selected_tickers):
 
     if not _:
         raise dash.exceptions.PreventUpdate
 
-    if not ctx.triggered_id == "btn-efficient-frontier":
+    if (not ctx.triggered_id == "btn-efficient-frontier") or (not selected_tickers):
         return (
             no_update,
             True,
@@ -309,7 +183,7 @@ def update_range_styles(*btn_clicks):
     ],
     [
         State("portfolio-store", "data"),
-        State("selected-tickers-store", "data"),
+        State("dropdown-ticker-selection", "value"),
     ],
     prevent_initial_call=True,
 )
@@ -323,24 +197,67 @@ def update_efficient_frontier_on_range_change(
     selected_tickers,
 ):
 
-    filtered_data = [
-        entry
-        for entry in cache_data
-        if entry["ticker"] in [item["value"] for item in selected_tickers]
-    ]
+    if len(selected_tickers) > 1:
 
-    optimization_dict = portfolio_optimization(filtered_data, selected_range)
+        filtered_data = [
+            entry
+            for entry in cache_data
+            if entry["ticker"] in [ticker for ticker in selected_tickers]
+        ]
 
-    return (
-        plot_efficient_frontier(
-            max_sharpe_on,
-            min_variance_on,
-            max_diversification_on,
-            equal_weights_on,
-            optimization_dict,
-            COLORS,
-        ),
-    )
+        optimization_dict = portfolio_optimization(filtered_data, selected_range)
+
+        return (
+            plot_efficient_frontier(
+                max_sharpe_on,
+                min_variance_on,
+                max_diversification_on,
+                equal_weights_on,
+                optimization_dict,
+                COLORS,
+            ),
+        )
+
+    else:
+
+        historical_df = pd.read_json(
+            StringIO(cache_data[0]["historical_json"]), orient="records"
+        )
+        historical_df["date"] = pd.to_datetime(historical_df["date"])
+
+        today = pd.Timestamp.today()
+        time_deltas = {
+            "1M": timedelta(days=30),
+            "3M": timedelta(days=90),
+            "6M": timedelta(days=180),
+            "1Y": timedelta(days=365),
+            "2Y": None,
+        }
+
+        cutoff = time_deltas.get(selected_range.upper(), None)
+
+        if cutoff:
+            start_date = today - cutoff
+            filtered_df = historical_df[historical_df["date"] >= start_date]
+
+        else:
+            filtered_df = historical_df
+
+        # Extract relevant metrics (filtered)
+        daily_log_returns = np.asarray(
+            np.log(1 + filtered_df["close"].pct_change().dropna())
+        )
+
+        return (
+            plot_single_ticker(
+                max_sharpe_on,
+                min_variance_on,
+                max_diversification_on,
+                equal_weights_on,
+                daily_log_returns,
+                COLORS,
+            ),
+        )
 
 
 # Summary table for chosen portfolio
@@ -354,7 +271,7 @@ def update_efficient_frontier_on_range_change(
         Output("portfolio-clicked-risk-return", "data"),
     ],
     [Input("efficient-frontier-graph", "clickData")],
-    [State("portfolio-store", "data"), State("selected-tickers-store", "data")],
+    [State("portfolio-store", "data"), State("dropdown-ticker-selection", "value")],
     prevent_initial_call=True,
 )
 def display_summary_table(clickData, cache_data, selected_tickers):
@@ -374,7 +291,7 @@ def display_summary_table(clickData, cache_data, selected_tickers):
     filtered_data = [
         entry
         for entry in cache_data
-        if entry["ticker"] in [item["value"] for item in selected_tickers]
+        if entry["ticker"] in [ticker for ticker in selected_tickers]
     ]
 
     return (
@@ -466,7 +383,7 @@ def confirm_portfolio(_, risk_return, cache_data):
         Output("btn-portfolio-simulator", "style"),
         Output("btn-portfolio-simulator", "className"),
     ],
-    Input("btn-confirm-portfolio", "n_clicks"),
+    [Input("btn-confirm-portfolio", "n_clicks")],
     prevent_initial_call=True,
 )
 def update_portfolio_analytics_button(n_clicks):

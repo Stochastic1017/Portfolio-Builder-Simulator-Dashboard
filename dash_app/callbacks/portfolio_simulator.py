@@ -4,10 +4,9 @@ import sys
 import uuid
 import dash
 import numpy as np
-import dash_bootstrap_components as dbc
 
 from datetime import datetime, timedelta
-from dash import html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no_update
+from dash import html, Input, Output, State, callback, ctx, dcc, no_update
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -99,6 +98,9 @@ def validate_budget(budget):
 
 # Get next business day
 def next_business_day(date_str):
+    if date_str is None:
+        return 
+
     date_obj = datetime.strptime(date_str, "%Y-%m-%d")
     next_day = date_obj + timedelta(days=1)
     while next_day.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
@@ -108,6 +110,9 @@ def next_business_day(date_str):
 
 # Get exact one year business day
 def max_forecast_date(latest_date_str):
+    if latest_date_str is None:
+        return
+
     date_obj = datetime.strptime(latest_date_str, "%Y-%m-%d")
     one_year_later = date_obj + timedelta(days=365)
     return one_year_later.strftime("%Y-%m-%d")
@@ -206,6 +211,7 @@ def set_budget_validation(verify_budget):
     ],
     Input("verify-budget", "data"),
     State("latest-date", "data"),
+    prevent_initial_call=True
 )
 def enable_initial_controls(verify_budget, latest_date):
     is_verified = verify_budget.get("verified", False)
@@ -260,6 +266,7 @@ def enable_initial_controls(verify_budget, latest_date):
         Output("btn-gbm-performance", "className"),
     ],
     Input("date-chooser-simulation", "date"),
+    prevent_initial_call=True
 )
 def activate_lstm_nnsde_button(selected_date):
 
@@ -292,6 +299,7 @@ def activate_lstm_nnsde_button(selected_date):
         Input("date-chooser-simulation", "date"),
         Input("model-selection-criterion", "value"),
     ],
+    prevent_initial_call=True
 )
 def activate_arima_garch_buttons(selected_date, selected_criterion_information):
 
@@ -331,7 +339,7 @@ def activate_arima_garch_buttons(selected_date, selected_criterion_information):
     [
         State("verify-budget", "data"),
         State("portfolio-store", "data"),
-        State("selected-tickers-store", "data"),
+        State("dropdown-ticker-selection", "value"),
         State("confirmed-weights-store", "data"),
         State("budget-value", "data"),
         State("portfolio-risk-return", "data"),
@@ -356,6 +364,7 @@ def update_portfolio_simulator_main_plot(
     forecast_until,
     num_ensembles,
 ):
+
     button_id = ctx.triggered_id
 
     if not verify_budget.get("verified", False):
@@ -659,6 +668,7 @@ def update_portfolio_simulator_main_plot(
         Input("portfolio-range-1Y", "n_clicks"),
         Input("portfolio-range-2Y", "n_clicks"),
     ],
+    prevent_initial_call=True
 )
 def update_portfolio_range_styles(*btn_clicks):
     button_ids = [
@@ -700,7 +710,7 @@ def update_portfolio_range_styles(*btn_clicks):
     [
         State("budget-value", "data"),
         State("portfolio-store", "data"),
-        State("selected-tickers-store", "data"),
+        State("dropdown-ticker-selection", "value"),
         State("confirmed-weights-store", "data"),
         State("portfolio-risk-return", "data"),
     ],

@@ -38,9 +38,9 @@ layout = html.Div(
                     value="main-tab-explore",
                     children=[portfolio_exploration_layout],
                     style={
-                        "backgroundColor": COLORS["background"],
+                        "backgroundColor": COLORS["card"],
                         "color": COLORS["text"],
-                        "padding": "6px 18px",
+                        "padding": "10px 20px",
                         "fontWeight": "bold",
                         "fontSize": "14px",
                         "border": "none",
@@ -61,9 +61,9 @@ layout = html.Div(
                     value="main-tab-builder",
                     children=[portfolio_builder_layout],
                     style={
-                        "backgroundColor": COLORS["background"],
+                        "backgroundColor": COLORS["card"],
                         "color": COLORS["text"],
-                        "padding": "6px 18px",
+                        "padding": "10px 20px",
                         "fontWeight": "bold",
                         "fontSize": "14px",
                         "border": "none",
@@ -79,14 +79,15 @@ layout = html.Div(
                         "borderBottom": f"2px solid {COLORS['primary']}",
                     },
                 ),
+
                 dcc.Tab(
                     label="Portfolio Simulator",
                     value="main-tab-simulator",
                     children=[portfolio_simulator_layout],
                     style={
-                        "backgroundColor": COLORS["background"],
+                        "backgroundColor": COLORS["card"],
                         "color": COLORS["text"],
-                        "padding": "6px 18px",
+                        "padding": "10px 20px",
                         "fontWeight": "bold",
                         "fontSize": "14px",
                         "border": "none",
@@ -102,7 +103,7 @@ layout = html.Div(
                         "borderBottom": f"2px solid {COLORS['primary']}",
                     },
                 ),
-            ]
+            ],
         )
     ],
 )

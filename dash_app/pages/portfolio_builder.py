@@ -83,39 +83,25 @@ layout = html.Div(
                                     style={
                                         "color": COLORS["primary"],
                                         "fontSize": "1em",
-                                        "marginBottom": "4px",
+                                        "marginBottom": "10px",
                                         "fontWeight": "bold",
                                     },
                                 ),
                                 dcc.Dropdown(
                                     id="dropdown-ticker-selection",
                                     placeholder="Select tickers...",
-                                    multi=False,
+                                    multi=True,
                                     clearable=True,
                                     searchable=True,
                                     className="custom-dropdown",
                                     style={
                                         "backgroundColor": COLORS["background"],
-                                        "color": COLORS["primary"],
                                         "borderRadius": "6px",
+                                        "height": "30vh",
+                                        "overflowY": "auto",
                                     },
                                 ),
                                 html.Br(),
-                                html.Div(
-                                    id="selected-ticker-card",
-                                    style={
-                                        "backgroundColor": COLORS["background"],
-                                        "padding": "10px",
-                                        "borderRadius": "6px",
-                                        "minHeight": "200px",
-                                        "maxHeight": "200px",
-                                        "overflowY": "auto",
-                                        "display": "flex",
-                                        "flexWrap": "wrap",
-                                        "gap": "10px",
-                                        "border": f'1px solid {COLORS["primary"]}',
-                                    },
-                                ),
                             ]
                         ),
                         # Buttons to explore portfolio weights and performance
