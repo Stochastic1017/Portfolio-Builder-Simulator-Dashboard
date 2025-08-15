@@ -1,7 +1,5 @@
 import os
-import re
 import sys
-import uuid
 import dash
 import numpy as np
 
@@ -36,70 +34,13 @@ from helpers.button_styles import (
     unverified_button_style,
     default_style_time_range,
     active_style_time_range,
-    active_labelStyle_radioitems,
-    active_inputStyle_radioitems,
-    active_style_radioitems,
 )
-
-
-# Stock ticker validation procedure
-def validate_budget(budget):
-
-    if budget is None or budget == "":
-        return {"valid": False, "value": None, "error": "Budget cannot be empty."}
-
-    # Remove leading/trailing whitespace
-    budget = budget.strip()
-
-    # Basic sanity check for allowed characters
-    if not re.fullmatch(r"[0-9,]*\.?[0-9]*", budget):
-        return {
-            "valid": False,
-            "value": None,
-            "error": "Budget contains invalid characters.",
-        }
-
-    # Check multiple decimals
-    if budget.count(".") > 1:
-        return {
-            "valid": False,
-            "value": None,
-            "error": "Budget has multiple decimal points.",
-        }
-
-    # Validate comma placement using regex
-    if "," in budget:
-        # Regex to match correct comma placement: 1,000 or 12,345.67
-        if not re.fullmatch(r"(?:\d{1,3})(?:,\d{3})*(?:\.\d{1,2})?", budget):
-            return {
-                "valid": False,
-                "value": None,
-                "error": "Commas are placed incorrectly.",
-            }
-
-    # Remove commas for numeric conversion
-    numeric_str = budget.replace(",", "")
-
-    try:
-
-        value = float(numeric_str)
-        if value < 0:
-            return {
-                "valid": False,
-                "value": None,
-                "error": "Budget cannot be negative.",
-            }
-
-        return {"valid": True, "value": value, "error": None}
-
-    except ValueError:
-        return {"valid": False, "value": None, "error": "Could not parse budget value."}
 
 
 # Get next business day
 def next_business_day(date_str):
     if date_str is None:
-        return 
+        return
 
     date_obj = datetime.strptime(date_str, "%Y-%m-%d")
     next_day = date_obj + timedelta(days=1)
@@ -118,141 +59,16 @@ def max_forecast_date(latest_date_str):
     return one_year_later.strftime("%Y-%m-%d")
 
 
-# Ensure budget formatting is consistent for monetary inputs
 @callback(
-    Output("inp-budget", "value"),
-    Input("inp-budget", "value"),
-    prevent_initial_call=True,
+    Output("date-chooser-simulation", "disabled"),
+    Output("date-chooser-simulation", "min_date_allowed"),
+    Output("date-chooser-simulation", "max_date_allowed"),
+    Input("latest-date", "data"),
 )
-def format_budget_input(value):
-    if not value:
-        return ""
-
-    # Remove everything except digits and decimal point
-    raw_value = re.sub(r"[^\d.]", "", value)
-
-    try:
-        # Format number with commas, preserve decimal if present
-        if "." in raw_value:
-            number = float(raw_value)
-            formatted = f"{number:,.2f}"
-        else:
-            number = int(raw_value)
-            formatted = f"{number:,}"
-        return formatted
-    except:
-        return value
-
-
-# Verify budget and reset status if budget changes
-@callback(
-    [
-        Output("verify-budget", "data"),
-        Output("budget-value", "data"),
-    ],
-    [Input("btn-verify-budget", "n_clicks")],
-    [State("inp-budget", "value")],
-    prevent_initial_call=True,
-)
-def handle_verify_budget(_, budget_input):
-    trigger_id = ctx.triggered_id
-
-    if trigger_id == "btn-verify-budget":
-        result = validate_budget(budget_input)
-
-        if result["valid"]:
-            return {"verified": True}, result["value"]
-        else:
-            return {"verified": False, "error": result["error"]}, None
-
-    elif trigger_id == "inp-budget":
-        return {"verified": False}, None
-
-    return no_update
-
-
-# Show validation symbol upon successful verification
-@callback(
-    [
-        Output("inp-budget", "valid"),
-        Output("inp-budget", "invalid"),
-        Output("inp-budget", "key"),
-    ],
-    Input("verify-budget", "data"),
-    prevent_initial_call=True,
-)
-def set_budget_validation(verify_budget):
-
-    # Defensive fallback key
-    dynamic_key = f"key-{uuid.uuid4()}"
-
-    is_verified = verify_budget.get("verified", False)
-
-    if not is_verified:
-        return (False, True, dynamic_key)
-
-    return (True, False, dynamic_key)
-
-
-# Toggle portfolio performance and date chooser after verification of budget
-@callback(
-    [
-        Output("btn-portfolio-performance", "disabled"),
-        Output("btn-portfolio-performance", "style"),
-        Output("btn-portfolio-performance", "className"),
-        Output("date-chooser-simulation", "disabled"),
-        Output("date-chooser-simulation", "min_date_allowed"),
-        Output("date-chooser-simulation", "max_date_allowed"),
-        Output("num-ensemble-slider", "disabled"),
-        Output("model-selection-criterion", "options"),
-        Output("model-selection-criterion", "labelStyle"),
-        Output("model-selection-criterion", "inputStyle"),
-        Output("model-selection-criterion", "style"),
-    ],
-    Input("verify-budget", "data"),
-    State("latest-date", "data"),
-    prevent_initial_call=True
-)
-def enable_initial_controls(verify_budget, latest_date):
-    is_verified = verify_budget.get("verified", False)
-
-    if is_verified:
-        return (
-            False,
-            verified_button_style,
-            "simple",
-            False,
-            next_business_day(latest_date),
-            max_forecast_date(latest_date),
-            False,
-            [
-                {"label": "AIC (Akaike)", "value": "aic", "disabled": False},
-                {"label": "BIC (Bayesian)", "value": "bic", "disabled": False},
-                {"label": "LogLikelihood", "value": "loglikelihood", "disabled": False},
-            ],
-            active_labelStyle_radioitems,
-            active_inputStyle_radioitems,
-            active_style_radioitems,
-        )
-
-    else:
-        return (
-            True,
-            unverified_button_style,
-            "",
-            True,
-            next_business_day(latest_date),
-            max_forecast_date(latest_date),
-            True,
-            [
-                {"label": "AIC (Akaike)", "value": "aic", "disabled": True},
-                {"label": "BIC (Bayesian)", "value": "bic", "disabled": True},
-                {"label": "LogLikelihood", "value": "loglikelihood", "disabled": True},
-            ],
-            active_labelStyle_radioitems,
-            active_inputStyle_radioitems,
-            active_style_radioitems,
-        )
+def update_date_limits(latest_date):
+    if latest_date is None:
+        raise no_update
+    return False, next_business_day(latest_date), max_forecast_date(latest_date)
 
 
 # Activate LSTM button after user inputs date and a valid budget
@@ -266,7 +82,7 @@ def enable_initial_controls(verify_budget, latest_date):
         Output("btn-gbm-performance", "className"),
     ],
     Input("date-chooser-simulation", "date"),
-    prevent_initial_call=True
+    prevent_initial_call=True,
 )
 def activate_lstm_nnsde_button(selected_date):
 
@@ -299,7 +115,7 @@ def activate_lstm_nnsde_button(selected_date):
         Input("date-chooser-simulation", "date"),
         Input("model-selection-criterion", "value"),
     ],
-    prevent_initial_call=True
+    prevent_initial_call=True,
 )
 def activate_arima_garch_buttons(selected_date, selected_criterion_information):
 
@@ -337,7 +153,6 @@ def activate_arima_garch_buttons(selected_date, selected_criterion_information):
         Input("model-selection-criterion", "value"),
     ],
     [
-        State("verify-budget", "data"),
         State("portfolio-store", "data"),
         State("dropdown-ticker-selection", "value"),
         State("confirmed-weights-store", "data"),
@@ -355,7 +170,6 @@ def update_portfolio_simulator_main_plot(
     ____,
     _____,
     criterion_selector,
-    verify_budget,
     portfolio_store,
     selected_tickers,
     weights,
@@ -366,9 +180,6 @@ def update_portfolio_simulator_main_plot(
 ):
 
     button_id = ctx.triggered_id
-
-    if not verify_budget.get("verified", False):
-        raise dash.exceptions.PreventUpdate
 
     _, portfolio_value_ts = parse_ts_map(
         selected_tickers=selected_tickers,
@@ -668,7 +479,7 @@ def update_portfolio_simulator_main_plot(
         Input("portfolio-range-1Y", "n_clicks"),
         Input("portfolio-range-2Y", "n_clicks"),
     ],
-    prevent_initial_call=True
+    prevent_initial_call=True,
 )
 def update_portfolio_range_styles(*btn_clicks):
     button_ids = [
@@ -756,6 +567,7 @@ def update_plot_on_range_change(
                 dates=portfolio_value_ts.index,
                 daily_prices=portfolio_value_ts.values,
                 daily_log_returns=portfolio_log_returns,
+                selected_range=selected_range,
                 COLORS=COLORS,
             ),
         )
@@ -766,6 +578,7 @@ def update_plot_on_range_change(
                 dates=portfolio_value_ts.index,
                 daily_prices=portfolio_value_ts.values,
                 daily_log_returns=portfolio_log_returns,
+                selected_range=selected_range,
                 COLORS=COLORS,
             ),
         )

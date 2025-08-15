@@ -75,6 +75,57 @@ layout = html.Div(
                         "overflow": "hidden",
                     },
                     children=[
+                        # Budget (in $) input + verify budget button
+                        html.Div(
+                            style={
+                                "display": "flex",
+                                "flexDirection": "row",
+                                "alignItems": "center",
+                            },
+                            children=[
+                                # Input for budget (in $)
+                                dbc.Input(
+                                    id="inp-budget",
+                                    type="text",
+                                    debounce=True,
+                                    valid=False,
+                                    invalid=False,
+                                    key="input-key",
+                                    placeholder="Enter Budget (in $)",
+                                    className="custom-input",
+                                    style={
+                                        "width": "200px",
+                                        "padding": "10px",
+                                        "backgroundColor": COLORS["background"],
+                                        "border": f"1px solid {COLORS['primary']}",
+                                        "borderRadius": "5px",
+                                        "color": COLORS["text"],
+                                        "fontSize": "1em",
+                                        "marginRight": "10px",
+                                    },
+                                ),
+                                # A stylized button to verify if user input budget is correct
+                                html.Button(
+                                    "Verify Budget",
+                                    id="btn-verify-budget",
+                                    n_clicks=0,
+                                    disabled=False,
+                                    className="special",
+                                    style={
+                                        "padding": "6px 12px",
+                                        "backgroundColor": COLORS["primary"],
+                                        "color": "black",
+                                        "border": "1px solid #9370DB",
+                                        "borderRadius": "20px",
+                                        "fontWeight": "bold",
+                                        "fontSize": "0.75em",
+                                        "cursor": "pointer",
+                                        "alignSelf": "flex-start",
+                                        "transition": "all 0.2s ease-in-out",
+                                    },
+                                ),
+                            ],
+                        ),
                         # Selected Tickers and Dropdown
                         html.Div(
                             [
@@ -101,26 +152,7 @@ layout = html.Div(
                                         "overflowY": "auto",
                                     },
                                 ),
-                                html.Br(),
                             ]
-                        ),
-                        # Buttons to explore portfolio weights and performance
-                        html.Div(
-                            style={
-                                "display": "flex",
-                                "flexDirection": "column",
-                                "gap": "10px",
-                            },
-                            children=[
-                                # Button for user to explore weights via MPT
-                                html.Button(
-                                    "Explore Efficient Frontier",
-                                    id="btn-efficient-frontier",
-                                    style=verified_button_style,
-                                    disabled=False,
-                                    className="simple",
-                                ),
-                            ],
                         ),
                         # Four toggle buttons to highlight important portfolio
                         html.Div(

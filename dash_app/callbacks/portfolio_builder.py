@@ -1,7 +1,9 @@
 import os
+import re
 import sys
 import json
 import dash
+import uuid
 import numpy as np
 import pandas as pd
 
@@ -34,6 +36,136 @@ from helpers.button_styles import (
 )
 
 
+# Stock ticker validation procedure
+def validate_budget(budget):
+
+    if budget is None or budget == "":
+        return {"valid": False, "value": None, "error": "Budget cannot be empty."}
+
+    # Remove leading/trailing whitespace
+    budget = budget.strip()
+
+    # Basic sanity check for allowed characters
+    if not re.fullmatch(r"[0-9,]*\.?[0-9]*", budget):
+        return {
+            "valid": False,
+            "value": None,
+            "error": "Budget contains invalid characters.",
+        }
+
+    # Check multiple decimals
+    if budget.count(".") > 1:
+        return {
+            "valid": False,
+            "value": None,
+            "error": "Budget has multiple decimal points.",
+        }
+
+    # Validate comma placement using regex
+    if "," in budget:
+        # Regex to match correct comma placement: 1,000 or 12,345.67
+        if not re.fullmatch(r"(?:\d{1,3})(?:,\d{3})*(?:\.\d{1,2})?", budget):
+            return {
+                "valid": False,
+                "value": None,
+                "error": "Commas are placed incorrectly.",
+            }
+
+    # Remove commas for numeric conversion
+    numeric_str = budget.replace(",", "")
+
+    try:
+
+        value = float(numeric_str)
+        if value < 0:
+            return {
+                "valid": False,
+                "value": None,
+                "error": "Budget cannot be negative.",
+            }
+
+        return {"valid": True, "value": value, "error": None}
+
+    except ValueError:
+        return {"valid": False, "value": None, "error": "Could not parse budget value."}
+
+
+# Ensure budget formatting is consistent for monetary inputs
+@callback(
+    Output("inp-budget", "value"),
+    Input("inp-budget", "value"),
+    prevent_initial_call=True,
+)
+def format_budget_input(value):
+    if not value:
+        return ""
+
+    # Remove everything except digits and decimal point
+    raw_value = re.sub(r"[^\d.]", "", value)
+
+    try:
+        # Format number with commas, preserve decimal if present
+        if "." in raw_value:
+            number = float(raw_value)
+            formatted = f"{number:,.2f}"
+        else:
+            number = int(raw_value)
+            formatted = f"{number:,}"
+        return formatted
+    except:
+        return value
+
+
+# Verify budget and reset status if budget changes
+@callback(
+    [
+        Output("verify-budget", "data"),
+        Output("budget-value", "data"),
+    ],
+    [Input("btn-verify-budget", "n_clicks")],
+    [State("inp-budget", "value")],
+    prevent_initial_call=True,
+)
+def handle_verify_budget(_, budget_input):
+    trigger_id = ctx.triggered_id
+
+    if trigger_id == "btn-verify-budget":
+        result = validate_budget(budget_input)
+
+        if result["valid"]:
+            return {"verified": True}, result["value"]
+        else:
+            return {"verified": False, "error": result["error"]}, None
+
+    elif trigger_id == "inp-budget":
+        return {"verified": False}, None
+
+    return no_update
+
+
+# Show validation symbol upon successful verification
+@callback(
+    [
+        Output("inp-budget", "valid"),
+        Output("inp-budget", "invalid"),
+        Output("inp-budget", "key"),
+    ],
+    Input("verify-budget", "data"),
+    prevent_initial_call=True,
+)
+def set_budget_validation(verify_budget):
+
+    # Defensive fallback key
+    dynamic_key = f"key-{uuid.uuid4()}"
+
+    is_verified = verify_budget.get("verified", False)
+
+    if not is_verified:
+        return (False, True, dynamic_key)
+
+    return (True, False, dynamic_key)
+
+
 # Populate dropdown with tickers
 @callback(
     [
@@ -62,20 +194,24 @@ def populate_dropdown_options(data):
         Output("toggle-min-variance", "style"),
         Output("equal-weights-button", "disabled"),
         Output("toggle-equal-weights", "style"),
-        Output("efficient-frontier-clicked", "data"),
     ],
     [
-        Input("btn-efficient-frontier", "n_clicks"),
+        Input("btn-verify-budget", "n_clicks"),
         Input("dropdown-ticker-selection", "value"),
     ],
+    [State("verify-budget", "data")],
     prevent_initial_call=True,
 )
-def update_portfolio_builder_main_output(_, selected_tickers):
+def update_portfolio_builder_main_output(_, selected_tickers, verify_budget):
 
     if not _:
         raise dash.exceptions.PreventUpdate
 
-    if (not ctx.triggered_id == "btn-efficient-frontier") or (not selected_tickers):
+    if (
+        (not ctx.triggered_id == "btn-verify-budget")
+        or (not selected_tickers)
+        or (not verify_budget)
+    ):
         return (
             no_update,
             True,
@@ -86,7 +222,6 @@ def update_portfolio_builder_main_output(_, selected_tickers):
             unverified_toggle_button,
             True,
             unverified_toggle_button,
-            False,
         )
 
     return (
@@ -117,7 +252,6 @@ def update_portfolio_builder_main_output(_, selected_tickers):
         verified_toggle_button,
         False,
         verified_toggle_button,
-        True,
     )
 
 
@@ -271,10 +405,14 @@ def update_efficient_frontier_on_range_change(
         Output("portfolio-clicked-risk-return", "data"),
     ],
     [Input("efficient-frontier-graph", "clickData")],
-    [State("portfolio-store", "data"), State("dropdown-ticker-selection", "value")],
+    [
+        State("portfolio-store", "data"),
+        State("dropdown-ticker-selection", "value"),
+        State("budget-value", "data"),
+    ],
     prevent_initial_call=True,
 )
-def display_summary_table(clickData, cache_data, selected_tickers):
+def display_summary_table(clickData, cache_data, selected_tickers, budget):
 
     if not clickData:
         return no_update
@@ -304,7 +442,7 @@ def display_summary_table(clickData, cache_data, selected_tickers):
                     "marginBottom": "20px",
                 },
             ),
-            summary_table(filtered_data, COLORS, weights=weights),
+            summary_table(filtered_data, COLORS, weights=weights, budget=budget),
         ],
         False,
         verified_button_portfolio,

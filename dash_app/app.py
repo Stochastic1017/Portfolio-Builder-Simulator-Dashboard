@@ -52,10 +52,9 @@ app.layout = html.Div(
         dcc.Store(id="selected-range", data="range-2Y"),  # selected range
         dcc.Store(id="portfolio-store", data=temp),  # portfolio table
         ### Portfolio builder page
+        dcc.Store(id="verify-budget", data={"verified": False}),  # verify budget
+        dcc.Store(id="budget-value"),  # budget (in $) input
         dcc.Store(id="selected-tickers-store"),  # subset of tickers chosen
-        dcc.Store(
-            id="efficient-frontier-clicked", data=False
-        ),  # efficient frontier clicked or not
         dcc.Store(id="portfolio-weights-store"),  # for all optimizations
         dcc.Store(
             id="confirmed-weights-store"
@@ -69,8 +68,6 @@ app.layout = html.Div(
             id="efficient-frontier-selected-range", data="efficient-frontier-range-2Y"
         ),
         ### Portfolio simulation page
-        dcc.Store(id="verify-budget", data={"verified": False}),  # verify budget
-        dcc.Store(id="budget-value"),  # budget (in $) input
         dcc.Store(
             id="portfolio-selected-range", data="portfolio-range-2Y"
         ),  # portfolio selected range

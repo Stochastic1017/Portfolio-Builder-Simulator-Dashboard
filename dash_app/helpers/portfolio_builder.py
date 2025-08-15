@@ -5,6 +5,7 @@ import pandas as pd
 import dash.dash_table as dt
 import plotly.graph_objects as go
 
+from dash.dash_table import FormatTemplate
 from datetime import timedelta
 from dash import dcc, html
 from io import StringIO
@@ -70,16 +71,31 @@ def efficient_frontier_dash_range_selector(default_style):
     )
 
 
-def summary_table(cache_data, COLORS, weights=None):
-    table_data = []
+def summary_table(cache_data, COLORS, budget, weights=None):
 
+    table_data = []
     for i, entry in enumerate(cache_data):
+        # Load historical data
         hist_df = pd.read_json(StringIO(entry["historical_json"]), orient="records")
         hist_df["date"] = pd.to_datetime(hist_df["date"])
 
         latest_price = hist_df["close"].iloc[-1]
+        prev_price = hist_df["close"].iloc[-2] if len(hist_df) > 1 else latest_price
 
         weight_pct = weights[i] if weights else 0
+        amount_invested = budget * weight_pct
+
+        # Shares owned
+        shares_owned = amount_invested / prev_price if prev_price else 0
+
+        # Per share % change
+        pct_change = (
+            ((latest_price - prev_price) / prev_price) * 100 if prev_price else 0
+        )
+        portfolio_pct_change = pct_change * weight_pct
+
+        # Total portfolio value change for this stock
+        price_change_total = (latest_price - prev_price) * shares_owned
 
         table_data.append(
             {
@@ -90,6 +106,9 @@ def summary_table(cache_data, COLORS, weights=None):
                 "Latest Price": latest_price,
                 "Market Cap": entry["market_cap"],
                 "Weight (in %)": round(weight_pct * 100, 2),
+                "Amount Invested": amount_invested,
+                "Price Change": price_change_total,
+                "(%) Change": portfolio_pct_change,
             }
         )
 
@@ -102,7 +121,7 @@ def summary_table(cache_data, COLORS, weights=None):
             "name": "Latest Price",
             "id": "Latest Price",
             "type": "numeric",
-            "format": dt.FormatTemplate.money(0),
+            "format": dt.FormatTemplate.money(2),
         },
         {
             "name": "Market Cap",
@@ -113,6 +132,24 @@ def summary_table(cache_data, COLORS, weights=None):
         {
             "name": "Weight (in %)",
             "id": "Weight (in %)",
+            "type": "numeric",
+            "format": {"specifier": ".2f"},
+        },
+        {
+            "name": "Amount Invested",
+            "id": "Amount Invested",
+            "type": "numeric",
+            "format": dt.FormatTemplate.money(2),
+        },
+        {
+            "name": "Price Change",
+            "id": "Price Change",
+            "type": "numeric",
+            "format": dt.FormatTemplate.money(2),
+        },
+        {
+            "name": "(%) Change",
+            "id": "(%) Change",
             "type": "numeric",
             "format": {"specifier": ".2f"},
         },
@@ -141,6 +178,38 @@ def summary_table(cache_data, COLORS, weights=None):
             "color": COLORS["primary"],
             "fontWeight": "bold",
         },
+        style_data_conditional=[
+            # Percentage Change coloring
+            {
+                "if": {
+                    "filter_query": "{(%) Change} > 0",
+                    "column_id": "(%) Change",
+                },
+                "color": "green",
+            },
+            {
+                "if": {
+                    "filter_query": "{(%) Change} < 0",
+                    "column_id": "(%) Change",
+                },
+                "color": "red",
+            },
+            # Price Change coloring
+            {
+                "if": {
+                    "filter_query": "{Price Change} > 0",
+                    "column_id": "Price Change",
+                },
+                "color": "green",
+            },
+            {
+                "if": {
+                    "filter_query": "{Price Change} < 0",
+                    "column_id": "Price Change",
+                },
+                "color": "red",
+            },
+        ],
         fixed_rows={"headers": True},
         row_deletable=False,
         sort_action="native",
@@ -280,13 +349,13 @@ def portfolio_optimization(cache_data, selected_range="2Y"):
     }
 
 
-def plot_single_ticker( 
-        max_sharpe_on,
-        min_variance_on,
-        max_diversification_on,
-        equal_weights_on,
-        daily_log_returns,
-        COLORS
+def plot_single_ticker(
+    max_sharpe_on,
+    min_variance_on,
+    max_diversification_on,
+    equal_weights_on,
+    daily_log_returns,
+    COLORS,
 ):
 
     mean_log_returns = daily_log_returns.mean()
@@ -358,7 +427,6 @@ def plot_single_ticker(
                 hovertemplate="Equal Weight<br>Risk: %{x:.2%}<br>Return: %{y:.2%}<extra></extra>",
             )
         )
-
 
     efficient_frontier_fig.update_layout(
         template="plotly_dark",

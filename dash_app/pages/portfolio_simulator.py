@@ -13,9 +13,16 @@ from dash import html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no_
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 
-from helpers.button_styles import COLORS, verified_button_style
+from helpers.button_styles import (
+    COLORS,
+    verified_button_style,
+    active_labelStyle_radioitems,
+    active_inputStyle_radioitems,
+    active_style_radioitems,
+)
 
 dash.register_page(__name__, path="/pages/portfolio-simulator")
+
 
 layout = html.Div(
     style={
@@ -69,57 +76,6 @@ layout = html.Div(
                         "overflow": "hidden",
                     },
                     children=[
-                        # Budget (in $) input + verify budget button
-                        html.Div(
-                            style={
-                                "display": "flex",
-                                "flexDirection": "row",
-                                "alignItems": "center",
-                            },
-                            children=[
-                                # Input for budget (in $)
-                                dbc.Input(
-                                    id="inp-budget",
-                                    type="text",
-                                    debounce=True,
-                                    valid=False,
-                                    invalid=False,
-                                    key="input-key",
-                                    placeholder="Enter Budget (in $)",
-                                    className="custom-input",
-                                    style={
-                                        "width": "200px",
-                                        "padding": "10px",
-                                        "backgroundColor": COLORS["background"],
-                                        "border": f"1px solid {COLORS['primary']}",
-                                        "borderRadius": "5px",
-                                        "color": COLORS["text"],
-                                        "fontSize": "1em",
-                                        "marginRight": "10px",
-                                    },
-                                ),
-                                # A stylized button to verify if user input budget is correct
-                                html.Button(
-                                    "Verify Budget",
-                                    id="btn-verify-budget",
-                                    n_clicks=0,
-                                    disabled=False,
-                                    className="special",
-                                    style={
-                                        "padding": "6px 12px",
-                                        "backgroundColor": COLORS["primary"],
-                                        "color": "black",
-                                        "border": "1px solid #9370DB",
-                                        "borderRadius": "20px",
-                                        "fontWeight": "bold",
-                                        "fontSize": "0.75em",
-                                        "cursor": "pointer",
-                                        "alignSelf": "flex-start",
-                                        "transition": "all 0.2s ease-in-out",
-                                    },
-                                ),
-                            ],
-                        ),
                         # Buttons to explore portfolio weights and performance
                         html.Div(
                             style={
@@ -177,7 +133,7 @@ layout = html.Div(
                                     min=10,
                                     max=500,
                                     value=100,
-                                    disabled=True,
+                                    disabled=False,
                                     tooltip={
                                         "placement": "bottom",
                                         "always_visible": False,
@@ -207,19 +163,22 @@ layout = html.Div(
                                         {
                                             "label": "AIC (Akaike)",
                                             "value": "aic",
-                                            "disabled": True,
+                                            "disabled": False,
                                         },
                                         {
                                             "label": "BIC (Bayesian)",
                                             "value": "bic",
-                                            "disabled": True,
+                                            "disabled": False,
                                         },
                                         {
                                             "label": "LogLikelihood",
                                             "value": "loglikelihood",
-                                            "disabled": True,
+                                            "disabled": False,
                                         },
                                     ],
+                                    labelStyle=active_labelStyle_radioitems,
+                                    inputStyle=active_inputStyle_radioitems,
+                                    style=active_style_radioitems,
                                 ),
                                 html.Br(),
                                 # ARIMA model

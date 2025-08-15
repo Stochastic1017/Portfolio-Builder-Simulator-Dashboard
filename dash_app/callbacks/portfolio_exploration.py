@@ -164,6 +164,7 @@ def set_ticker_validation(verify_ticker):
         Output("btn-add", "className"),
     ],
     Input("verify-ticker", "data"),
+    prevent_initial_call=True,
 )
 def toggle_button_states(verify_status):
     is_verified = verify_status.get("verified", False)
@@ -353,6 +354,7 @@ def update_main_output(_, __, ___, ____, cache_data):
         Input("range-1Y", "n_clicks"),
         Input("range-2Y", "n_clicks"),
     ],
+    prevent_initial_call=True,
 )
 def update_range_styles(*btn_clicks):
     button_ids = ["range-1M", "range-3M", "range-6M", "range-1Y", "range-2Y"]
@@ -425,11 +427,7 @@ def update_plot_on_range_change(active_tab, selected_range, data):
 
     elif active_tab == "tab-stats":
         return create_statistics_table(
-            dates, 
-            daily_prices, 
-            daily_log_returns, 
-            selected_range, 
-            COLORS
+            dates, daily_prices, daily_log_returns, selected_range, COLORS
         )
 
 
@@ -468,19 +466,3 @@ def add_to_portfolio(_, verify_data, portfolio_data):
 def update_portfolio_table(data):
     return data
 
-
-# Allow users to navigate to portfolio builder page
-# Provided at least two tickers were selected
-@callback(
-    [
-        Output("btn-portfolio-builder", "disabled"),
-        Output("btn-portfolio-builder", "style"),
-        Output("btn-portfolio-builder", "className"),
-    ],
-    Input("portfolio-store", "data"),
-)
-def update_portfolio_analytics_button(tickers):
-    if tickers is None or len(tickers) < 2:
-        return True, unverified_button_portfolio, ""
-
-    return False, verified_button_portfolio, "special"
