@@ -40,6 +40,8 @@ layout = html.Div(
         dbc.Toast(
             id="portfolio-builder-toast",
             header="Info",
+            children="",
+            icon="primary",
             is_open=False,
             duration=4000,
             dismissable=True,
@@ -128,7 +130,12 @@ layout = html.Div(
                         ),
                         # Selected Tickers and Dropdown
                         html.Div(
-                            [
+                            style={
+                                "display": "flex",
+                                "flexDirection": "column",
+                                "gap": "10px",
+                            },
+                            children=[
                                 html.Label(
                                     "Add Tickers to Portfolio",
                                     style={
@@ -148,23 +155,39 @@ layout = html.Div(
                                     style={
                                         "backgroundColor": COLORS["background"],
                                         "borderRadius": "6px",
-                                        "height": "30vh",
+                                        "height": "25vh",
                                         "overflowY": "auto",
                                     },
                                 ),
-                            ]
+                            ],
                         ),
-                        # Four toggle buttons to highlight important portfolio
+                        # Button to plot efficient frontier
                         html.Div(
                             style={
-                                "width": "100%",
-                                "maxWidth": "400px",
-                                "padding": "10px",
                                 "display": "flex",
                                 "flexDirection": "column",
                                 "gap": "10px",
                             },
                             children=[
+                                # Button to explore Efficient Frontier
+                                html.Div(
+                                    style={
+                                        "display": "flex",
+                                        "flexDirection": "column",
+                                        "gap": "10px",
+                                    },
+                                    children=[
+                                        # Button for user to check latest news on stock ticker
+                                        html.Button(
+                                            "Plot Efficient Frontier",
+                                            id="btn-efficient-frontier",
+                                            disabled=True,
+                                            style={"fontWeight": "bold"},
+                                        ),
+                                        html.Br(),
+                                    ],
+                                ),
+                                # Label to find optimized portfolios
                                 html.Label(
                                     "Highlight Portfolios",
                                     style={
@@ -264,6 +287,7 @@ layout = html.Div(
                                         ),
                                     ],
                                 ),
+                                html.Br(),
                             ],
                         ),
                         # A stylized button for users to add stock ticker to portfolio
@@ -272,6 +296,7 @@ layout = html.Div(
                             id="btn-confirm-portfolio",
                             n_clicks=0,
                             disabled=True,
+                            style={"fontWeight": "bold"},
                         ),
                     ],
                 ),

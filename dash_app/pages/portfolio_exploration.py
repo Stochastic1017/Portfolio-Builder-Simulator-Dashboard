@@ -130,12 +130,14 @@ layout = html.Div(
                                     "Check Latest News",
                                     id="btn-news",
                                     disabled=True,
+                                    style={"fontWeight": "bold"},
                                 ),
                                 # Button for user to check historic performance of stock ticker
                                 html.Button(
                                     "Check Historic Performance",
                                     id="btn-performance",
                                     disabled=True,
+                                    style={"fontWeight": "bold"},
                                 ),
                             ],
                         ),

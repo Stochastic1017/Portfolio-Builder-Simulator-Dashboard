@@ -10,7 +10,7 @@ import pandas as pd
 from io import StringIO
 from datetime import datetime
 from datetime import timedelta
-from dash import html, Input, Output, State, callback, ctx, no_update
+from dash import html, Input, Output, State, callback, ctx, dcc, no_update
 
 
 # Append the current directory to the system path for imports
@@ -27,6 +27,8 @@ from helpers.portfolio_builder import (
 
 from helpers.button_styles import (
     COLORS,
+    verified_button_style,
+    unverified_button_style,
     verified_button_portfolio,
     unverified_button_portfolio,
     verified_toggle_button,
@@ -116,31 +118,113 @@ def format_budget_input(value):
         return value
 
 
-# Verify budget and reset status if budget changes
 @callback(
     [
         Output("verify-budget", "data"),
         Output("budget-value", "data"),
     ],
-    [Input("btn-verify-budget", "n_clicks")],
-    [State("inp-budget", "value")],
+    Input("btn-verify-budget", "n_clicks"),
+    State("inp-budget", "value"),
     prevent_initial_call=True,
 )
-def handle_verify_budget(_, budget_input):
-    trigger_id = ctx.triggered_id
+def handle_verify_budget_store(n_clicks, budget_input):
+    if not n_clicks:
+        raise dash.exceptions.PreventUpdate
 
-    if trigger_id == "btn-verify-budget":
-        result = validate_budget(budget_input)
+    result = validate_budget(budget_input)
+    if result["valid"]:
+        return (
+            {"verified": True},
+            result["value"],
+        )
+    else:
+        return (
+            {"verified": False, "error": result["error"]},
+            None,
+        )
 
-        if result["valid"]:
-            return {"verified": True}, result["value"]
-        else:
-            return {"verified": False, "error": result["error"]}, None
 
-    elif trigger_id == "inp-budget":
-        return {"verified": False}, None
+# Verify budget and reset status if budget changes
+@callback(
+    [
+        Output("portfolio-builder-toast", "is_open", allow_duplicate=True),
+        Output("portfolio-builder-toast", "children", allow_duplicate=True),
+        Output("portfolio-builder-toast", "header", allow_duplicate=True),
+        Output("portfolio-builder-toast", "icon", allow_duplicate=True),
+        Output("portfolio-builder-toast", "style", allow_duplicate=True),
+    ],
+    Input("verify-budget", "data"),
+    prevent_initial_call=True,
+)
+def show_budget_toast(verify_budget):
+    if verify_budget.get("verified"):
+        return (
+            True,
+            "Budget verified successfully!",
+            "Success",
+            "success",
+            {
+                "position": "fixed",
+                "top": "70px",
+                "right": "30px",
+                "zIndex": 9999,
+                "backgroundColor": COLORS["card"],
+                "color": COLORS["text"],
+                "borderLeft": "6px solid green",
+                "boxShadow": "0 2px 8px rgba(0,0,0,0.3)",
+                "padding": "12px 16px",
+                "borderRadius": "6px",
+                "width": "350px",
+            },
+        )
+    else:
+        return (
+            True,
+            verify_budget.get("error", "Unknown error"),
+            "Error",
+            "danger",
+            {
+                "position": "fixed",
+                "top": "70px",
+                "right": "30px",
+                "zIndex": 9999,
+                "backgroundColor": COLORS["card"],
+                "color": COLORS["text"],
+                "borderLeft": "6px solid red",
+                "boxShadow": "0 2px 8px rgba(0,0,0,0.3)",
+                "padding": "12px 16px",
+                "borderRadius": "6px",
+                "width": "350px",
+            },
+        )
 
-    return no_update
+
+# Toggle styles between enabled/disabled status
+@callback(
+    [
+        Output("btn-efficient-frontier", "disabled"),
+        Output("btn-efficient-frontier", "style"),
+        Output("btn-efficient-frontier", "className"),
+    ],
+    Input("verify-budget", "data"),
+    prevent_initial_call=True,
+)
+def toggle_button_states(verify_budget):
+
+    if verify_budget.get("verified"):
+
+        return (
+            False,
+            verified_button_style,
+            "simple",
+        )
+
+    else:
+        return (
+            True,
+            unverified_button_style,
+            "",
+        )
 
 
 # Show validation symbol upon successful verification
@@ -196,24 +280,20 @@ def populate_dropdown_options(data):
         Output("toggle-equal-weights", "style"),
     ],
     [
-        Input("btn-verify-budget", "n_clicks"),
+        Input("btn-efficient-frontier", "n_clicks"),
         Input("dropdown-ticker-selection", "value"),
     ],
-    [State("verify-budget", "data")],
+    State("budget-value", "data"),
     prevent_initial_call=True,
 )
-def update_portfolio_builder_main_output(_, selected_tickers, verify_budget):
+def update_portfolio_builder_main_output(_, selected_tickers, budget_value):
 
-    if not _:
+    if budget_value is None:
         raise dash.exceptions.PreventUpdate
 
-    if (
-        (not ctx.triggered_id == "btn-verify-budget")
-        or (not selected_tickers)
-        or (not verify_budget)
-    ):
+    if ctx.triggered_id == "dropdown-ticker-selection":
         return (
-            no_update,
+            None,
             True,
             unverified_toggle_button,
             True,
@@ -224,35 +304,72 @@ def update_portfolio_builder_main_output(_, selected_tickers, verify_budget):
             unverified_toggle_button,
         )
 
+    if (
+        selected_tickers and len(selected_tickers) > 1
+    ) and ctx.triggered_id == "btn-efficient-frontier":
+
+        return (
+            html.Div(
+                style={
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "minHeight": 0,
+                    "height": "100%",
+                    "width": "100%",
+                    "overflow": "hidden",
+                },
+                children=[
+                    efficient_frontier_dash_range_selector(
+                        default_style=default_style_time_range
+                    ),
+                    html.Div(
+                        id="efficient-frontier-plot-container",
+                        children=[
+                            dcc.Graph(
+                                id="efficient-frontier-graph",
+                                figure={},
+                                style={"display": "none"},
+                            )
+                        ],
+                        style={"flex": "1", "overflow": "hidden"},
+                    ),
+                ],
+            ),
+            False,
+            verified_toggle_button,
+            False,
+            verified_toggle_button,
+            False,
+            verified_toggle_button,
+            False,
+            verified_toggle_button,
+        )
+
     return (
-        html.Div(
-            style={
-                "display": "flex",
-                "flexDirection": "column",
-                "minHeight": 0,
-                "height": "100%",
-                "width": "100%",
-                "overflow": "hidden",
-            },
-            children=[
-                efficient_frontier_dash_range_selector(
-                    default_style=default_style_time_range
-                ),
-                html.Div(
-                    id="efficient-frontier-plot-container",
-                    style={"flex": "1", "overflow": "hidden"},
-                ),
-            ],
-        ),
-        False,
-        verified_toggle_button,
-        False,
-        verified_toggle_button,
-        False,
-        verified_toggle_button,
-        False,
-        verified_toggle_button,
+        no_update,
+        True,
+        unverified_toggle_button,
+        True,
+        unverified_toggle_button,
+        True,
+        unverified_toggle_button,
+        True,
+        unverified_toggle_button,
     )
+
+
+@callback(
+    [
+        Output("btn-efficient-frontier", "disabled", allow_duplicate=True),
+        Output("btn-efficient-frontier", "style", allow_duplicate=True),
+        Output("btn-efficient-frontier", "className", allow_duplicate=True),
+    ],
+    Input("inp-budget", "value"),
+    prevent_initial_call=True,
+)
+def reset_buttons_on_budget_change(_):
+    # Any change means budget must be re-verified
+    return True, unverified_button_style, ""
 
 
 # Highlight buttons based on time-range selected
@@ -304,6 +421,7 @@ def update_range_styles(*btn_clicks):
     )
 
 
+# Update efficient frontier plot upon range change
 @callback(
     [
         Output("efficient-frontier-plot-container", "children"),
@@ -330,6 +448,9 @@ def update_efficient_frontier_on_range_change(
     cache_data,
     selected_tickers,
 ):
+
+    if (not cache_data) or (not selected_tickers):
+        raise dash.exceptions.PreventUpdate
 
     if len(selected_tickers) > 1:
 
@@ -404,32 +525,42 @@ def update_efficient_frontier_on_range_change(
         Output("confirmed-weights-store", "data"),
         Output("portfolio-clicked-risk-return", "data"),
     ],
-    [Input("efficient-frontier-graph", "clickData")],
+    Input("efficient-frontier-graph", "clickData"),
     [
+        State("efficient-frontier-selected-range", "data"),
         State("portfolio-store", "data"),
         State("dropdown-ticker-selection", "value"),
         State("budget-value", "data"),
     ],
     prevent_initial_call=True,
 )
-def display_summary_table(clickData, cache_data, selected_tickers, budget):
-
+def display_summary_table(
+    clickData, selected_range, cache_data, selected_tickers, budget
+):
     if not clickData:
-        return no_update
+        raise dash.exceptions.PreventUpdate
+
+    # Map selected_range codes to readable text
+    range_labels = {
+        "1M": "past 1 month",
+        "3M": "past 3 months",
+        "6M": "past 6 months",
+        "1Y": "past 1 year",
+        "2Y": "past 2 years",
+    }
+    period_text = range_labels.get(selected_range, f"past {selected_range}")
 
     point = clickData["points"][0]
     weights = point["customdata"]
     risk = point["x"]
     ret = point["y"]
 
-    # Format risk/return info
-    header_text = f"Portfolio Details for Risk: {risk:.2%} | Return: {ret:.2%}"
+    header_text = (
+        f"Portfolio Details for Risk: {risk:.2%} | Return: {ret:.2%} | {period_text}"
+    )
 
-    # Filter portfolio data using selected tickers
     filtered_data = [
-        entry
-        for entry in cache_data
-        if entry["ticker"] in [ticker for ticker in selected_tickers]
+        entry for entry in cache_data if entry["ticker"] in selected_tickers
     ]
 
     return (
@@ -452,14 +583,63 @@ def display_summary_table(clickData, cache_data, selected_tickers, budget):
     )
 
 
+@callback(
+    [
+        Output("summary-table-container", "children", allow_duplicate=True),
+        Output("btn-confirm-portfolio", "disabled", allow_duplicate=True),
+        Output("btn-confirm-portfolio", "style", allow_duplicate=True),
+        Output("btn-confirm-portfolio", "className", allow_duplicate=True),
+        Output("confirmed-weights-store", "data", allow_duplicate=True),
+        Output("portfolio-clicked-risk-return", "data", allow_duplicate=True),
+    ],
+    [
+        Input("dropdown-ticker-selection", "value"),
+        Input("inp-budget", "value"),
+    ],
+    prevent_initial_call=True,
+)
+def reset_summary_on_changes(_, __):
+    return (
+        None,
+        True,
+        unverified_button_portfolio,
+        "",
+        None,
+        None,
+    )
+
+
+@callback(
+    [
+        Output("summary-table-container", "children", allow_duplicate=True),
+        Output("btn-confirm-portfolio", "disabled", allow_duplicate=True),
+        Output("btn-confirm-portfolio", "style", allow_duplicate=True),
+        Output("btn-confirm-portfolio", "className", allow_duplicate=True),
+        Output("confirmed-weights-store", "data", allow_duplicate=True),
+        Output("portfolio-clicked-risk-return", "data", allow_duplicate=True),
+    ],
+    Input("efficient-frontier-selected-range", "data"),
+    prevent_initial_call=True,
+)
+def reset_summary_on_range_change(_):
+    return (
+        None,
+        True,
+        unverified_button_portfolio,
+        "",
+        None,
+        None,
+    )
+
+
 # Confirm portfolio and display appropriate message
 @callback(
     [
-        Output("portfolio-builder-toast", "is_open"),
-        Output("portfolio-builder-toast", "children"),
-        Output("portfolio-builder-toast", "header"),
-        Output("portfolio-builder-toast", "icon"),
-        Output("portfolio-builder-toast", "style"),
+        Output("portfolio-builder-toast", "is_open", allow_duplicate=True),
+        Output("portfolio-builder-toast", "children", allow_duplicate=True),
+        Output("portfolio-builder-toast", "header", allow_duplicate=True),
+        Output("portfolio-builder-toast", "icon", allow_duplicate=True),
+        Output("portfolio-builder-toast", "style", allow_duplicate=True),
         Output("portfolio-risk-return", "data"),
         Output("latest-date", "data"),
     ],

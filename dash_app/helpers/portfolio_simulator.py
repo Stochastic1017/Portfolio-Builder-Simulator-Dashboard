@@ -1,13 +1,10 @@
 import os
 import sys
-import torch
 import warnings
 
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers  # type: ignore
 import plotly.graph_objects as go
 
 from io import StringIO
@@ -88,11 +85,7 @@ def portfolio_dash_range_selector(default_style):
 
 
 def parse_ts_map(
-    selected_tickers, 
-    portfolio_weights, 
-    portfolio_store, 
-    budget, 
-    threshold=1e-6
+    selected_tickers, portfolio_weights, portfolio_store, budget, threshold=1e-6
 ):
     ts_map = {}
     selected_values = {ticker for ticker in selected_tickers}

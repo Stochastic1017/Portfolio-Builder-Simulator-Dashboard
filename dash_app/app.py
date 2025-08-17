@@ -32,10 +32,13 @@ if os.getenv("DEV_ONLY", "0").strip().lower() in {"1", "true", "yes"}:
     try:
         with open("temp.json") as f:
             temp = json.load(f)
+            location="main-app"
     except FileNotFoundError:
         temp = []
+        location="main-app"
 else:
     temp = []
+    location="landing-page"
 
 ##################
 ### Dev Only !!!
@@ -74,8 +77,7 @@ app.layout = html.Div(
         #################
         ### Landing Page
         #################
-        # dcc.Location(id="url", refresh=True, pathname="/pages/landing-page"),
-        dcc.Location(id="url", refresh=True, pathname="/pages/main-app"),
+        dcc.Location(id="url", refresh=True, pathname=f"/pages/{location}"),
         dash.page_container,
     ]
 )

@@ -79,23 +79,23 @@ def summary_table(cache_data, COLORS, budget, weights=None):
         hist_df = pd.read_json(StringIO(entry["historical_json"]), orient="records")
         hist_df["date"] = pd.to_datetime(hist_df["date"])
 
-        latest_price = hist_df["close"].iloc[-1]
-        prev_price = hist_df["close"].iloc[-2] if len(hist_df) > 1 else latest_price
+        first_price = hist_df["close"].iloc[1]
+        last_price = hist_df["close"].iloc[-1] if len(hist_df) > 1 else first_price
 
         weight_pct = weights[i] if weights else 0
         amount_invested = budget * weight_pct
 
         # Shares owned
-        shares_owned = amount_invested / prev_price if prev_price else 0
+        shares_owned = amount_invested / first_price if first_price else 0
 
         # Per share % change
         pct_change = (
-            ((latest_price - prev_price) / prev_price) * 100 if prev_price else 0
+            ((last_price - first_price) / first_price) * 100 if first_price else 0
         )
         portfolio_pct_change = pct_change * weight_pct
 
         # Total portfolio value change for this stock
-        price_change_total = (latest_price - prev_price) * shares_owned
+        price_change_total = (last_price - first_price) * shares_owned
 
         table_data.append(
             {
@@ -103,7 +103,7 @@ def summary_table(cache_data, COLORS, budget, weights=None):
                 "Ticker": entry["ticker"],
                 "Full Name": entry["fullname"],
                 "SIC": entry["sic_description"],
-                "Latest Price": latest_price,
+                "Latest Price": last_price,
                 "Market Cap": entry["market_cap"],
                 "Weight (in %)": round(weight_pct * 100, 2),
                 "Amount Invested": amount_invested,
@@ -182,32 +182,46 @@ def summary_table(cache_data, COLORS, budget, weights=None):
             # Percentage Change coloring
             {
                 "if": {
-                    "filter_query": "{(%) Change} > 0",
+                    "filter_query": "{(%) Change} > 0.01",
                     "column_id": "(%) Change",
                 },
                 "color": "green",
             },
             {
                 "if": {
-                    "filter_query": "{(%) Change} < 0",
+                    "filter_query": "{(%) Change} < -0.01",
                     "column_id": "(%) Change",
                 },
                 "color": "red",
+            },
+            {
+                "if": {
+                    "filter_query": "{(%) Change} >= -0.01 && {(%) Change} <= 0.01",
+                    "column_id": "(%) Change",
+                },
+                "color": "grey",
             },
             # Price Change coloring
             {
                 "if": {
-                    "filter_query": "{Price Change} > 0",
+                    "filter_query": "{Price Change} > 0.01",
                     "column_id": "Price Change",
                 },
                 "color": "green",
             },
             {
                 "if": {
-                    "filter_query": "{Price Change} < 0",
+                    "filter_query": "{Price Change} < -0.01",
                     "column_id": "Price Change",
                 },
                 "color": "red",
+            },
+            {
+                "if": {
+                    "filter_query": "{Price Change} >= -0.01 && {Price Change} <= 0.01",
+                    "column_id": "Price Change",
+                },
+                "color": "grey",
             },
         ],
         fixed_rows={"headers": True},

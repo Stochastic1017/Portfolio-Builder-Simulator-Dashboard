@@ -1,6 +1,5 @@
 import os
 import sys
-import dash
 import numpy as np
 
 from datetime import datetime, timedelta

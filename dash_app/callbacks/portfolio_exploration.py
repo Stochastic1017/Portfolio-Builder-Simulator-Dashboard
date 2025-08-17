@@ -466,3 +466,11 @@ def add_to_portfolio(_, verify_data, portfolio_data):
 def update_portfolio_table(data):
     return data
 
+@callback(
+    Output("portfolio-store", "data", allow_duplicate=True),
+    Input("portfolio-table", "data"),
+    prevent_initial_call=True,
+)
+def sync_portfolio_table_with_store(table_data):
+    # Just mirror the table back into the store
+    return table_data
