@@ -32,13 +32,13 @@ if os.getenv("DEV_ONLY", "0").strip().lower() in {"1", "true", "yes"}:
     try:
         with open("temp.json") as f:
             temp = json.load(f)
-            location="main-app"
+            location = "main-app"
     except FileNotFoundError:
         temp = []
-        location="main-app"
+        location = "main-app"
 else:
     temp = []
-    location="landing-page"
+    location = "landing-page"
 
 ##################
 ### Dev Only !!!
@@ -47,38 +47,43 @@ else:
 # App layout
 app.layout = html.Div(
     children=[
+
         ################
         ### Cache store
         ################
+
         ### Stock exploration dashboard page
-        dcc.Store(id="verify-ticker", data={"verified": False}),  # verify ticker
-        dcc.Store(id="selected-range", data="range-2Y"),  # selected range
-        dcc.Store(id="portfolio-store", data=temp),  # portfolio table
+        dcc.Store(id="verify-ticker", data={"verified": False}),
+        dcc.Store(id="selected-range", data="range-2Y"),
+        dcc.Store(id="portfolio-store", data=temp),
+
         ### Portfolio builder page
-        dcc.Store(id="verify-budget", data={"verified": False}),  # verify budget
-        dcc.Store(id="budget-value"),  # budget (in $) input
-        dcc.Store(id="selected-tickers-store"),  # subset of tickers chosen
-        dcc.Store(id="portfolio-weights-store"),  # for all optimizations
-        dcc.Store(
-            id="confirmed-weights-store"
-        ),  # for the selected/confirmed portfolio weights
-        dcc.Store(
-            id="portfolio-clicked-risk-return"
-        ),  # temporary placeholder for risk/return
-        dcc.Store(id="portfolio-risk-return"),  # risk/return for confirmed portfolio
-        dcc.Store(id="latest-date"),  # latest date (last row value)
+        dcc.Store(id="verify-budget", data={"verified": False}),
+        dcc.Store(id="budget-value"),
+        dcc.Store(id="selected-tickers-store"),
+        dcc.Store(id="portfolio-weights-store"),
         dcc.Store(
             id="efficient-frontier-selected-range", data="efficient-frontier-range-2Y"
         ),
+        dcc.Store(id="confirmed-weights-store"),
+        dcc.Store(id="portfolio-clicked-risk-return"),
+        dcc.Store(id="confirmed-portfolio-details"),
+        dcc.Store(id="latest-date"),
+        dcc.Store(id="portfolio-confirmed", data=False),
+
         ### Portfolio simulation page
         dcc.Store(
             id="portfolio-selected-range", data="portfolio-range-2Y"
         ),  # portfolio selected range
+        dcc.Store(id="simulated-forecasts", data=None),
+
         #################
         ### Landing Page
         #################
+
         dcc.Location(id="url", refresh=True, pathname=f"/pages/{location}"),
         dash.page_container,
+
     ]
 )
 

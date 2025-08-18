@@ -5,7 +5,6 @@ import pandas as pd
 import dash.dash_table as dt
 import plotly.graph_objects as go
 
-from dash.dash_table import FormatTemplate
 from datetime import timedelta
 from dash import dcc, html
 from io import StringIO
@@ -179,6 +178,11 @@ def summary_table(cache_data, COLORS, budget, weights=None):
             "fontWeight": "bold",
         },
         style_data_conditional=[
+            {
+                "if": {"state": "selected"},
+                "backgroundColor": "inherit !important",
+                "border": "inherit !important",
+            },
             # Percentage Change coloring
             {
                 "if": {
@@ -230,10 +234,6 @@ def summary_table(cache_data, COLORS, budget, weights=None):
     )
 
 
-def portfolio_volatility(weights, cov_matrix):
-    return np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
-
-
 def portfolio_optimization(cache_data, selected_range="2Y"):
 
     cutoff_days = {"1M": 30, "3M": 90, "6M": 180, "1Y": 365, "2Y": None}
@@ -272,6 +272,9 @@ def portfolio_optimization(cache_data, selected_range="2Y"):
     frontier_returns = []
     frontier_stddevs = []
     frontier_weights = []
+
+    def portfolio_volatility(weights, cov_matrix):
+        return np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
 
     for target_return in target_returns:
         constraints = (
@@ -364,16 +367,14 @@ def portfolio_optimization(cache_data, selected_range="2Y"):
 
 
 def plot_single_ticker(
+    mean_log_returns,
+    std_log_returns,
     max_sharpe_on,
     min_variance_on,
     max_diversification_on,
     equal_weights_on,
-    daily_log_returns,
     COLORS,
 ):
-
-    mean_log_returns = daily_log_returns.mean()
-    std_log_returns = daily_log_returns.std()
 
     efficient_frontier_fig = go.Figure()
 

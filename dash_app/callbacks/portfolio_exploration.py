@@ -1,6 +1,6 @@
 import os
-import uuid
 import sys
+import uuid
 import dash
 import numpy as np
 import pandas as pd
@@ -465,6 +465,7 @@ def add_to_portfolio(_, verify_data, portfolio_data):
 @callback(Output("portfolio-table", "data"), Input("portfolio-store", "data"))
 def update_portfolio_table(data):
     return data
+
 
 @callback(
     Output("portfolio-store", "data", allow_duplicate=True),

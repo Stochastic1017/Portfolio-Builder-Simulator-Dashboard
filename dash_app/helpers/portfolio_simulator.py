@@ -20,12 +20,20 @@ from tensorflow.keras import backend as K  # type: ignore
 from sklearn.preprocessing import MinMaxScaler
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
 
-from sklearn.ensemble import HistGradientBoostingRegressor
+from dash import dash_table
 from sklearn.model_selection import train_test_split
+from sklearn.ensemble import HistGradientBoostingRegressor
+
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 os.environ["CUDA_VISIBLE_DEVICES"] = ""  # Disable GPU
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # suppress INFO/WARN/ERROR from TF C++
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"  # disable oneDNN optimizations
+
+import absl.logging
+
+absl.logging.set_verbosity(absl.logging.ERROR)  # suppress absl warnings
 
 
 def portfolio_dash_range_selector(default_style):
@@ -132,7 +140,7 @@ def parse_ts_map(
 
 def grid_search_arima_model(
     y,
-    criterion="aic",  # Options: 'aic', 'bic', 'loglikelihood'
+    criterion="aic",
     p_range=range(0, 4),
     d_range=range(0, 3),
     q_range=range(0, 4),
@@ -772,7 +780,83 @@ def simulate_gbm_sde_paths(
             hist = np.roll(hist, -1)
             hist[-1] = current_value
 
-    mean_returns = simulations.mean(axis=1)
-    std_returns = simulations.std(axis=1)
+    mean_forecast = simulations.mean(axis=1)
+    std_forecast = simulations.std(axis=1)
 
-    return simulations, forecast_index, mean_returns, std_returns
+    return simulations, forecast_index, mean_forecast, std_forecast
+
+
+def build_cov_matrix(ts_map):
+
+    returns_df = pd.DataFrame(
+        {
+            ticker: np.log(data["price"] / data["price"].shift(1))
+            for ticker, data in ts_map.items()
+        }
+    ).dropna()
+
+    # Ensure numeric dtype
+    returns_df = returns_df.astype(float)
+
+    # Covariance matrix as DataFrame (so tickers are aligned)
+    cov_df = returns_df.cov()
+
+    return cov_df, returns_df, list(returns_df.columns)
+
+
+def prediction_summary_table(ts_map, budget, mean_portfolio, cov_matrix):
+    tickers = list(ts_map.keys())
+    weights = np.array([ts_map[t]["weight"] for t in tickers], dtype=float).reshape(-1)
+
+    print("weights.shape", weights.shape, "cov_matrix.shape", cov_matrix.shape)
+
+    # Portfolio volatility from covariance matrix
+    port_var = weights.T @ cov_matrix @ weights
+    port_std = np.sqrt(port_var)
+
+    # Marginal risk contributions (vector)
+    mrc = (cov_matrix @ weights) / port_std
+
+    # Risk contributions per asset
+    rc = weights * mrc  # sums to portfolio std
+
+    rows = []
+    for i, ticker in enumerate(tickers):
+        alloc = weights[i] * budget
+        mu_i = weights[i] * mean_portfolio  # scaled forecast
+        sigma_i = rc[i]  # risk contribution from covariance
+        rows.append(
+            {
+                "Ticker": ticker,
+                "Budget Allocated ($)": round(alloc, 2),
+                "Weight (%)": round(weights[i] * 100, 2),
+                "Mean Forecast": round(mu_i, 4),
+                "95% Confidence Lower Bound": round(mu_i - 1.96 * sigma_i, 4),
+                "95% Confidence Upper Bound": round(mu_i + 1.96 * sigma_i, 4),
+                "Risk Contribution": round(sigma_i, 4),
+            }
+        )
+
+    # Define table
+    table = dash_table.DataTable(
+        columns=[{"name": col, "id": col} for col in rows[0].keys()],
+        data=rows,
+        style_table={"overflowX": "auto"},
+        style_header={
+            "backgroundColor": "#1f2630",
+            "color": "white",
+            "fontWeight": "bold",
+            "textAlign": "center",
+        },
+        style_cell={
+            "backgroundColor": "#22252b",
+            "color": "white",
+            "textAlign": "center",
+            "padding": "6px",
+            "fontFamily": "Inter, sans-serif",
+        },
+        style_data_conditional=[
+            {"if": {"row_index": "odd"}, "backgroundColor": "#2a2d36"}
+        ],
+    )
+    return table

@@ -601,7 +601,7 @@ def create_historic_plots(
                 xref="paper",
                 yref="paper",
                 x=1,  # right aligned
-                y=1.12,  # just above the title
+                y=1.15,  # just above the title
                 showarrow=False,
                 font=dict(color=change_color, size=16, family="Arial Black"),
                 xanchor="right",
@@ -758,6 +758,11 @@ def create_statistics_table(
                     "fontFamily": "monospace",
                 },
                 style_data_conditional=[
+                    {
+                        "if": {"state": "selected"},
+                        "backgroundColor": "inherit !important",
+                        "border": "inherit !important",
+                    },
                     {
                         "if": {"filter_query": '{Value} = ""'},
                         "fontWeight": "bold",

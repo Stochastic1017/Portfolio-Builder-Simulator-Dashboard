@@ -412,18 +412,6 @@ layout = html.Div(
                 "justifyContent": "center",
                 "alignItems": "center",
             },
-            children=[
-                html.P(
-                    "Open the Efficient Frontier and choose a portfolio to view its details.",
-                    style={
-                        "fontSize": "25px",
-                        "fontWeight": "750",
-                        "color": COLORS["text"],
-                        "textAlign": "center",
-                        "marginBottom": "20px",
-                    },
-                ),
-            ],
         ),
         ################
         ### Page Footer

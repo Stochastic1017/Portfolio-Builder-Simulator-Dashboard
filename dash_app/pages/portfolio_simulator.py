@@ -1,13 +1,9 @@
 import os
-import re
 import sys
-import uuid
 import dash
-import numpy as np
 import dash_bootstrap_components as dbc
 
-from datetime import datetime, timedelta
-from dash import html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no_update
+from dash import html, dcc
 
 # Append the current directory to the system path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -15,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from helpers.button_styles import (
     COLORS,
-    verified_button_style,
+    unverified_button_style,
     active_labelStyle_radioitems,
     active_inputStyle_radioitems,
     active_style_radioitems,
@@ -77,21 +73,67 @@ layout = html.Div(
                     },
                     children=[
                         # Buttons to explore portfolio weights and performance
-                        html.Div(
+                        html.Button(
+                            id="btn-portfolio-performance",
+                            disabled=True,
+                            n_clicks=0,
                             style={
-                                "display": "flex",
-                                "flexDirection": "column",
-                                "gap": "10px",
+                                "all": "unset",  # removes default button styles
+                                "cursor": "pointer",
+                                "width": "100%",
+                                "height": "12.5vh",
                             },
                             children=[
-                                # Button for user to explore past performance of portfolio
-                                html.Button(
-                                    "Evaluate Past Performance",
-                                    id="btn-portfolio-performance",
-                                    style=verified_button_style,
-                                    disabled=False,
-                                    className="simple",
-                                ),
+                                dbc.Card(
+                                    style={
+                                        "backgroundColor": COLORS["background"],
+                                        "borderRadius": "10px",
+                                        "padding": "12px 16px",
+                                        "boxShadow": "0 2px 6px rgba(0,0,0,0.25)",
+                                        "marginBottom": "16px",
+                                        "width": "100%",
+                                        "height": "12.5vh",
+                                        "color": COLORS["text"],
+                                        "fontSize": "0.9rem",
+                                        "gap": "6px",
+                                    },
+                                    children=[
+                                        html.Div(
+                                            style={
+                                                "display": "flex",
+                                                "flexDirection": "column",
+                                                "gap": "4px",
+                                            },
+                                            children=[
+                                                html.Span(
+                                                    "",
+                                                    id="selected-portfolio-simulation",
+                                                    style={
+                                                        "fontWeight": "600",
+                                                        "color": COLORS["primary"],
+                                                        "fontSize": "0.95rem",
+                                                    },
+                                                ),
+                                                html.Span(
+                                                    "",
+                                                    id="selected-range-simulation",
+                                                    style={
+                                                        "fontSize": "0.9rem",
+                                                        "color": COLORS["primary"],
+                                                    },
+                                                ),
+                                                html.Span(
+                                                    "",
+                                                    id="latest-date-simulation",
+                                                    style={
+                                                        "fontSize": "0.8rem",
+                                                        "color": COLORS["secondary"],
+                                                    },
+                                                ),
+                                            ],
+                                        )
+                                    ],
+                                )
                             ],
                         ),
                         # Date picker and Ensemble Generator for prediction
@@ -133,7 +175,7 @@ layout = html.Div(
                                     min=10,
                                     max=500,
                                     value=100,
-                                    disabled=False,
+                                    disabled=True,
                                     tooltip={
                                         "placement": "bottom",
                                         "always_visible": False,
@@ -161,19 +203,19 @@ layout = html.Div(
                                     id="model-selection-criterion",
                                     options=[
                                         {
-                                            "label": "AIC (Akaike)",
+                                            "label": "Akaike Information Criterion",
                                             "value": "aic",
-                                            "disabled": False,
+                                            "disabled": True,
                                         },
                                         {
-                                            "label": "BIC (Bayesian)",
+                                            "label": "Bayesian Information Criterion",
                                             "value": "bic",
-                                            "disabled": False,
+                                            "disabled": True,
                                         },
                                         {
                                             "label": "LogLikelihood",
                                             "value": "loglikelihood",
-                                            "disabled": False,
+                                            "disabled": True,
                                         },
                                     ],
                                     labelStyle=active_labelStyle_radioitems,
@@ -185,17 +227,15 @@ layout = html.Div(
                                 html.Button(
                                     "ARIMA Forecast",
                                     id="btn-arima-performance",
-                                    style=verified_button_style,
-                                    disabled=False,
-                                    className="simple",
+                                    style=unverified_button_style,
+                                    disabled=True,
                                 ),
                                 # GARCH model
                                 html.Button(
                                     "GARCH Forecast",
                                     id="btn-garch-performance",
-                                    style=verified_button_style,
-                                    disabled=False,
-                                    className="simple",
+                                    style=unverified_button_style,
+                                    disabled=True,
                                 ),
                                 html.Br(),
                             ],
@@ -221,17 +261,15 @@ layout = html.Div(
                                 html.Button(
                                     "Gradient Boosting Forecast",
                                     id="btn-gbm-performance",
-                                    style=verified_button_style,
-                                    disabled=False,
-                                    className="simple",
+                                    style=unverified_button_style,
+                                    disabled=True,
                                 ),
                                 # Button for user to start monte carlo exploration
                                 html.Button(
                                     "LSTM Forecast",
                                     id="btn-lstm-performance",
-                                    style=verified_button_style,
-                                    disabled=False,
-                                    className="simple",
+                                    style=unverified_button_style,
+                                    disabled=True,
                                 ),
                             ],
                         ),
@@ -349,6 +387,24 @@ layout = html.Div(
                     ],
                 ),
             ],
+        ),
+        ##################
+        ### Summary Table
+        ##################
+        html.Div(
+            id="summary-forecast-simulator",
+            style={
+                "marginTop": "40px",
+                "padding": "20px",
+                "backgroundColor": COLORS["card"],
+                "borderRadius": "10px",
+                "boxShadow": "0 4px 12px rgba(0, 0, 0, 0.1)",
+                "maxWidth": "1200px",
+                "marginLeft": "auto",
+                "marginRight": "auto",
+                "justifyContent": "center",
+                "alignItems": "center",
+            },
         ),
         ################
         ### Page Footer

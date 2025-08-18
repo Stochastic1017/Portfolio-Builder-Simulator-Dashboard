@@ -38,13 +38,14 @@ layout = html.Div(
                     value="main-tab-explore",
                     children=[portfolio_exploration_layout],
                     style={
-                        "backgroundColor": COLORS["card"],
+                        "backgroundColor": COLORS["background"],
                         "color": COLORS["text"],
                         "padding": "10px 20px",
                         "fontWeight": "bold",
                         "fontSize": "14px",
                         "border": "none",
                         "borderBottom": f"2px solid transparent",
+                        "transition": "color 0.3s ease",
                     },
                     selected_style={
                         "backgroundColor": COLORS["background"],
@@ -61,13 +62,14 @@ layout = html.Div(
                     value="main-tab-builder",
                     children=[portfolio_builder_layout],
                     style={
-                        "backgroundColor": COLORS["card"],
+                        "backgroundColor": COLORS["background"],
                         "color": COLORS["text"],
                         "padding": "10px 20px",
                         "fontWeight": "bold",
                         "fontSize": "14px",
                         "border": "none",
                         "borderBottom": f"2px solid transparent",
+                        "transition": "color 0.3s ease",
                     },
                     selected_style={
                         "backgroundColor": COLORS["background"],
@@ -79,19 +81,19 @@ layout = html.Div(
                         "borderBottom": f"2px solid {COLORS['primary']}",
                     },
                 ),
-
                 dcc.Tab(
                     label="Portfolio Simulator",
                     value="main-tab-simulator",
                     children=[portfolio_simulator_layout],
                     style={
-                        "backgroundColor": COLORS["card"],
+                        "backgroundColor": COLORS["background"],
                         "color": COLORS["text"],
                         "padding": "10px 20px",
                         "fontWeight": "bold",
                         "fontSize": "14px",
                         "border": "none",
                         "borderBottom": f"2px solid transparent",
+                        "transition": "color 0.3s ease",
                     },
                     selected_style={
                         "backgroundColor": COLORS["background"],

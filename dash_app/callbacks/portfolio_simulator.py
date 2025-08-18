@@ -1,5 +1,6 @@
 import os
 import sys
+import dash
 import numpy as np
 
 from datetime import datetime, timedelta
@@ -20,6 +21,8 @@ from helpers.portfolio_simulator import (
     train_gbm_sde_model,
     simulate_gbm_sde_paths,
     simulation_plot,
+    build_cov_matrix,
+    prediction_summary_table,
 )
 
 from helpers.portfolio_exploration import (
@@ -58,16 +61,70 @@ def max_forecast_date(latest_date_str):
     return one_year_later.strftime("%Y-%m-%d")
 
 
+# Switch states after user confirms a portfolio
 @callback(
-    Output("date-chooser-simulation", "disabled"),
-    Output("date-chooser-simulation", "min_date_allowed"),
-    Output("date-chooser-simulation", "max_date_allowed"),
-    Input("latest-date", "data"),
+    [
+        Output("btn-portfolio-performance", "disabled"),
+        Output("date-chooser-simulation", "disabled"),
+        Output("date-chooser-simulation", "min_date_allowed"),
+        Output("date-chooser-simulation", "max_date_allowed"),
+        Output("num-ensemble-slider", "disabled"),
+        Output("selected-portfolio-simulation", "children"),
+        Output("selected-range-simulation", "children"),
+        Output("latest-date-simulation", "children"),
+        Output("model-selection-criterion", "options"),
+    ],
+    [Input("latest-date", "data"), Input("confirmed-portfolio-details", "data")],
+    State("portfolio-confirmed", "data"),
 )
-def update_date_limits(latest_date):
-    if latest_date is None:
-        raise no_update
-    return False, next_business_day(latest_date), max_forecast_date(latest_date)
+def change_states_upon_portfolio_confirmation(
+    latest_date, portfolio_details, confirmed_portfolio
+):
+
+    if not confirmed_portfolio:
+        raise dash.exceptions.PreventUpdate
+
+    confirmed_risk = portfolio_details["risk"] * 100
+    confirmed_return = portfolio_details["return"] * 100
+
+    # Map selected_range codes to readable text
+    confirmed_range = portfolio_details["selected_range"]
+    range_labels = {
+        "1M": "past 1 month",
+        "3M": "past 3 months",
+        "6M": "past 6 months",
+        "1Y": "past 1 year",
+        "2Y": "past 2 years",
+    }
+    period_text = range_labels.get(confirmed_range, f"past {confirmed_range}")
+
+    return (
+        False,
+        False,
+        next_business_day(latest_date),
+        max_forecast_date(latest_date),
+        False,
+        f"Risk : {confirmed_risk:.2f}% | Return : {confirmed_return:.2f}%",
+        f"{period_text}",
+        f"Last Updated: {latest_date}",
+        [
+            {
+                "label": "Akaike Information Criterion",
+                "value": "aic",
+                "disabled": False,
+            },
+            {
+                "label": "Bayesian Information Criterion",
+                "value": "bic",
+                "disabled": False,
+            },
+            {
+                "label": "LogLikelihood",
+                "value": "loglikelihood",
+                "disabled": False,
+            },
+        ],
+    )
 
 
 # Activate LSTM button after user inputs date and a valid budget
@@ -142,6 +199,7 @@ def activate_arima_garch_buttons(selected_date, selected_criterion_information):
 @callback(
     [
         Output("portfolio-simulator-main-content", "children"),
+        Output("simulated-forecasts", "data"),
     ],
     [
         Input("btn-portfolio-performance", "n_clicks"),
@@ -152,11 +210,12 @@ def activate_arima_garch_buttons(selected_date, selected_criterion_information):
         Input("model-selection-criterion", "value"),
     ],
     [
+        State("portfolio-confirmed", "data"),
         State("portfolio-store", "data"),
         State("dropdown-ticker-selection", "value"),
         State("confirmed-weights-store", "data"),
         State("budget-value", "data"),
-        State("portfolio-risk-return", "data"),
+        State("confirmed-portfolio-details", "data"),
         State("date-chooser-simulation", "date"),
         State("num-ensemble-slider", "value"),
     ],
@@ -169,6 +228,7 @@ def update_portfolio_simulator_main_plot(
     ____,
     _____,
     criterion_selector,
+    confirmed_portfolio,
     portfolio_store,
     selected_tickers,
     weights,
@@ -177,6 +237,9 @@ def update_portfolio_simulator_main_plot(
     forecast_until,
     num_ensembles,
 ):
+
+    if not confirmed_portfolio:
+        raise dash.exceptions.PreventUpdate
 
     button_id = ctx.triggered_id
 
@@ -282,6 +345,11 @@ def update_portfolio_simulator_main_plot(
                     ),
                 ],
             ),
+            {
+                "mean_returns": None,
+                "std_returns": None,
+                "forecast_date": None,
+            },
         )
 
     elif button_id == "btn-arima-performance":
@@ -325,6 +393,11 @@ def update_portfolio_simulator_main_plot(
                     ],
                 )
             ),
+            {
+                "mean_returns": float(mean_ensembles[-1]),
+                "std_returns": float(std_ensembles[-1]),
+                "forecast_date": str(forecast_index[-1].date()),
+            },
         )
 
     elif button_id == "btn-garch-performance":
@@ -369,6 +442,11 @@ def update_portfolio_simulator_main_plot(
                     ],
                 )
             ),
+            {
+                "mean_returns": float(mean_ensembles[-1]),
+                "std_returns": float(std_ensembles[-1]),
+                "forecast_date": str(forecast_index[-1].date()),
+            },
         )
 
     elif button_id == "btn-gbm-performance":
@@ -413,6 +491,11 @@ def update_portfolio_simulator_main_plot(
                     ],
                 )
             ),
+            {
+                "mean_returns": float(mean_ensembles[-1]),
+                "std_returns": float(std_ensembles[-1]),
+                "forecast_date": str(forecast_index[-1].date()),
+            },
         )
 
     elif button_id == "btn-lstm-performance":
@@ -456,9 +539,21 @@ def update_portfolio_simulator_main_plot(
                     ],
                 )
             ),
+            {
+                "mean_returns": float(mean_ensembles[-1]),
+                "std_returns": float(std_ensembles[-1]),
+                "forecast_date": str(forecast_index[-1].date()),
+            },
         )
 
-    return no_update
+    return (
+        no_update,
+        {
+            "mean_returns": float(mean_ensembles[-1]),
+            "std_returns": float(std_ensembles[-1]),
+            "forecast_date": str(forecast_index[-1].date()),
+        },
+    )
 
 
 # Highlight buttons based on time-range selected
@@ -522,7 +617,7 @@ def update_portfolio_range_styles(*btn_clicks):
         State("portfolio-store", "data"),
         State("dropdown-ticker-selection", "value"),
         State("confirmed-weights-store", "data"),
-        State("portfolio-risk-return", "data"),
+        State("confirmed-portfolio-details", "data"),
     ],
     prevent_initial_call=True,
 )
@@ -562,7 +657,7 @@ def update_plot_on_range_change(
     if active_tab == "portfolio-tab-plot":
         return (
             create_historic_plots(
-                full_name=f"Portfolio (Risk: {round(risk_return['risk'], 4)*100:.2f}%, Return: {round(risk_return['return'], 4)*100:.2f}%)",
+                full_name=f"Portfolio (Risk: {risk_return['risk']*100:.2f}% | Return: {risk_return['return']*100:.2f}%)",
                 dates=portfolio_value_ts.index,
                 daily_prices=portfolio_value_ts.values,
                 daily_log_returns=portfolio_log_returns,
@@ -581,3 +676,39 @@ def update_plot_on_range_change(
                 COLORS=COLORS,
             ),
         )
+
+
+# Show summary table for forecasts
+@callback(
+    Output("summary-forecast-simulator", "children"),
+    Input("simulated-forecasts", "data"),
+    [
+        State("portfolio-store", "data"),
+        State("dropdown-ticker-selection", "value"),
+        State("confirmed-weights-store", "data"),
+        State("budget-value", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def display_forecast_summary_table(
+    simulated_data, portfolio_store, selected_tickers, weights, budget
+):
+
+    if not simulated_data:
+        return no_update
+
+    ts_map, portfolio_value_ts = parse_ts_map(
+        selected_tickers=selected_tickers,
+        portfolio_weights=weights,
+        portfolio_store=portfolio_store,
+        budget=budget,
+    )
+
+    cov_matrix, _, _ = build_cov_matrix(ts_map)
+
+    return prediction_summary_table(
+        ts_map=ts_map,
+        budget=budget,
+        mean_portfolio=simulated_data["mean_returns"],
+        cov_matrix=cov_matrix,
+    )

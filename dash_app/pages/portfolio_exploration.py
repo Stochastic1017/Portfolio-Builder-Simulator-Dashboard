@@ -183,6 +183,13 @@ layout = html.Div(
                                         "overflow": "hidden",
                                         "textOverflow": "ellipsis",
                                     },
+                                    style_data_conditional=[
+                                        {
+                                            "if": {"state": "selected"},
+                                            "backgroundColor": "inherit !important",
+                                            "border": "inherit !important",
+                                        }
+                                    ],
                                     style_header={
                                         "backgroundColor": "#0E1117",
                                         "color": "white",

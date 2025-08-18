@@ -6,6 +6,7 @@ import dash
 import uuid
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 
 from io import StringIO
 from datetime import datetime
@@ -281,12 +282,11 @@ def populate_dropdown_options(data):
     ],
     [
         Input("btn-efficient-frontier", "n_clicks"),
-        Input("dropdown-ticker-selection", "value"),
     ],
     State("budget-value", "data"),
     prevent_initial_call=True,
 )
-def update_portfolio_builder_main_output(_, selected_tickers, budget_value):
+def update_portfolio_builder_main_output(_, budget_value):
 
     if budget_value is None:
         raise dash.exceptions.PreventUpdate
@@ -304,9 +304,7 @@ def update_portfolio_builder_main_output(_, selected_tickers, budget_value):
             unverified_toggle_button,
         )
 
-    if (
-        selected_tickers and len(selected_tickers) > 1
-    ) and ctx.triggered_id == "btn-efficient-frontier":
+    if ctx.triggered_id == "btn-efficient-frontier":
 
         return (
             html.Div(
@@ -324,13 +322,6 @@ def update_portfolio_builder_main_output(_, selected_tickers, budget_value):
                     ),
                     html.Div(
                         id="efficient-frontier-plot-container",
-                        children=[
-                            dcc.Graph(
-                                id="efficient-frontier-graph",
-                                figure={},
-                                style={"display": "none"},
-                            )
-                        ],
                         style={"flex": "1", "overflow": "hidden"},
                     ),
                 ],
@@ -427,6 +418,7 @@ def update_range_styles(*btn_clicks):
         Output("efficient-frontier-plot-container", "children"),
     ],
     [
+        Input("btn-efficient-frontier", "n_clicks"),
         Input("max-sharpe-button", "value"),
         Input("max-diversification-button", "value"),
         Input("min-variance-button", "value"),
@@ -440,6 +432,7 @@ def update_range_styles(*btn_clicks):
     prevent_initial_call=True,
 )
 def update_efficient_frontier_on_range_change(
+    _,
     max_sharpe_on,
     max_diversification_on,
     min_variance_on,
@@ -450,31 +443,28 @@ def update_efficient_frontier_on_range_change(
 ):
 
     if (not cache_data) or (not selected_tickers):
-        raise dash.exceptions.PreventUpdate
-
-    if len(selected_tickers) > 1:
-
-        filtered_data = [
-            entry
-            for entry in cache_data
-            if entry["ticker"] in [ticker for ticker in selected_tickers]
-        ]
-
-        optimization_dict = portfolio_optimization(filtered_data, selected_range)
-
+        default_plot = go.Figure()
+        default_plot.update_layout(
+            template="plotly_dark",
+            title="Efficient Frontier (Risk vs Return MPT Framework)",
+            title_font=dict(color=COLORS["primary"]),
+            plot_bgcolor=COLORS["background"],
+            paper_bgcolor=COLORS["background"],
+            font=dict(color=COLORS["text"]),
+            showlegend=False,
+            autosize=True,
+            height=None,
+        )
         return (
-            plot_efficient_frontier(
-                max_sharpe_on,
-                min_variance_on,
-                max_diversification_on,
-                equal_weights_on,
-                optimization_dict,
-                COLORS,
+            dcc.Graph(
+                id="efficient-frontier-graph",
+                figure=default_plot,
+                config={"responsive": True},
+                style={"height": "100%", "width": "100%"},
             ),
         )
 
-    else:
-
+    if len(selected_tickers) == 1:
         historical_df = pd.read_json(
             StringIO(cache_data[0]["historical_json"]), orient="records"
         )
@@ -503,16 +493,69 @@ def update_efficient_frontier_on_range_change(
             np.log(1 + filtered_df["close"].pct_change().dropna())
         )
 
+        mean_log_returns = daily_log_returns.mean()
+        std_log_returns = daily_log_returns.std()
+
         return (
             plot_single_ticker(
+                mean_log_returns,
+                std_log_returns,
                 max_sharpe_on,
                 min_variance_on,
                 max_diversification_on,
                 equal_weights_on,
-                daily_log_returns,
                 COLORS,
             ),
         )
+
+    filtered_data = [
+        entry
+        for entry in cache_data
+        if entry["ticker"] in [ticker for ticker in selected_tickers]
+    ]
+
+    optimization_dict = portfolio_optimization(filtered_data, selected_range)
+
+    return (
+        plot_efficient_frontier(
+            max_sharpe_on,
+            min_variance_on,
+            max_diversification_on,
+            equal_weights_on,
+            optimization_dict,
+            COLORS,
+        ),
+    )
+
+
+# Reset efficient frontier plot upon changing dropdown ticker selection or budget
+@callback(
+    [
+        Output("portfolio-builder-main-content", "children", allow_duplicate=True),
+        Output("max-sharpe-button", "disabled", allow_duplicate=True),
+        Output("toggle-max-sharpe", "style", allow_duplicate=True),
+        Output("max-diversification-button", "disabled", allow_duplicate=True),
+        Output("toggle-max-diversification", "style", allow_duplicate=True),
+        Output("min-variance-button", "disabled", allow_duplicate=True),
+        Output("toggle-min-variance", "style", allow_duplicate=True),
+        Output("equal-weights-button", "disabled", allow_duplicate=True),
+        Output("toggle-equal-weights", "style", allow_duplicate=True),
+    ],
+    Input("dropdown-ticker-selection", "value"),
+    prevent_initial_call=True,
+)
+def reset_on_ticker_change(_):
+    return (
+        None,
+        True,
+        unverified_toggle_button,
+        True,
+        unverified_toggle_button,
+        True,
+        unverified_toggle_button,
+        True,
+        unverified_toggle_button,
+    )
 
 
 # Summary table for chosen portfolio
@@ -539,7 +582,7 @@ def display_summary_table(
 ):
     if not clickData:
         raise dash.exceptions.PreventUpdate
-
+    
     # Map selected_range codes to readable text
     range_labels = {
         "1M": "past 1 month",
@@ -583,6 +626,7 @@ def display_summary_table(
     )
 
 
+# Reset summary table upon changing dropdown ticker selection or budget
 @callback(
     [
         Output("summary-table-container", "children", allow_duplicate=True),
@@ -609,6 +653,7 @@ def reset_summary_on_changes(_, __):
     )
 
 
+# Reset summary table on range
 @callback(
     [
         Output("summary-table-container", "children", allow_duplicate=True),
@@ -640,17 +685,19 @@ def reset_summary_on_range_change(_):
         Output("portfolio-builder-toast", "header", allow_duplicate=True),
         Output("portfolio-builder-toast", "icon", allow_duplicate=True),
         Output("portfolio-builder-toast", "style", allow_duplicate=True),
-        Output("portfolio-risk-return", "data"),
+        Output("confirmed-portfolio-details", "data"),
         Output("latest-date", "data"),
+        Output("portfolio-confirmed", "data")
     ],
     [Input("btn-confirm-portfolio", "n_clicks")],
     [
         State("portfolio-clicked-risk-return", "data"),
         State("portfolio-store", "data"),
+        State("efficient-frontier-selected-range", "data"),
     ],
     prevent_initial_call=True,
 )
-def confirm_portfolio(_, risk_return, cache_data):
+def confirm_portfolio(_, risk_return, cache_data, selected_range):
 
     latest_date_str = None
 
@@ -661,18 +708,18 @@ def confirm_portfolio(_, risk_return, cache_data):
             latest_date_str = datetime.fromtimestamp(latest_ts / 1000).strftime(
                 "%Y-%m-%d"
             )
-            break  # stop after first successful parse
+            break
         except Exception:
             continue
 
-    if not risk_return or "risk" not in risk_return or "return" not in risk_return:
+    if (not risk_return) or ("risk" not in risk_return) or ("return" not in risk_return):
         raise dash.exceptions.PreventUpdate
 
     return (
         True,
         "Portfolio confirmed! You're ready to simulate.",
         "Success",
-        "success",  # bootstrap icons style
+        "success",
         {
             "position": "fixed",
             "top": "70px",
@@ -689,24 +736,8 @@ def confirm_portfolio(_, risk_return, cache_data):
         {
             "risk": risk_return["risk"],
             "return": risk_return["return"],
+            "selected_range": selected_range
         },
         latest_date_str,
+        True
     )
-
-
-# Allow users to navigate to portfolio simulator page
-@callback(
-    [
-        Output("btn-portfolio-simulator", "disabled"),
-        Output("btn-portfolio-simulator", "style"),
-        Output("btn-portfolio-simulator", "className"),
-    ],
-    [Input("btn-confirm-portfolio", "n_clicks")],
-    prevent_initial_call=True,
-)
-def update_portfolio_analytics_button(n_clicks):
-
-    if n_clicks:
-        return False, verified_button_portfolio, "special"
-
-    return True, unverified_button_portfolio, ""

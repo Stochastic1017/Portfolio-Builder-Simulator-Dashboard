@@ -191,6 +191,21 @@ button.simple:hover {
     /* text color */
 }
 
+/* Base tab look */
+.tab {
+    transition: all 0.2s ease-in-out;
+}
+
+/* Hover effect */
+.tab:hover {
+    color: #FFD700 !important;
+    /* COLORS['primary'] */
+    border-bottom: 2px solid #FFF4B8 !important;
+    /* golden underline */
+    cursor: pointer;
+}
+
+
 /* In assets/styles.css */
 body {
     background: linear-gradient(-45deg, #2D2D2D, #1A1A1A, #2D2D2D, #1A1A1A);
@@ -201,9 +216,17 @@ body {
 }
 
 @keyframes gradientBG {
-    0% {background-position: 0% 50%;}
-    50% {background-position: 100% 50%;}
-    100% {background-position: 0% 50%;}
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
 }
 
 .zoomin {
@@ -217,15 +240,29 @@ body {
 }
 
 @keyframes typing {
-    from { width: 0 }
-    to { width: 100% }
+    from {
+        width: 0
+    }
+
+    to {
+        width: 100%
+    }
 }
 
 @keyframes blink-caret {
-    from, to { border-color: transparent }
-    50% { border-color: #ffffff }
+
+    from,
+    to {
+        border-color: transparent
+    }
+
+    50% {
+        border-color: #ffffff
+    }
 }
 
 @keyframes hide-caret {
-    to { border-color: transparent; }
+    to {
+        border-color: transparent;
+    }
 }
