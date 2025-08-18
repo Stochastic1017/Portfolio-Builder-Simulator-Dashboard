@@ -394,12 +394,11 @@ layout = html.Div(
         html.Div(
             id="summary-forecast-simulator",
             style={
-                "marginTop": "40px",
+                "marginTop": "20px",
                 "padding": "20px",
-                "backgroundColor": COLORS["card"],
+                "backgroundColor": COLORS["background"],
                 "borderRadius": "10px",
                 "boxShadow": "0 4px 12px rgba(0, 0, 0, 0.1)",
-                "maxWidth": "1200px",
                 "marginLeft": "auto",
                 "marginRight": "auto",
                 "justifyContent": "center",

@@ -417,186 +417,6 @@ def simulate_lstm_paths(
     )
 
 
-def simulation_plot(
-    model_used,
-    risk_return,
-    dates,
-    daily_prices,
-    log_returns,
-    simulations,
-    forecast_index,
-    mean_ensembles,
-    std_ensembles,
-    COLORS,
-):
-    last_price = daily_prices[-1]
-    _, num_ensembles = simulations.shape
-
-    # Convert cumulative returns to price paths
-    price_paths = np.zeros_like(simulations)
-    for i in range(num_ensembles):
-        cum_ret = np.cumsum(simulations[:, i])
-        price_paths[:, i] = last_price * np.exp(cum_ret)
-
-    mean_price_path = price_paths.mean(axis=1)
-    std_price_path = price_paths.std(axis=1)
-
-    lower_price_bound = mean_price_path - 1.96 * std_price_path
-    upper_price_bound = mean_price_path + 1.96 * std_price_path
-
-    fig = make_subplots(
-        rows=2,
-        cols=1,
-        subplot_titles=[
-            f"Simulated Prices ({model_used})",
-            f"Simulated Log Returns ({model_used})",
-        ],
-        shared_xaxes=True,
-        vertical_spacing=0.1,
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=dates,
-            y=daily_prices,
-            mode="lines",
-            name="Historical Price",
-            line=dict(color=COLORS["primary"]),
-        ),
-        row=1,
-        col=1,
-    )
-
-    for i in range(num_ensembles):
-        fig.add_trace(
-            go.Scatter(
-                x=[dates[-1]] + list(forecast_index),
-                y=[daily_prices[-1]] + list(price_paths[:, i]),
-                mode="lines",
-                line=dict(width=1, color="rgba(255,255,255,0.1)"),
-                showlegend=False,
-            ),
-            row=1,
-            col=1,
-        )
-
-    fig.add_trace(
-        go.Scatter(
-            x=[dates[-1]] + list(forecast_index),
-            y=[daily_prices[-1]] + list(mean_price_path),
-            mode="lines",
-            name="Mean Simulated Price",
-            line=dict(color="#ED3500", width=2),
-        ),
-        row=1,
-        col=1,
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=[dates[-1]]
-            + list(forecast_index)
-            + list(forecast_index[::-1])
-            + [dates[-1]],
-            y=[daily_prices[-1]]
-            + list(upper_price_bound)
-            + list(lower_price_bound[::-1])
-            + [daily_prices[-1]],
-            fill="toself",
-            fillcolor="rgba(255, 87, 34, 0.2)",
-            line=dict(color="rgba(255,255,255,0)"),
-            hoverinfo="skip",
-            showlegend=False,
-        ),
-        row=1,
-        col=1,
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=dates,
-            y=log_returns,
-            mode="lines",
-            name="Log Returns",
-            line=dict(color=COLORS["primary"]),
-        ),
-        row=2,
-        col=1,
-    )
-
-    for i in range(num_ensembles):
-        fig.add_trace(
-            go.Scatter(
-                x=[log_returns.index[-1]] + list(forecast_index),
-                y=[log_returns.iloc[-1]] + list(simulations[:, i]),
-                mode="lines",
-                line=dict(width=1, color="rgba(255,255,255,0.1)"),
-                showlegend=False,
-            ),
-            row=2,
-            col=1,
-        )
-
-    lower_return_bound = mean_ensembles - 1.96 * std_ensembles
-    upper_return_bound = mean_ensembles + 1.96 * std_ensembles
-
-    fig.add_trace(
-        go.Scatter(
-            x=[log_returns.index[-1]] + list(forecast_index),
-            y=[log_returns.iloc[-1]] + list(mean_ensembles),
-            mode="lines",
-            name="Mean Simulated Return",
-            line=dict(color="#ED3500", width=2),
-        ),
-        row=2,
-        col=1,
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=[log_returns.index[-1]]
-            + list(forecast_index)
-            + list(forecast_index[::-1])
-            + [log_returns.index[-1]],
-            y=[log_returns.iloc[-1]]
-            + list(upper_return_bound)
-            + list(lower_return_bound[::-1])
-            + [log_returns.iloc[-1]],
-            fill="toself",
-            fillcolor="rgba(255, 87, 34, 0.2)",
-            line=dict(color="rgba(255,255,255,0)"),
-            hoverinfo="skip",
-            showlegend=False,
-        ),
-        row=2,
-        col=1,
-    )
-
-    fig.update_layout(
-        template="plotly_dark",
-        title=f"{model_used} forecasts for Portfolio (Risk: {round(risk_return['risk'], 4)*100:.2f}%, Return: {round(risk_return['return'], 4)*100:.2f}%)",
-        paper_bgcolor=COLORS["background"],
-        plot_bgcolor=COLORS["background"],
-        font=dict(color=COLORS["text"]),
-        title_font=dict(color=COLORS["primary"]),
-        showlegend=False,
-        xaxis2=dict(
-            rangeslider=dict(visible=True),
-            type="date",
-            range=[dates[-1] - timedelta(days=30), forecast_index[-1]],
-        ),
-    )
-
-    fig.update_yaxes(tickformat=".2%", row=2, col=1)
-
-    return dcc.Graph(
-        id=f"{model_used}-simulation-plot",
-        figure=fig,
-        config={"responsive": True},
-        style={"height": "100%", "width": "100%"},
-    )
-
-
 def _build_features_from_series(series, lookback):
     """
     Build feature matrix for each time t using previous `lookback` raw lags,
@@ -786,77 +606,343 @@ def simulate_gbm_sde_paths(
     return simulations, forecast_index, mean_forecast, std_forecast
 
 
-def build_cov_matrix(ts_map):
+def simulation_plot(
+    model_used,
+    risk_return,
+    dates,
+    daily_prices,
+    log_returns,
+    simulations,
+    forecast_index,
+    mean_ensembles,
+    std_ensembles,
+    COLORS,
+):
+    last_price = daily_prices[-1]
+    _, num_ensembles = simulations.shape
 
-    returns_df = pd.DataFrame(
+    # Convert cumulative returns to price paths
+    price_paths = np.zeros_like(simulations)
+    for i in range(num_ensembles):
+        cum_ret = np.cumsum(simulations[:, i])
+        price_paths[:, i] = last_price * np.exp(cum_ret)
+
+    mean_price_path = price_paths.mean(axis=1)
+    std_price_path = price_paths.std(axis=1)
+
+    lower_price_bound = mean_price_path - 1.96 * std_price_path
+    upper_price_bound = mean_price_path + 1.96 * std_price_path
+
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        subplot_titles=[
+            f"Simulated Prices ({model_used})",
+            f"Simulated Log Returns ({model_used})",
+        ],
+        shared_xaxes=True,
+        vertical_spacing=0.1,
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=daily_prices,
+            mode="lines",
+            name="Historical Price",
+            line=dict(color=COLORS["primary"]),
+        ),
+        row=1,
+        col=1,
+    )
+
+    for i in range(num_ensembles):
+        fig.add_trace(
+            go.Scatter(
+                x=[dates[-1]] + list(forecast_index),
+                y=[daily_prices[-1]] + list(price_paths[:, i]),
+                mode="lines",
+                line=dict(width=1, color="rgba(255,255,255,0.1)"),
+                showlegend=False,
+            ),
+            row=1,
+            col=1,
+        )
+
+    fig.add_trace(
+        go.Scatter(
+            x=[dates[-1]] + list(forecast_index),
+            y=[daily_prices[-1]] + list(mean_price_path),
+            mode="lines",
+            name="Mean Simulated Price",
+            line=dict(color="#ED3500", width=2),
+        ),
+        row=1,
+        col=1,
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=[dates[-1]]
+            + list(forecast_index)
+            + list(forecast_index[::-1])
+            + [dates[-1]],
+            y=[daily_prices[-1]]
+            + list(upper_price_bound)
+            + list(lower_price_bound[::-1])
+            + [daily_prices[-1]],
+            fill="toself",
+            fillcolor="rgba(255, 87, 34, 0.2)",
+            line=dict(color="rgba(255,255,255,0)"),
+            hoverinfo="skip",
+            showlegend=False,
+        ),
+        row=1,
+        col=1,
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=log_returns,
+            mode="lines",
+            name="Log Returns",
+            line=dict(color=COLORS["primary"]),
+        ),
+        row=2,
+        col=1,
+    )
+
+    for i in range(num_ensembles):
+        fig.add_trace(
+            go.Scatter(
+                x=[log_returns.index[-1]] + list(forecast_index),
+                y=[log_returns.iloc[-1]] + list(simulations[:, i]),
+                mode="lines",
+                line=dict(width=1, color="rgba(255,255,255,0.1)"),
+                showlegend=False,
+            ),
+            row=2,
+            col=1,
+        )
+
+    lower_return_bound = mean_ensembles - 1.96 * std_ensembles
+    upper_return_bound = mean_ensembles + 1.96 * std_ensembles
+
+    fig.add_trace(
+        go.Scatter(
+            x=[log_returns.index[-1]] + list(forecast_index),
+            y=[log_returns.iloc[-1]] + list(mean_ensembles),
+            mode="lines",
+            name="Mean Simulated Return",
+            line=dict(color="#ED3500", width=2),
+        ),
+        row=2,
+        col=1,
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=[log_returns.index[-1]]
+            + list(forecast_index)
+            + list(forecast_index[::-1])
+            + [log_returns.index[-1]],
+            y=[log_returns.iloc[-1]]
+            + list(upper_return_bound)
+            + list(lower_return_bound[::-1])
+            + [log_returns.iloc[-1]],
+            fill="toself",
+            fillcolor="rgba(255, 87, 34, 0.2)",
+            line=dict(color="rgba(255,255,255,0)"),
+            hoverinfo="skip",
+            showlegend=False,
+        ),
+        row=2,
+        col=1,
+    )
+
+    fig.update_layout(
+        template="plotly_dark",
+        title=f"{model_used} forecasts for Portfolio (Risk: {round(risk_return['risk'], 4)*100:.2f}%, Return: {round(risk_return['return'], 4)*100:.2f}%)",
+        paper_bgcolor=COLORS["background"],
+        plot_bgcolor=COLORS["background"],
+        font=dict(color=COLORS["text"]),
+        title_font=dict(color=COLORS["primary"]),
+        showlegend=False,
+        xaxis2=dict(
+            rangeslider=dict(visible=True),
+            type="date",
+            range=[dates[-1] - timedelta(days=30), forecast_index[-1]],
+        ),
+    )
+
+    fig.update_yaxes(tickformat=".2%", row=2, col=1)
+
+    return (
+        dcc.Graph(
+            id=f"{model_used}-simulation-plot",
+            figure=fig,
+            config={"responsive": True},
+            style={"height": "100%", "width": "100%"},
+        ),
         {
-            ticker: np.log(data["price"] / data["price"].shift(1))
-            for ticker, data in ts_map.items()
-        }
-    ).dropna()
-
-    # Ensure numeric dtype
-    returns_df = returns_df.astype(float)
-
-    # Covariance matrix as DataFrame (so tickers are aligned)
-    cov_df = returns_df.cov()
-
-    return cov_df, returns_df, list(returns_df.columns)
+            "mean_price": mean_price_path[-1],
+            "lower_price": lower_price_bound[-1],
+            "upper_price": upper_price_bound[-1],
+            "mean_return": mean_ensembles[-1],
+            "lower_return": lower_return_bound[-1],
+            "upper_return": upper_return_bound[-1],
+        },
+    )
 
 
-def prediction_summary_table(ts_map, budget, mean_portfolio, cov_matrix):
+def prediction_summary_table(
+    ts_map,
+    budget,
+    portfolio_value_ts,
+    simulation_data,
+    chosen_tab,
+    COLORS,
+):
     tickers = list(ts_map.keys())
     weights = np.array([ts_map[t]["weight"] for t in tickers], dtype=float).reshape(-1)
 
-    print("weights.shape", weights.shape, "cov_matrix.shape", cov_matrix.shape)
-
-    # Portfolio volatility from covariance matrix
-    port_var = weights.T @ cov_matrix @ weights
-    port_std = np.sqrt(port_var)
-
-    # Marginal risk contributions (vector)
-    mrc = (cov_matrix @ weights) / port_std
-
-    # Risk contributions per asset
-    rc = weights * mrc  # sums to portfolio std
+    def format_delta(value, base, as_pct=False):
+        if as_pct:
+            # Convert to percentage values
+            value_pct = value * 100
+            change_abs = (value - base) * 100
+            arrow = "↑" if change_abs > 0 else "↓" if change_abs < 0 else "→"
+            return f"{value_pct:.2f}% ({change_abs:+.2f}%) {arrow}"
+        else:
+            # Prices (absolute values)
+            change_abs = value - base
+            arrow = "↑" if change_abs > 0 else "↓" if change_abs < 0 else "→"
+            return f"{value:.2f} ({change_abs:+.2f}) {arrow}"
 
     rows = []
+    last_port_val = portfolio_value_ts.iloc[-1]
+
+    # --- Per ticker rows ---
     for i, ticker in enumerate(tickers):
         alloc = weights[i] * budget
-        mu_i = weights[i] * mean_portfolio  # scaled forecast
-        sigma_i = rc[i]  # risk contribution from covariance
-        rows.append(
-            {
-                "Ticker": ticker,
-                "Budget Allocated ($)": round(alloc, 2),
-                "Weight (%)": round(weights[i] * 100, 2),
-                "Mean Forecast": round(mu_i, 4),
-                "95% Confidence Lower Bound": round(mu_i - 1.96 * sigma_i, 4),
-                "95% Confidence Upper Bound": round(mu_i + 1.96 * sigma_i, 4),
-                "Risk Contribution": round(sigma_i, 4),
-            }
-        )
+        last_price = ts_map[ticker]["price"].iloc[-1]
 
-    # Define table
-    table = dash_table.DataTable(
+        if chosen_tab == "price-summary-simulation":
+            # Scale portfolio returns by weight
+            mu_i = weights[i] * simulation_data["mean_return"]
+            lower_i = weights[i] * simulation_data["lower_return"]
+            upper_i = weights[i] * simulation_data["upper_return"]
+
+            mean_price = last_price * np.exp(mu_i)
+            lower_price = last_price * np.exp(lower_i)
+            upper_price = last_price * np.exp(upper_i)
+
+            row = {
+                "Ticker": ticker,
+                "Amount Invested ($)": round(alloc, 2),
+                "Weight (%)": round(weights[i] * 100, 2),
+                "Last Price": round(last_price, 2),
+                "Forecast (Mean)": format_delta(mean_price, last_price),
+                "95% Lower Bound": format_delta(lower_price, last_price),
+                "95% Upper Bound": format_delta(upper_price, last_price),
+            }
+
+        else:  # returns-summary-simulation
+            mu_i = weights[i] * simulation_data["mean_return"]
+            lower_i = weights[i] * simulation_data["lower_return"]
+            upper_i = weights[i] * simulation_data["upper_return"]
+
+            row = {
+                "Ticker": ticker,
+                "Amount Invested ($)": round(alloc, 2),
+                "Weight (%)": round(weights[i] * 100, 2),
+                "Last Price": round(last_price, 2),
+                "Forecast (Mean)": format_delta(mu_i, 0.0, as_pct=True),
+                "95% Lower Bound": format_delta(lower_i, 0.0, as_pct=True),
+                "95% Upper Bound": format_delta(upper_i, 0.0, as_pct=True),
+            }
+
+        rows.append(row)
+
+    # --- Portfolio row ---
+    if chosen_tab == "price-summary-simulation":
+        mean_text = format_delta(simulation_data["mean_price"], last_port_val)
+        lower_text = format_delta(simulation_data["lower_price"], last_port_val)
+        upper_text = format_delta(simulation_data["upper_price"], last_port_val)
+    else:
+        mean_text = format_delta(simulation_data["mean_return"], 0.0, as_pct=True)
+        lower_text = format_delta(simulation_data["lower_return"], 0.0, as_pct=True)
+        upper_text = format_delta(simulation_data["upper_return"], 0.0, as_pct=True)
+
+    rows.append(
+        {
+            "Ticker": "PORTFOLIO",
+            "Amount Invested ($)": round(budget, 2),
+            "Weight (%)": 100.0,
+            "Last Price": round(last_port_val, 2),
+            "Forecast (Mean)": mean_text,
+            "95% Lower Bound": lower_text,
+            "95% Upper Bound": upper_text,
+        }
+    )
+
+    # --- DataTable ---
+    return dash_table.DataTable(
         columns=[{"name": col, "id": col} for col in rows[0].keys()],
         data=rows,
-        style_table={"overflowX": "auto"},
-        style_header={
-            "backgroundColor": "#1f2630",
-            "color": "white",
-            "fontWeight": "bold",
-            "textAlign": "center",
-        },
+        style_table={"maxHeight": "500px", "overflowY": "auto", "overflowX": "auto"},
         style_cell={
-            "backgroundColor": "#22252b",
-            "color": "white",
+            "padding": "6px 10px",
+            "backgroundColor": COLORS["background"],
+            "color": COLORS["text"],
+            "border": "1px solid #444",
             "textAlign": "center",
-            "padding": "6px",
-            "fontFamily": "Inter, sans-serif",
+            "fontSize": "13px",
+            "whiteSpace": "normal",
+            "height": "auto",
+            "minWidth": "90px",
+            "maxWidth": "160px",
+        },
+        style_header={
+            "backgroundColor": COLORS["card"],
+            "color": COLORS["primary"],
+            "fontWeight": "bold",
+            "fontSize": "13px",
+            "textAlign": "center",
         },
         style_data_conditional=[
-            {"if": {"row_index": "odd"}, "backgroundColor": "#2a2d36"}
+            *[
+                {
+                    "if": {"column_id": col, "filter_query": f"{{{col}}} contains '↑'"},
+                    "color": "limegreen",
+                    "fontWeight": "bold",
+                }
+                for col in ["Forecast (Mean)", "95% Lower Bound", "95% Upper Bound"]
+            ],
+            *[
+                {
+                    "if": {"column_id": col, "filter_query": f"{{{col}}} contains '↓'"},
+                    "color": "red",
+                    "fontWeight": "bold",
+                }
+                for col in ["Forecast (Mean)", "95% Lower Bound", "95% Upper Bound"]
+            ],
+            *[
+                {
+                    "if": {"column_id": col, "filter_query": f"{{{col}}} contains '→'"},
+                    "color": "gray",
+                    "fontWeight": "bold",
+                }
+                for col in ["Forecast (Mean)", "95% Lower Bound", "95% Upper Bound"]
+            ],
+            {
+                "if": {"filter_query": "{Ticker} = 'PORTFOLIO'"},
+                "backgroundColor": "yellow",
+                "color": "black",
+                "fontWeight": "bold",
+            },
         ],
+        fixed_rows={"headers": True},
+        sort_action="native",
     )
-    return table

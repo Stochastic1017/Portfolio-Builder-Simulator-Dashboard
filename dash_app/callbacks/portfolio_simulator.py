@@ -21,7 +21,6 @@ from helpers.portfolio_simulator import (
     train_gbm_sde_model,
     simulate_gbm_sde_paths,
     simulation_plot,
-    build_cov_matrix,
     prediction_summary_table,
 )
 
@@ -196,18 +195,13 @@ def activate_arima_garch_buttons(selected_date, selected_criterion_information):
         )
 
 
+# Show historical performance of portfolio
 @callback(
     [
         Output("portfolio-simulator-main-content", "children"),
-        Output("simulated-forecasts", "data"),
     ],
     [
         Input("btn-portfolio-performance", "n_clicks"),
-        Input("btn-arima-performance", "n_clicks"),
-        Input("btn-garch-performance", "n_clicks"),
-        Input("btn-lstm-performance", "n_clicks"),
-        Input("btn-gbm-performance", "n_clicks"),
-        Input("model-selection-criterion", "value"),
     ],
     [
         State("portfolio-confirmed", "data"),
@@ -215,33 +209,20 @@ def activate_arima_garch_buttons(selected_date, selected_criterion_information):
         State("dropdown-ticker-selection", "value"),
         State("confirmed-weights-store", "data"),
         State("budget-value", "data"),
-        State("confirmed-portfolio-details", "data"),
-        State("date-chooser-simulation", "date"),
-        State("num-ensemble-slider", "value"),
     ],
     prevent_initial_call=True,
 )
-def update_portfolio_simulator_main_plot(
+def Show_portfolio_performance(
     _,
-    __,
-    ___,
-    ____,
-    _____,
-    criterion_selector,
     confirmed_portfolio,
     portfolio_store,
     selected_tickers,
     weights,
     budget,
-    risk_return,
-    forecast_until,
-    num_ensembles,
 ):
 
     if not confirmed_portfolio:
         raise dash.exceptions.PreventUpdate
-
-    button_id = ctx.triggered_id
 
     _, portfolio_value_ts = parse_ts_map(
         selected_tickers=selected_tickers,
@@ -250,11 +231,7 @@ def update_portfolio_simulator_main_plot(
         budget=budget,
     )
 
-    log_returns = (
-        np.log(portfolio_value_ts / portfolio_value_ts.shift(1)).shift(-1).dropna()
-    )
-
-    if button_id == "btn-portfolio-performance":
+    if ctx.triggered_id == "btn-portfolio-performance":
         return (
             html.Div(
                 id="simulator-main-panel",
@@ -345,14 +322,66 @@ def update_portfolio_simulator_main_plot(
                     ),
                 ],
             ),
-            {
-                "mean_returns": None,
-                "std_returns": None,
-                "forecast_date": None,
-            },
         )
 
-    elif button_id == "btn-arima-performance":
+
+@callback(
+    [
+        Output("portfolio-simulator-main-content", "children", allow_duplicate=True),
+        Output("simulated-forecasts", "data"),
+    ],
+    [
+        Input("btn-arima-performance", "n_clicks"),
+        Input("btn-garch-performance", "n_clicks"),
+        Input("btn-lstm-performance", "n_clicks"),
+        Input("btn-gbm-performance", "n_clicks"),
+    ],
+    [
+        State("model-selection-criterion", "value"),
+        State("portfolio-confirmed", "data"),
+        State("portfolio-store", "data"),
+        State("dropdown-ticker-selection", "value"),
+        State("confirmed-weights-store", "data"),
+        State("budget-value", "data"),
+        State("confirmed-portfolio-details", "data"),
+        State("date-chooser-simulation", "date"),
+        State("num-ensemble-slider", "value"),
+    ],
+    prevent_initial_call=True,
+)
+def update_portfolio_simulator_main_plot(
+    _,
+    __,
+    ___,
+    ____,
+    criterion_selector,
+    confirmed_portfolio,
+    portfolio_store,
+    selected_tickers,
+    weights,
+    budget,
+    risk_return,
+    forecast_until,
+    num_ensembles,
+):
+
+    if not confirmed_portfolio:
+        raise dash.exceptions.PreventUpdate
+
+    button_id = ctx.triggered_id
+
+    _, portfolio_value_ts = parse_ts_map(
+        selected_tickers=selected_tickers,
+        portfolio_weights=weights,
+        portfolio_store=portfolio_store,
+        budget=budget,
+    )
+
+    log_returns = (
+        np.log(portfolio_value_ts / portfolio_value_ts.shift(1)).shift(-1).dropna()
+    )
+
+    if button_id == "btn-arima-performance":
         arima_model = grid_search_arima_model(log_returns, criterion=criterion_selector)
 
         simulations, forecast_index, mean_ensembles, std_ensembles = (
@@ -364,7 +393,18 @@ def update_portfolio_simulator_main_plot(
                 inferred_freq="B",
             )
         )
-
+        arima_plot, simulation_data = simulation_plot(
+            model_used="ARIMA",
+            risk_return=risk_return,
+            dates=portfolio_value_ts.index,
+            daily_prices=portfolio_value_ts.values,
+            log_returns=log_returns,
+            simulations=simulations,
+            forecast_index=forecast_index,
+            mean_ensembles=mean_ensembles,
+            std_ensembles=std_ensembles,
+            COLORS=COLORS,
+        )
         return (
             (
                 html.Div(
@@ -377,27 +417,10 @@ def update_portfolio_simulator_main_plot(
                         "height": "100%",
                         "width": "100%",
                     },
-                    children=[
-                        simulation_plot(
-                            model_used="ARIMA",
-                            risk_return=risk_return,
-                            dates=portfolio_value_ts.index,
-                            daily_prices=portfolio_value_ts.values,
-                            log_returns=log_returns,
-                            simulations=simulations,
-                            forecast_index=forecast_index,
-                            mean_ensembles=mean_ensembles,
-                            std_ensembles=std_ensembles,
-                            COLORS=COLORS,
-                        )
-                    ],
+                    children=[arima_plot],
                 )
             ),
-            {
-                "mean_returns": float(mean_ensembles[-1]),
-                "std_returns": float(std_ensembles[-1]),
-                "forecast_date": str(forecast_index[-1].date()),
-            },
+            simulation_data,
         )
 
     elif button_id == "btn-garch-performance":
@@ -406,12 +429,26 @@ def update_portfolio_simulator_main_plot(
             log_returns, criterion=criterion_selector
         )
 
-        simulations, forecast_index, mean_returns, std_returns = simulate_garch_paths(
-            model_result=garch_model["model"],
-            last_date=portfolio_value_ts.index[-1],
-            forecast_until=forecast_until,
-            num_ensembles=num_ensembles,
-            inferred_freq="B",
+        simulations, forecast_index, mean_ensembles, std_ensembles = (
+            simulate_garch_paths(
+                model_result=garch_model["model"],
+                last_date=portfolio_value_ts.index[-1],
+                forecast_until=forecast_until,
+                num_ensembles=num_ensembles,
+                inferred_freq="B",
+            )
+        )
+        garch_plot, simulation_data = simulation_plot(
+            model_used="GARCH",
+            risk_return=risk_return,
+            dates=portfolio_value_ts.index,
+            daily_prices=portfolio_value_ts.values,
+            log_returns=log_returns,
+            simulations=simulations,
+            forecast_index=forecast_index,
+            mean_ensembles=mean_ensembles,
+            std_ensembles=std_ensembles,
+            COLORS=COLORS,
         )
 
         return (
@@ -426,41 +463,38 @@ def update_portfolio_simulator_main_plot(
                         "height": "100%",
                         "width": "100%",
                     },
-                    children=[
-                        simulation_plot(
-                            model_used="GARCH",
-                            risk_return=risk_return,
-                            dates=portfolio_value_ts.index,
-                            daily_prices=portfolio_value_ts.values,
-                            log_returns=log_returns,
-                            simulations=simulations,
-                            forecast_index=forecast_index,
-                            mean_ensembles=mean_returns,
-                            std_ensembles=std_returns,
-                            COLORS=COLORS,
-                        )
-                    ],
+                    children=[garch_plot],
                 )
             ),
-            {
-                "mean_returns": float(mean_ensembles[-1]),
-                "std_returns": float(std_ensembles[-1]),
-                "forecast_date": str(forecast_index[-1].date()),
-            },
+            simulation_data,
         )
 
     elif button_id == "btn-gbm-performance":
 
         gbm_model = train_gbm_sde_model(log_returns, lookback=10)
 
-        simulations, forecast_index, mean_returns, std_returns = simulate_gbm_sde_paths(
-            model_result=gbm_model,
-            last_value=log_returns.iloc[-1],
-            last_date=portfolio_value_ts.index[-1],
-            forecast_until=forecast_until,
-            num_ensembles=num_ensembles,
-            historical_returns=log_returns,
-            inferred_freq="B",
+        simulations, forecast_index, mean_ensembles, std_ensembles = (
+            simulate_gbm_sde_paths(
+                model_result=gbm_model,
+                last_value=log_returns.iloc[-1],
+                last_date=portfolio_value_ts.index[-1],
+                forecast_until=forecast_until,
+                num_ensembles=num_ensembles,
+                historical_returns=log_returns,
+                inferred_freq="B",
+            )
+        )
+        gbm_plot, simulation_data = simulation_plot(
+            model_used="GBM",
+            risk_return=risk_return,
+            dates=portfolio_value_ts.index,
+            daily_prices=portfolio_value_ts.values,
+            log_returns=log_returns,
+            simulations=simulations,
+            forecast_index=forecast_index,
+            mean_ensembles=mean_ensembles,
+            std_ensembles=std_ensembles,
+            COLORS=COLORS,
         )
 
         return (
@@ -475,40 +509,37 @@ def update_portfolio_simulator_main_plot(
                         "height": "100%",
                         "width": "100%",
                     },
-                    children=[
-                        simulation_plot(
-                            model_used="GBM",
-                            risk_return=risk_return,
-                            dates=portfolio_value_ts.index,
-                            daily_prices=portfolio_value_ts.values,
-                            log_returns=log_returns,
-                            simulations=simulations,
-                            forecast_index=forecast_index,
-                            mean_ensembles=mean_returns,
-                            std_ensembles=std_returns,
-                            COLORS=COLORS,
-                        )
-                    ],
+                    children=[gbm_plot],
                 )
             ),
-            {
-                "mean_returns": float(mean_ensembles[-1]),
-                "std_returns": float(std_ensembles[-1]),
-                "forecast_date": str(forecast_index[-1].date()),
-            },
+            simulation_data,
         )
 
     elif button_id == "btn-lstm-performance":
 
         lstm_model = train_lstm_model(log_returns)
 
-        simulations, forecast_index, mean_returns, std_returns = simulate_lstm_paths(
-            model_result=lstm_model,
-            last_date=portfolio_value_ts.index[-1],
-            forecast_until=forecast_until,
-            num_ensembles=num_ensembles,
-            historical_returns=log_returns,
-            inferred_freq="B",
+        simulations, forecast_index, mean_ensembles, std_ensembles = (
+            simulate_lstm_paths(
+                model_result=lstm_model,
+                last_date=portfolio_value_ts.index[-1],
+                forecast_until=forecast_until,
+                num_ensembles=num_ensembles,
+                historical_returns=log_returns,
+                inferred_freq="B",
+            )
+        )
+        lstm_plot, simulation_data = simulation_plot(
+            model_used="LSTM",
+            risk_return=risk_return,
+            dates=portfolio_value_ts.index,
+            daily_prices=portfolio_value_ts.values,
+            log_returns=log_returns,
+            simulations=simulations,
+            forecast_index=forecast_index,
+            mean_ensembles=mean_ensembles,
+            std_ensembles=std_ensembles,
+            COLORS=COLORS,
         )
 
         return (
@@ -523,27 +554,10 @@ def update_portfolio_simulator_main_plot(
                         "height": "100%",
                         "width": "100%",
                     },
-                    children=[
-                        simulation_plot(
-                            model_used="LSTM",
-                            risk_return=risk_return,
-                            dates=portfolio_value_ts.index,
-                            daily_prices=portfolio_value_ts.values,
-                            log_returns=log_returns,
-                            simulations=simulations,
-                            forecast_index=forecast_index,
-                            mean_ensembles=mean_returns,
-                            std_ensembles=std_returns,
-                            COLORS=COLORS,
-                        )
-                    ],
+                    children=[lstm_plot],
                 )
             ),
-            {
-                "mean_returns": float(mean_ensembles[-1]),
-                "std_returns": float(std_ensembles[-1]),
-                "forecast_date": str(forecast_index[-1].date()),
-            },
+            simulation_data,
         )
 
     return (
@@ -691,10 +705,10 @@ def update_plot_on_range_change(
     prevent_initial_call=True,
 )
 def display_forecast_summary_table(
-    simulated_data, portfolio_store, selected_tickers, weights, budget
+    simulation_data, portfolio_store, selected_tickers, weights, budget
 ):
 
-    if not simulated_data:
+    if not simulation_data:
         return no_update
 
     ts_map, portfolio_value_ts = parse_ts_map(
@@ -704,11 +718,98 @@ def display_forecast_summary_table(
         budget=budget,
     )
 
-    cov_matrix, _, _ = build_cov_matrix(ts_map)
-
-    return prediction_summary_table(
-        ts_map=ts_map,
-        budget=budget,
-        mean_portfolio=simulated_data["mean_returns"],
-        cov_matrix=cov_matrix,
+    return (
+        html.Div(
+            style={
+                "display": "flex",
+                "flexDirection": "column",
+                "minHeight": 0,
+                "height": "100%",
+                "width": "100%",
+                "overflow": "hidden",
+            },
+            children=[
+                dcc.Tabs(
+                    id="simulation-summary-tabs",
+                    value="price-summary-simulation",
+                    style={
+                        "backgroundColor": COLORS["background"],
+                        "color": COLORS["text"],
+                        "borderRadius": "5px",
+                        "overflow": "hidden",
+                    },
+                    colors={
+                        "border": COLORS["background"],
+                        "primary": COLORS["primary"],
+                        "background": COLORS["card"],
+                    },
+                    children=[
+                        dcc.Tab(
+                            label="Price Summary Simulation",
+                            value="price-summary-simulation",
+                            style={
+                                "backgroundColor": COLORS["background"],
+                                "color": COLORS["text"],
+                                "padding": "6px 18px",
+                                "fontSize": "14px",
+                                "fontWeight": "bold",
+                                "border": "none",
+                                "borderBottom": f"2px solid transparent",
+                            },
+                            selected_style={
+                                "backgroundColor": COLORS["background"],
+                                "color": COLORS["primary"],
+                                "padding": "6px 18px",
+                                "fontSize": "14px",
+                                "fontWeight": "bold",
+                                "border": "none",
+                                "borderBottom": f"2px solid {COLORS['primary']}",
+                            },
+                            children=[
+                                prediction_summary_table(
+                                    ts_map=ts_map,
+                                    budget=budget,
+                                    portfolio_value_ts=portfolio_value_ts,
+                                    simulation_data=simulation_data,
+                                    chosen_tab="price-summary-simulation",
+                                    COLORS=COLORS,
+                                )
+                            ],
+                        ),
+                        dcc.Tab(
+                            label="Returns Summary Simulation",
+                            value="returns-summary-simulation",
+                            style={
+                                "backgroundColor": COLORS["background"],
+                                "color": COLORS["text"],
+                                "padding": "6px 18px",
+                                "fontWeight": "bold",
+                                "fontSize": "14px",
+                                "border": "none",
+                                "borderBottom": f"2px solid transparent",
+                            },
+                            selected_style={
+                                "backgroundColor": COLORS["background"],
+                                "color": COLORS["primary"],
+                                "padding": "6px 18px",
+                                "fontWeight": "bold",
+                                "fontSize": "14px",
+                                "border": "none",
+                                "borderBottom": f"2px solid {COLORS['primary']}",
+                            },
+                            children=[
+                                prediction_summary_table(
+                                    ts_map=ts_map,
+                                    budget=budget,
+                                    portfolio_value_ts=portfolio_value_ts,
+                                    simulation_data=simulation_data,
+                                    chosen_tab="returns-summary-simulation",
+                                    COLORS=COLORS,
+                                )
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )

@@ -74,26 +74,20 @@ def summary_table(cache_data, COLORS, budget, weights=None):
 
     table_data = []
     for i, entry in enumerate(cache_data):
-        # Load historical data
         hist_df = pd.read_json(StringIO(entry["historical_json"]), orient="records")
         hist_df["date"] = pd.to_datetime(hist_df["date"])
 
-        first_price = hist_df["close"].iloc[1]
+        first_price = hist_df["close"].iloc[0]
         last_price = hist_df["close"].iloc[-1] if len(hist_df) > 1 else first_price
 
         weight_pct = weights[i] if weights else 0
         amount_invested = budget * weight_pct
 
-        # Shares owned
         shares_owned = amount_invested / first_price if first_price else 0
-
-        # Per share % change
         pct_change = (
             ((last_price - first_price) / first_price) * 100 if first_price else 0
         )
         portfolio_pct_change = pct_change * weight_pct
-
-        # Total portfolio value change for this stock
         price_change_total = (last_price - first_price) * shares_owned
 
         table_data.append(
@@ -158,38 +152,37 @@ def summary_table(cache_data, COLORS, budget, weights=None):
         data=table_data,
         columns=columns,
         style_table={
-            "maxHeight": "400px",
+            "maxHeight": "500px",
             "overflowY": "auto",
+            "overflowX": "auto",
             "border": "1px solid #444",
         },
         style_cell={
-            "padding": "10px",
+            "padding": "8px 10px",
             "backgroundColor": COLORS["background"],
             "color": COLORS["text"],
             "border": "1px solid #555",
-            "textAlign": "left",
-            "minWidth": "100px",
-            "maxWidth": "200px",
-            "whiteSpace": "normal",
+            "textAlign": "center",
+            "fontSize": "13px",
+            "whiteSpace": "normal",  # wrap text across multiple lines
+            "height": "auto",  # row height grows with text
+            "minWidth": "90px",  # keep columns wide enough for readability
         },
         style_header={
             "backgroundColor": COLORS["card"],
             "color": COLORS["primary"],
             "fontWeight": "bold",
+            "textAlign": "center",
+            "whiteSpace": "normal",  # header text also wraps
         },
         style_data_conditional=[
-            {
-                "if": {"state": "selected"},
-                "backgroundColor": "inherit !important",
-                "border": "inherit !important",
-            },
-            # Percentage Change coloring
             {
                 "if": {
                     "filter_query": "{(%) Change} > 0.01",
                     "column_id": "(%) Change",
                 },
-                "color": "green",
+                "color": "limegreen",
+                "fontWeight": "bold",
             },
             {
                 "if": {
@@ -197,21 +190,22 @@ def summary_table(cache_data, COLORS, budget, weights=None):
                     "column_id": "(%) Change",
                 },
                 "color": "red",
+                "fontWeight": "bold",
             },
             {
                 "if": {
                     "filter_query": "{(%) Change} >= -0.01 && {(%) Change} <= 0.01",
                     "column_id": "(%) Change",
                 },
-                "color": "grey",
+                "color": "gray",
             },
-            # Price Change coloring
             {
                 "if": {
                     "filter_query": "{Price Change} > 0.01",
                     "column_id": "Price Change",
                 },
-                "color": "green",
+                "color": "limegreen",
+                "fontWeight": "bold",
             },
             {
                 "if": {
@@ -219,17 +213,17 @@ def summary_table(cache_data, COLORS, budget, weights=None):
                     "column_id": "Price Change",
                 },
                 "color": "red",
+                "fontWeight": "bold",
             },
             {
                 "if": {
                     "filter_query": "{Price Change} >= -0.01 && {Price Change} <= 0.01",
                     "column_id": "Price Change",
                 },
-                "color": "grey",
+                "color": "gray",
             },
         ],
         fixed_rows={"headers": True},
-        row_deletable=False,
         sort_action="native",
     )
 

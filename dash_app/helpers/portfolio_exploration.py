@@ -600,8 +600,8 @@ def create_historic_plots(
                 text=change_text,
                 xref="paper",
                 yref="paper",
-                x=1,  # right aligned
-                y=1.15,  # just above the title
+                x=1,  
+                y=1.15,  
                 showarrow=False,
                 font=dict(color=change_color, size=16, family="Arial Black"),
                 xanchor="right",
