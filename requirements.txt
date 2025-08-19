@@ -11,3 +11,4 @@ tensorflow
 statsmodels
 scikit-learn
 scipy
+gunicorn
