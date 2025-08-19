@@ -18,8 +18,8 @@ layout = dbc.Container(
         html.Div(
             [
                 html.H1(
-                    "Welcome to My App!",
-                    className="animate__animated animate__fadeInDown typewriter",
+                    "Welcome to My Portfolio Builder and Simulator Application!",
+                    className="animate__animated animate__bounceInDown",
                     style={
                         "textAlign": "center",
                         "marginTop": "15%",
@@ -71,7 +71,7 @@ layout = dbc.Container(
                         "display": "flex",
                         "justifyContent": "center",
                         "alignItems": "center",
-                        "marginTop": "2rem",
+                        "marginTop": "3rem",
                     },
                     children=[
                         # Go to portfolio builder page
@@ -80,8 +80,11 @@ layout = dbc.Container(
                                 "Continue",
                                 id="btn-continue",
                                 n_clicks=0,
-                                style=verified_button_style,
-                                className="special animate__animated animate__fadeInUp animate__delay-5s",
+                                style={
+                                    **verified_button_style,
+                                    "transition": "all 0.3s ease",
+                                },
+                                className="special animate__animated animate__pulse animate__infinite animate__delay-5s",
                             ),
                             href="/pages/main-app",
                             refresh=False,  # Set to True if you want full page reload
@@ -89,6 +92,10 @@ layout = dbc.Container(
                     ],
                 ),
             ],
+            style={
+                "animation": "fadeBackground 20s infinite alternate",
+                "padding": "2rem",
+            },
         ),
     ]
 )

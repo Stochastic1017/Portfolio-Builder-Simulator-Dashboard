@@ -22,27 +22,7 @@ app = dash.Dash(
     suppress_callback_exceptions=True,
 )
 
-##################
-### Dev Only !!!
-##################
 
-if os.getenv("DEV_ONLY", "0").strip().lower() in {"1", "true", "yes"}:
-    import json
-
-    try:
-        with open("temp.json") as f:
-            temp = json.load(f)
-            location = "main-app"
-    except FileNotFoundError:
-        temp = []
-        location = "main-app"
-else:
-    temp = []
-    location = "landing-page"
-
-##################
-### Dev Only !!!
-##################
 
 # App layout
 app.layout = html.Div(
@@ -55,7 +35,7 @@ app.layout = html.Div(
         ### Stock exploration dashboard page
         dcc.Store(id="verify-ticker", data={"verified": False}),
         dcc.Store(id="selected-range", data="range-2Y"),
-        dcc.Store(id="portfolio-store", data=temp),
+        dcc.Store(id="portfolio-store", data=[]),
 
         ### Portfolio builder page
         dcc.Store(id="verify-budget", data={"verified": False}),
@@ -81,7 +61,7 @@ app.layout = html.Div(
         ### Landing Page
         #################
 
-        dcc.Location(id="url", refresh=True, pathname=f"/pages/{location}"),
+        dcc.Location(id="url", refresh=True, pathname=f"/pages/landing-page"),
         dash.page_container,
 
     ]

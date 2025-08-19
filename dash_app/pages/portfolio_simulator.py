@@ -68,7 +68,6 @@ layout = html.Div(
                         "gap": "15px",
                         "height": "100%",
                         "boxSizing": "border-box",
-                        "boxShadow": "0 4px 12px rgba(0, 0, 0, 0.1)",
                         "overflow": "hidden",
                     },
                     children=[
@@ -89,7 +88,6 @@ layout = html.Div(
                                         "backgroundColor": COLORS["background"],
                                         "borderRadius": "10px",
                                         "padding": "12px 16px",
-                                        "boxShadow": "0 2px 6px rgba(0,0,0,0.25)",
                                         "marginBottom": "16px",
                                         "width": "100%",
                                         "height": "12.5vh",
@@ -159,7 +157,6 @@ layout = html.Div(
                                     with_portal=True,
                                     display_format="MMM Do, YY",
                                 ),
-                                html.Br(),
                                 html.Label(
                                     "Number of ensembles to generate:",
                                     style={
@@ -222,7 +219,6 @@ layout = html.Div(
                                     inputStyle=active_inputStyle_radioitems,
                                     style=active_style_radioitems,
                                 ),
-                                html.Br(),
                                 # ARIMA model
                                 html.Button(
                                     "ARIMA Forecast",
@@ -256,7 +252,6 @@ layout = html.Div(
                                         "fontSize": "1rem",
                                     },
                                 ),
-                                html.Br(),
                                 # Button for user to start monte carlo exploration
                                 html.Button(
                                     "Gradient Boosting Forecast",
@@ -313,74 +308,6 @@ layout = html.Div(
                                         "padding": "2rem",
                                         "overflow": "hidden",
                                     },
-                                    children=[
-                                        html.Div(
-                                            [
-                                                html.H3(
-                                                    "Welcome to Portfolio Simulator Page!",
-                                                    style={
-                                                        "color": COLORS["primary"],
-                                                        "marginBottom": "1rem",
-                                                    },
-                                                ),
-                                                html.Br(),
-                                                html.Div(
-                                                    [
-                                                        html.P(
-                                                            "To simulate the portfolio, please follow the steps below:",
-                                                            style={
-                                                                "color": COLORS["text"],
-                                                                "fontSize": "1.1rem",
-                                                            },
-                                                        ),
-                                                        html.Ol(
-                                                            [
-                                                                html.Li(
-                                                                    "Input a budget (in $) and click 'Verify Budget'.",
-                                                                    style={
-                                                                        "color": COLORS[
-                                                                            "text"
-                                                                        ]
-                                                                    },
-                                                                ),
-                                                                html.Li(
-                                                                    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-                                                                    style={
-                                                                        "color": COLORS[
-                                                                            "text"
-                                                                        ]
-                                                                    },
-                                                                ),
-                                                                html.Li(
-                                                                    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-                                                                    style={
-                                                                        "color": COLORS[
-                                                                            "text"
-                                                                        ]
-                                                                    },
-                                                                ),
-                                                                html.Li(
-                                                                    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-                                                                    style={
-                                                                        "color": COLORS[
-                                                                            "text"
-                                                                        ]
-                                                                    },
-                                                                ),
-                                                            ],
-                                                            style={
-                                                                "textAlign": "left",
-                                                                "color": COLORS["text"],
-                                                                "maxWidth": "600px",
-                                                                "margin": "1rem auto",
-                                                            },
-                                                        ),
-                                                    ],
-                                                    style={"maxWidth": "700px"},
-                                                ),
-                                            ]
-                                        )
-                                    ],
                                 ),
                             ],
                         )
@@ -398,7 +325,6 @@ layout = html.Div(
                 "padding": "20px",
                 "backgroundColor": COLORS["background"],
                 "borderRadius": "10px",
-                "boxShadow": "0 4px 12px rgba(0, 0, 0, 0.1)",
                 "marginLeft": "auto",
                 "marginRight": "auto",
                 "justifyContent": "center",

@@ -184,7 +184,6 @@ layout = html.Div(
                                             disabled=True,
                                             style={"fontWeight": "bold"},
                                         ),
-                                        html.Br(),
                                     ],
                                 ),
                                 # Label to find optimized portfolios
@@ -287,7 +286,6 @@ layout = html.Div(
                                         ),
                                     ],
                                 ),
-                                html.Br(),
                             ],
                         ),
                         # A stylized button for users to add stock ticker to portfolio
@@ -338,56 +336,6 @@ layout = html.Div(
                                         "padding": "2rem",
                                         "overflow": "hidden",
                                     },
-                                    children=[
-                                        html.H3(
-                                            "Welcome to Portfolio Builder Page!",
-                                            style={
-                                                "color": COLORS["primary"],
-                                                "marginBottom": "1rem",
-                                            },
-                                        ),
-                                        html.Br(),
-                                        html.Div(
-                                            [
-                                                html.P(
-                                                    "To find the appropriate portfolio, please follow the steps below:",
-                                                    style={
-                                                        "color": COLORS["text"],
-                                                        "fontSize": "1.1rem",
-                                                    },
-                                                ),
-                                                html.Ol(
-                                                    [
-                                                        html.Li(
-                                                            "Choose a subset of tickers you wish to have in the portfolio.",
-                                                            style={
-                                                                "color": COLORS["text"]
-                                                            },
-                                                        ),
-                                                        html.Li(
-                                                            "Explore efficient frontier to find the optimum risk/return ratio.",
-                                                            style={
-                                                                "color": COLORS["text"]
-                                                            },
-                                                        ),
-                                                        html.Li(
-                                                            "Confirm the portfolio weights and proceed.",
-                                                            style={
-                                                                "color": COLORS["text"]
-                                                            },
-                                                        ),
-                                                    ],
-                                                    style={
-                                                        "textAlign": "left",
-                                                        "color": COLORS["text"],
-                                                        "maxWidth": "600px",
-                                                        "margin": "1rem auto",
-                                                    },
-                                                ),
-                                            ],
-                                            style={"maxWidth": "700px"},
-                                        ),
-                                    ],
                                 )
                             ],
                         )
@@ -401,12 +349,10 @@ layout = html.Div(
         html.Div(
             id="summary-table-container",
             style={
-                "marginTop": "40px",
+                "marginTop": "20px",
                 "padding": "20px",
                 "backgroundColor": COLORS["background"],
                 "borderRadius": "10px",
-                "boxShadow": "0 4px 12px rgba(0, 0, 0, 0.1)",
-                "maxWidth": "1200px",
                 "marginLeft": "auto",
                 "marginRight": "auto",
                 "justifyContent": "center",

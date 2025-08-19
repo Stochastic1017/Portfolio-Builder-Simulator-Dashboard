@@ -938,10 +938,16 @@ def prediction_summary_table(
             ],
             {
                 "if": {"filter_query": "{Ticker} = 'PORTFOLIO'"},
-                "backgroundColor": "yellow",
-                "color": "black",
-                "fontWeight": "bold",
+                "backgroundColor": COLORS['primary'],
             },
+            *[
+                {
+                    "if": {"filter_query": "{Ticker} = 'PORTFOLIO'", "column_id": col},
+                    "color": "black",
+                    "fontWeight": "bold",
+                }
+                for col in ["Ticker", "Amount Invested ($)", "Weight (%)", "Last Price"]
+            ],
         ],
         fixed_rows={"headers": True},
         sort_action="native",
