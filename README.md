@@ -92,9 +92,14 @@ Finally, for any two assets $A_j$ and $A_k$, we define the covariance between th
 
 We can consolidate all expected log-returns and risk for all assets $A_j$ where $j=1,\dots,d$ as follows:
 
-Portfolio log-return vector (defined as $\mathbf{\hat\mu}$):
+Portfolio log-return mean vector (defined as $\mathbf{\hat\mu}$):
 ```math
-\mathbf{\hat\mu} = \begin{pmatrix} \hat{\mathbb{E}[\mathbf{r_1}]} & \hat{\mathbb{E}[\mathbf{r_2}]} & \dots & \hat{\mathbb{E}[\mathbf{r_d}]} \end{pmatrix} \in \mathbb{R}^{d}
+\mathbf{\hat\mu} = \begin{pmatrix} \hat\mu_1 & \hat\mu_2 & \dots & \hat\mu_d \end{pmatrix} \in \mathbb{R}^{d}
+```
+
+Portfolio log-return volatility vector (defined as $\mathbf{\hat\sigma}$):
+```math
+\mathbf{\hat\sigma} = \begin{pmatrix} \hat\sigma_1 & \hat\sigma_2 & \dots & \hat\sigma_d \end{pmatrix} \in \mathbb{R}^{d}
 ```
 
 Portfolio log-return covariance matrix (defined as $\mathbf{\hat\Sigma}$):
@@ -116,12 +121,17 @@ Let $\mathbf{w}$ be normalized weights that represents the percentage of budget 
 
 Then, the expected (weighted mean) of log-returns for the portfolio is:
 ```math
-\hat{r}_P = \mathbf{w}^T \cdot \mathbf{\hat\mu} = \sum_{i=1}^{d} w_i \mu_i
+\hat{\mu}_P = \mathbf{w}^T \mathbf{\hat\mu} = \sum_{i=1}^{d} w_i \hat\mu_i
 ```
 
-and the risk (weighted standard deviation) of log-returns for the portfolio is:
+and weighted average of asset volatilities (without covariance) to quantify diversification among assets:
 ```math
-\hat{\sigma}_P = \mathbf{w}^T \cdot \mathbf{\hat\Sigma} \cdot \mathbf{w} = \sum_{j=1}^{d} \sum_{k=1}^{d} w_j w_k \sigma_{jk}
+\hat{D}_P = \mathbf{w}^T \hat\sigma = \sum_{i=1}^{d} w_i \hat\sigma_i
+```
+
+Likewise, the risk (weighted standard deviation) including covariance of log-returns for the portfolio is:
+```math
+\hat{\sigma}_P = \sqrt{\mathbf{w}^T \mathbf{\hat\Sigma} \mathbf{w}} = \sqrt{\sum_{j=1}^{d} \sum_{k=1}^{d} w_j w_k \hat\sigma_{jk}}
 ```
 
 ### Efficient Frontier and Markowitz Portfolio Theory
@@ -132,6 +142,35 @@ All optimizations referred in this section were solved using Sequential Least Sq
 
 The efficient frontier plot consists of all points whose weights $\mathbf{w}$ and desired expected return $R^*$ satisfy the following optimization problem:
 ```math
-\min_\mathbf{w} \; \hat{\sigma}_P \quad \text{s.t.} \quad \hat\mu_P = R^* \; \| \mathbf{w} \|_1 = 1
+\min_{\mathbf{w}} \; \underbrace{\sqrt{\mathbf{w}^T \mathbf{\hat\Sigma} \mathbf{w}}}_{\hat\sigma_P} \quad \text{s.t.} \quad \underbrace{\mathbf{w}^T \mathbf{\hat\mu}}_{\hat\mu_P} = R^*, \; \| \mathbf{w} \|_1 = 1, \; \mathbf{w} > \mathbf{0}
 ```
 
+**For Equal Weights:**
+
+This is a trivial case, and we just plot the point where all tickers have the same weight, i.e.,
+```math
+\forall i \in \{1,\dots,d\}, \quad w_i = \frac{1}{d}
+```
+
+**For Minimum Variance:**
+
+To minimize risk (or variance), we plot the point that satisfies the following optimization problem:
+```math
+\min_{\mathbf{w}} \; \underbrace{ \mathbf{w}^T \hat\Sigma \mathbf{w} }_{\sigma_P^2} \quad \text{s.t.} \| \mathbf{w} \|_1 = 1, \; \mathbf{w} > \mathbf{0}
+```
+
+**For Sharpe Ratio:**
+
+To maximize Sharpe ratio, we plot the point that satisfies the following optimization problem:
+```math
+\max_{\mathbf{w}} \; \underbrace{ \bigg(\frac{\mathbf{w}^T \mathbf{\hat\mu} }{ \sqrt{\mathbf{w}^T \mathbf{\hat\Sigma} \mathbf{w}}}\bigg) }_{\hat\mu_P / \hat\sigma_P} \quad \text{s.t.} \| \mathbf{w} \|_1 = 1, \; \mathbf{w} > \mathbf{0}
+```
+
+**For Diversification Ratio:**
+
+To maximize diversification ratio, we plot the point that satisfies the following optimization problem:
+```math
+\max_{\mathbf{w}} \; \underbrace{ \bigg(\frac{ \mathbf{w}^T \sigma }{ \sqrt{\mathbf{w}^T \mathbf{\hat\Sigma} \mathbf{w}}}\bigg) }_{\hat{D}_P / \hat\sigma_P} \quad \text{s.t.} \| \mathbf{w} \|_1 = 1, \; \mathbf{w} > \mathbf{0}
+```
+
+ 
