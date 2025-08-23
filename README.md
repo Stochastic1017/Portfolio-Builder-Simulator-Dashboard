@@ -189,28 +189,79 @@ Let $p,q$ be AR and MA orders respectively. Lastly, let $d$ be the order of diff
 
 Given chosen criterion, a grid-search is performed over $p \in \{0,1,2,3\}$, $d \in \{0,1,2\}$, $q \in \{0,1,2,3\}$, selects the model with the best score under the chosen criterion (AIC/BIC minimized, LL maximized) for portfolio log-returns.
 
-The ARIMA(p, q) model is as follows:
+The ARIMA(p, q) model is as follows, suppose $r_t$ is log-returns for the portfolio:
 ```math
-y_t = \bigg(y_0 + \sum_{i=1}^{p} \phi_i \; x_{t-i}\bigg) + \bigg(\epsilon_t + \sum_{j=1}^{q} \theta_j \; \epsilon_{t-j}\bigg)
+r_t = \bigg(r_0 + \sum_{i=1}^{p} \phi_i \; r_{t-i}\bigg) + \bigg(\epsilon_t + \sum_{j=1}^{q} \theta_j \; \epsilon_{t-j}\bigg)
 ```
 
 where
-* $y_0$ : Constant (Drift Term)
+* $r_0$ : Constant (Drift Term)
 * $\phi_i$ : Auto-regressive coefficients
 * $\theta_j$ : Moving-Averages Coefficients
 * $\epsilon_t \sim N(0, \sigma^2)$ : White-noise shocks
 
-For each ensemble path $n \in \{1,\dots,N\}$ and forecast time-step $h$, we simulate shocks by drawing $\epsilon^{(n)}_{t+h}$ as follows:
+For each ensemble path $n \in \{1,\dots,N\}$ and forecast time-step $h$, we log-returns as follows:
 ```math
-\hat{y^{(n)}_{t+h}} = \bigg( y_0 + \sum_{i=1}^{p} \phi_i \; \hat{y^{(n)}_{t+h-i}} \bigg) + \bigg( \epsilon^{(n)}_{t+h} + \sum_{j=1}^{q} \theta_j \; \epsilon^{(n)}_{t+h-j} \bigg)
+\hat{r^{(n)}_{t+h}} = \bigg( r_0 + \sum_{i=1}^{p} \phi_i \; \hat{r^{(n)}_{t+h-i}} \bigg) + \bigg( \epsilon^{(n)}_{t+h} + \sum_{j=1}^{q} \theta_j \; \epsilon^{(n)}_{t+h-j} \bigg)
 ```
 
 Then, after all ensembles are generated, we aggregate the forecasted log-returns as follows:
 ```math
-\bar{y}_{t+h} = \frac{1}{N} \sum_{n=1}^{N} \hat{y^{(n)}_{t+h}}, \quad CI_{95\%}(y_{t+h}) = \bigg[Q_{2.5\%}\bigg\{\hat{y^{(n)}_{t+h}}\bigg\}_{n=1}^{N}, Q_{97.5\%}\bigg\{\hat{y^{(n)}_{t+h}}\bigg\}_{n=1}^{N}\bigg]
+\bar{r}_{t+h} = \frac{1}{N} \sum_{n=1}^{N} \hat{r^{(n)}_{t+h}}, \quad CI_{95\%}(r_{t+h}) = \bigg[Q_{2.5\%}\bigg\{\hat{r^{(n)}_{t+h}}\bigg\}_{n=1}^{N}, Q_{97.5\%}\bigg\{\hat{r^{(n)}_{t+h}}\bigg\}_{n=1}^{N}\bigg]
 ```
 where $Q_{p}$ is the p-th quantile from ensemble distribution.
 
 **For Generalized Autoregressive Conditional Heteroskedasticity (GARCH):** 
 
-Just like ARIMA, users can choose one of three information criterions (AIC, BIC, LogLikelihood) upon which to optimize model parameters. Let $p,q$
+Just like ARIMA, users can choose one of three information criterions (AIC, BIC, LogLikelihood) upon which to optimize model parameters. Let $p,q$ be the number of lags for conditional variance and squared residuals respectively.
+
+Given chosen criterion, a grid-search is performed over the models \{GARCH, EGARCH, GJR-GARCH\}, distributions \{Gaussian, Student-t, Skew-t, GED\}, and $p,q \in \{1,2,3\}$.
+
+For each ensemble path $n \in \{1,\dots,N\}$ and forecast time-step $h$, we log-returns as follows:
+
+* For Standard GARCH(p,q):
+```math
+\hat{\sigma^{2, (n)}_{t+h}} = \bigg( \alpha_0 + \sum_{i=1}^{q} \alpha_i \; \epsilon_{t+h-i}^{2, (n)} + \sum_{j=1}^{p} \beta_j \; \hat{\sigma_{t+h-j}^{2,(n)}} \bigg)
+```
+
+* For Exponential GARCH(p,q):
+```math
+\text{ln} \hat{\sigma^{2,(n)}_{t+h}} = \omega + \sum_{i=1}^{q} \big( \alpha_i |z^{(n)}_{t+h-i}| + \gamma_i z^{(n)}_{t+h-i} \big) + \sum_{j=1}^{p} \beta_j \ln \hat{\sigma^{2,(n)}_{t+h-j}}
+```
+
+* For GJR-GARCH(p, q):
+```math
+\hat{\sigma}_{t+h}^{2,(n)} = \alpha_0 + \sum_{i=1}^{q} \left(\alpha_i \, (\epsilon_{t+h-i}^{(n)})^2 + \gamma_i (\epsilon_{t+h-i}^{(n)})^2 \, \mathbf{1}_{\{\epsilon_{t+h-i}^{(n)}<0\}} \right) + \sum_{j=1}^{p} \beta_j \, \hat{\sigma}_{t+h-j}^{2,(n)}
+```
+
+For all of the above, we can compute $N$ ensembles of log-returns as follows:
+```math
+\hat{r^{(n)}_{t+h}} = \bar{r}_{t+h-1} + \sigma^{(n)}_{t+h} \; z^{(n)}_{t+h} \quad \text{where} \; z^{(n)}_{t+h} \sim F
+```
+where, F is one of Gaussian, Student-t, Skew-t, GED distributions.
+
+**For Euler–Maruyama (Gradient Boosted - Estimated Parameters):**
+
+Unlike ARIMA and GARCH, we do not require information criterion information for this forecasting precedure. Instead, we use gradient boosting (with train/test/validation split) to estimate the parameters.
+
+Assume portfolio log-returns follows a stochastic differential equation:
+```math
+dr_t = \underbrace{\mu(r_t, t)}_{\text{Drift Term}} \; dt + \underbrace{\sigma(r_t, t)}_{\text{Volatility Term}} \; dW_t
+```
+
+Gradient Boosted Regression is used to estimate drift and volatility terms as follows:
+```math
+\hat\mu(r_t, t) \approx \mathbb{E}[r_{t+1} | r_t, t], \quad 
+\hat\sigma(r_t, t) \approx \mathbb{V}[r_{t+1} | r_t, t]
+```
+
+In practice:
+- A gradient boosting regressor is trained on input features (past returns, lagged variables, time index) to predict the next return $r_{t+1}$.
+- The predicted mean becomes $\hat{\mu}(r_t, t)$.
+- The residual variance (squared error between predictions and observed returns) is used as an estimate of $\hat{\sigma}^2(r_t, t)$.
+
+Then, by Euler-Maruyama we can generate $N$ ensembles at forecast step $t+h$ as:
+```math
+\hat{r^{(n)}_{t+h}} = \hat{r^{(n)}_{t+h-1}} + \hat\mu(\hat{r^{(n)}_{t+h-1}}, t+h-1) \cdot \Delta t + \hat\sigma(\hat{r^{(n)}_{t+h-1}}, t+h-1) \cdot \sqrt{\Delta t} \cdot z^{(n)}_{t+h}
+```
+where $z^{(n)}_{t+h} \sim N(0,1)$
