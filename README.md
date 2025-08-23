@@ -173,9 +173,9 @@ To maximize diversification ratio, we plot the point that satisfies the followin
 \max_{\mathbf{w}} \; \underbrace{ \bigg(\frac{ \mathbf{w}^T \sigma }{ \sqrt{\mathbf{w}^T \mathbf{\hat\Sigma} \mathbf{w}}}\bigg) }_{\hat{D}_P / \hat\sigma_P} \quad \text{s.t.} \| \mathbf{w} \|_1 = 1, \; \mathbf{w} > \mathbf{0}
 ```
 
- ### Forecast and Simulation
+### Forecast and Simulation
 
-In general, for all four forecasting procedures, we generate $N$ ensembles and compute the mean and 95% confidence of portfolio log-returns (and subsequntly, the portfolio price), from which we can backtrack using the chosen "weights" and find mean and 95% confidence in log-returns and prices for each of the $d$ tickers.
+In general, for all four forecasting procedures, we generate $N$ ensembles up-to a future time-step $h$ and compute the mean and 95% confidence of portfolio log-returns (and subsequntly, the portfolio price). Using the weights, we can backtrack compute mean and 95% confidence in log-returns and prices for each of the $d$ tickers.
 
 **For Auto-Regressive Integrated Moving Averages (ARIMA):**
 
@@ -183,8 +183,30 @@ For both the forecasting procedures, users can choose one of three information c
 Let $L$ be the maximized likelihood of the fitted model, i.e., the joint probability of observing the data under a given model, with parameters chosen to maximize that probability.
 Let $p,q$ be AR and MA orders respectively. Lastly, let $d$ be the order of differencing needed to make data stationary.
 
-1. Akaike Information Criterion (AIC) : $-2 \; \text{ln}(L) + 2 \cdot (p+q-1)$
-2. Bayesiam Information Criterion (BIC) : $-2 \; \text{ln}(L) + \text{ln}(T-1) \cdot (p+q-1)$
+1. Akaike Information Criterion (AIC) : $-2 \cdot \text{ln}(L) + 2 \cdot (p+q-1)$
+2. Bayesiam Information Criterion (BIC) : $-2 \cdot \text{ln}(L) + \text{ln}(T-1) \cdot (p+q-1)$
 3. LogLikelihood : $\text{ln}(L)$
 
-given chosen criterion, a grid-search is performed over $p \in \{0,1,2,3\}$, $d \in \{0,1,2\}$, $q \in \{0,1,2,3\}$, selects the model with the best score under the chosen criterion (AIC/BIC minimized, LL maximized).
+given chosen criterion, a grid-search is performed over $p \in \{0,1,2,3\}$, $d \in \{0,1,2\}$, $q \in \{0,1,2,3\}$, selects the model with the best score under the chosen criterion (AIC/BIC minimized, LL maximized) for portfolio log-returns.
+
+The ARIMA(p, q) is as follows:
+```math
+y_t = \bigg(y_0 + \sum_{i=1}^{p} \phi_i \; x_{t-i}\bigg) + \bigg(\epsilon_t + \sum_{j=1}^{q} \theta_j \; \epsilon_{t-j}\bigg)
+```
+
+where
+* $y_0$ : Constant (Drift Term)
+* $\phi_i$ : Auto-regressive coefficients
+* $\theta_j$ : Moving-Averages Coefficients
+* $\epsilon_t \sim N(0, \sigma^2)$ : White-noise shocks
+
+For each ensemble path $n \in \{1,\dots,N\}$ and forecast time-step $h$, we simulate shocks by drawing $\epsilon^{(n)}_{t+h}$ as follows:
+```math
+\hat{y^{(n)}_{t+h}} = \bigg( y_0 + \sum_{i=1}^{p} \phi_i \; \hat{y^{(n)}_{t+h-i}} \bigg) + \bigg( \epsilon^{(n)}_{t+h} + \sum_{j=1}^{q} \theta_j \; \epsilon^{(n)}_{t+h-j} \bigg)
+```
+
+Then, after all ensembles are generated, we aggregate the forecasted log-returns as follows:
+```math
+\bar{y}_{t+h} = \frac{1}{N} \sum_{n=1}^{N} \hat{y^{(n)}_{t+h}}, \quad CI_{95\%}(y_{t+h}) = \bigg[Q_{2.5\%}\bigg\{\hat{y^{(n)}_{t+h}}\bigg\}_{n=1}^{N}, Q_{97.5\%}\bigg\{\hat{y^{(n)}_{t+h}}\bigg\}_{n=1}^{N}\bigg]
+```
+where $Q_{p}$ is the p-th quantile from ensemble distribution.
