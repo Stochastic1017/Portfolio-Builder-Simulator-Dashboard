@@ -173,4 +173,18 @@ To maximize diversification ratio, we plot the point that satisfies the followin
 \max_{\mathbf{w}} \; \underbrace{ \bigg(\frac{ \mathbf{w}^T \sigma }{ \sqrt{\mathbf{w}^T \mathbf{\hat\Sigma} \mathbf{w}}}\bigg) }_{\hat{D}_P / \hat\sigma_P} \quad \text{s.t.} \| \mathbf{w} \|_1 = 1, \; \mathbf{w} > \mathbf{0}
 ```
 
- 
+ ### Forecast and Simulation
+
+In general, for all four forecasting procedures, we generate $N$ ensembles and compute the mean and 95% confidence of portfolio log-returns (and subsequntly, the portfolio price), from which we can backtrack using the chosen "weights" and find mean and 95% confidence in log-returns and prices for each of the $d$ tickers.
+
+**For Auto-Regressive Integrated Moving Averages (ARIMA):**
+
+For both the forecasting procedures, users can choose one of three information criterions upon which to optimize model parameters.
+Let $L$ be the maximized likelihood of the fitted model, i.e., the joint probability of observing the data under a given model, with parameters chosen to maximize that probability.
+Let $p,q$ be AR and MA orders respectively. Lastly, let $d$ be the order of differencing needed to make data stationary.
+
+1. Akaike Information Criterion (AIC) : $-2 \; \text{ln}(L) + 2 \cdot (p+q-1)$
+2. Bayesiam Information Criterion (BIC) : $-2 \; \text{ln}(L) + \text{ln}(T-1) \cdot (p+q-1)$
+3. LogLikelihood : $\text{ln}(L)$
+
+given chosen criterion, a grid-search is performed over $p \in \{0,1,2,3\}$, $d \in \{0,1,2\}$, $q \in \{0,1,2,3\}$, selects the model with the best score under the chosen criterion (AIC/BIC minimized, LL maximized).
