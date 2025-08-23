@@ -179,7 +179,7 @@ In general, for all four forecasting procedures, we generate $N$ ensembles up-to
 
 **For Auto-Regressive Integrated Moving Averages (ARIMA):**
 
-For both the forecasting procedures, users can choose one of three information criterions upon which to optimize model parameters.
+For the forecasting procedures, users can choose one of three information criterions upon which to optimize model parameters.
 Let $L$ be the maximized likelihood of the fitted model, i.e., the joint probability of observing the data under a given model, with parameters chosen to maximize that probability.
 Let $p,q$ be AR and MA orders respectively. Lastly, let $d$ be the order of differencing needed to make data stationary.
 
@@ -187,9 +187,9 @@ Let $p,q$ be AR and MA orders respectively. Lastly, let $d$ be the order of diff
 2. Bayesiam Information Criterion (BIC) : $-2 \cdot \text{ln}(L) + \text{ln}(T-1) \cdot (p+q-1)$
 3. LogLikelihood : $\text{ln}(L)$
 
-given chosen criterion, a grid-search is performed over $p \in \{0,1,2,3\}$, $d \in \{0,1,2\}$, $q \in \{0,1,2,3\}$, selects the model with the best score under the chosen criterion (AIC/BIC minimized, LL maximized) for portfolio log-returns.
+Given chosen criterion, a grid-search is performed over $p \in \{0,1,2,3\}$, $d \in \{0,1,2\}$, $q \in \{0,1,2,3\}$, selects the model with the best score under the chosen criterion (AIC/BIC minimized, LL maximized) for portfolio log-returns.
 
-The ARIMA(p, q) is as follows:
+The ARIMA(p, q) model is as follows:
 ```math
 y_t = \bigg(y_0 + \sum_{i=1}^{p} \phi_i \; x_{t-i}\bigg) + \bigg(\epsilon_t + \sum_{j=1}^{q} \theta_j \; \epsilon_{t-j}\bigg)
 ```
@@ -210,3 +210,7 @@ Then, after all ensembles are generated, we aggregate the forecasted log-returns
 \bar{y}_{t+h} = \frac{1}{N} \sum_{n=1}^{N} \hat{y^{(n)}_{t+h}}, \quad CI_{95\%}(y_{t+h}) = \bigg[Q_{2.5\%}\bigg\{\hat{y^{(n)}_{t+h}}\bigg\}_{n=1}^{N}, Q_{97.5\%}\bigg\{\hat{y^{(n)}_{t+h}}\bigg\}_{n=1}^{N}\bigg]
 ```
 where $Q_{p}$ is the p-th quantile from ensemble distribution.
+
+**For Generalized Autoregressive Conditional Heteroskedasticity (GARCH):** 
+
+Just like ARIMA, users can choose one of three information criterions (AIC, BIC, LogLikelihood) upon which to optimize model parameters. Let $p,q$
