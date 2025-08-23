@@ -85,7 +85,7 @@ and risk (unbiased standard deviation) log-returns for asset $A_j$ as:
 
 Finally, for any two assets $A_j$ and $A_k$, we define the covariance between their log-returns as:
 ```math
-\hat{\sigma_{jk}} = \sqrt{\frac{1}{T-2} \sum_{t=2}^{T} \big(r_{jt} - \hat{\mu_j}\big) \big(r_{kt} - \hat{\mu_k}\big) }
+\hat{\sigma_{jk}} = \frac{1}{T-2} \sum_{t=2}^{T} \big(r_{jt} - \hat{\mu_j}\big) \big(r_{kt} - \hat{\mu_k}\big)
 ```
 
 ### At a portfolio level:
@@ -200,16 +200,10 @@ where
 * $\theta_j$ : Moving-Averages Coefficients
 * $\epsilon_t \sim N(0, \sigma^2)$ : White-noise shocks
 
-For each ensemble path $n \in \{1,\dots,N\}$ and forecast time-step $h$, we log-returns as follows:
+For each ensemble path $n \in \{1,\dots,N\}$ and forecast time-step $h$, we simulate log-returns as follows:
 ```math
-\hat{r^{(n)}_{t+h}} = \bigg( r_0 + \sum_{i=1}^{p} \phi_i \; \hat{r^{(n)}_{t+h-i}} \bigg) + \bigg( \epsilon^{(n)}_{t+h} + \sum_{j=1}^{q} \theta_j \; \epsilon^{(n)}_{t+h-j} \bigg)
+\hat{r}^{(n)}_{t+h} = \bigg( r_0 + \sum_{i=1}^{p} \phi_i \; \hat{r^{(n)}_{t+h-i}} \bigg) + \bigg( \epsilon^{(n)}_{t+h} + \sum_{j=1}^{q} \theta_j \; \epsilon^{(n)}_{t+h-j} \bigg)
 ```
-
-Then, after all ensembles are generated, we aggregate the forecasted log-returns as follows:
-```math
-\bar{r}_{t+h} = \frac{1}{N} \sum_{n=1}^{N} \hat{r^{(n)}_{t+h}}, \quad CI_{95\%}(r_{t+h}) = \bigg[Q_{2.5\%}\bigg\{\hat{r^{(n)}_{t+h}}\bigg\}_{n=1}^{N}, Q_{97.5\%}\bigg\{\hat{r^{(n)}_{t+h}}\bigg\}_{n=1}^{N}\bigg]
-```
-where $Q_{p}$ is the p-th quantile from ensemble distribution.
 
 **For Generalized Autoregressive Conditional Heteroskedasticity (GARCH):** 
 
@@ -217,16 +211,16 @@ Just like ARIMA, users can choose one of three information criterions (AIC, BIC,
 
 Given chosen criterion, a grid-search is performed over the models \{GARCH, EGARCH, GJR-GARCH\}, distributions \{Gaussian, Student-t, Skew-t, GED\}, and $p,q \in \{1,2,3\}$.
 
-For each ensemble path $n \in \{1,\dots,N\}$ and forecast time-step $h$, we log-returns as follows:
+For each ensemble path $n \in \{1,\dots,N\}$ and forecast time-step $h$, we simulate log-returns as follows:
 
 * For Standard GARCH(p,q):
 ```math
-\hat{\sigma^{2, (n)}_{t+h}} = \bigg( \alpha_0 + \sum_{i=1}^{q} \alpha_i \; \epsilon_{t+h-i}^{2, (n)} + \sum_{j=1}^{p} \beta_j \; \hat{\sigma_{t+h-j}^{2,(n)}} \bigg)
+\hat{\sigma}^{2, (n)}_{t+h} = \bigg( \alpha_0 + \sum_{i=1}^{q} \alpha_i \; \epsilon_{t+h-i}^{2, (n)} + \sum_{j=1}^{p} \beta_j \; \hat{\sigma}_{t+h-j}^{2,(n)} \bigg)
 ```
 
 * For Exponential GARCH(p,q):
 ```math
-\text{ln} \hat{\sigma^{2,(n)}_{t+h}} = \omega + \sum_{i=1}^{q} \big( \alpha_i |z^{(n)}_{t+h-i}| + \gamma_i z^{(n)}_{t+h-i} \big) + \sum_{j=1}^{p} \beta_j \ln \hat{\sigma^{2,(n)}_{t+h-j}}
+\text{ln} \hat{\sigma}^{2,(n)}_{t+h} = \omega + \sum_{i=1}^{q} \big( \alpha_i |z^{(n)}_{t+h-i}| + \gamma_i z^{(n)}_{t+h-i} \big) + \sum_{j=1}^{p} \beta_j \ln \hat{\sigma}^{2,(n)}_{t+h-j}
 ```
 
 * For GJR-GARCH(p, q):
@@ -236,7 +230,7 @@ For each ensemble path $n \in \{1,\dots,N\}$ and forecast time-step $h$, we log-
 
 For all of the above, we can compute $N$ ensembles of log-returns as follows:
 ```math
-\hat{r^{(n)}_{t+h}} = \bar{r}_{t+h-1} + \sigma^{(n)}_{t+h} \; z^{(n)}_{t+h} \quad \text{where} \; z^{(n)}_{t+h} \sim F
+\hat{r}^{(n)}_{t+h} = \bar{r}_{t+h-1} + \sigma^{(n)}_{t+h} \; z^{(n)}_{t+h} \quad \text{where} \; z^{(n)}_{t+h} \sim F
 ```
 where, F is one of Gaussian, Student-t, Skew-t, GED distributions.
 
@@ -262,6 +256,70 @@ In practice:
 
 Then, by Euler-Maruyama we can generate $N$ ensembles at forecast step $t+h$ as:
 ```math
-\hat{r^{(n)}_{t+h}} = \hat{r^{(n)}_{t+h-1}} + \hat\mu(\hat{r^{(n)}_{t+h-1}}, t+h-1) \cdot \Delta t + \hat\sigma(\hat{r^{(n)}_{t+h-1}}, t+h-1) \cdot \sqrt{\Delta t} \cdot z^{(n)}_{t+h}
+\hat{r}^{(n)}_{t+h} = \hat{r^{(n)}_{t+h-1}} + \hat\mu(\hat{r^{(n)}_{t+h-1}}, t+h-1) \cdot \Delta t + \hat\sigma(\hat{r^{(n)}_{t+h-1}}, t+h-1) \cdot \sqrt{\Delta t} \cdot z^{(n)}_{t+h}
 ```
-where $z^{(n)}_{t+h} \sim N(0,1)$
+where $z^{(n)}_{t+h} \sim N(0,1)$ and $\Delta t = 1$ day.
+
+**For Long-Short Term Memory Models (LSTM):**
+
+Let $L$ be the short-window over which we update parameters for the neural network model. Then, we initialize input sequence with last observed window as follows:
+```math
+(r_t, r_{t-1}, r_{t-2}, \dots, r_{t-L+1})
+```
+
+We model our log-returns as a non-linear sequencing program as follows:
+```math
+\hat{r_{t+1}} = f_{\theta}(r_t, r_{t-1}, r_{t-2}, \dots, r_{t-L+1})
+```
+
+The mapping can be learned using a 2-plus-2 layer LSTM neural network with the following architecture:
+- cell state $c_t$ (long-term memory)
+- hidden state $h_t$ (short-term memory / output)
+
+The update equations are:
+```math
+\begin{aligned}
+f_t &= \sigma(W_f [h_{t-1}, r_t] + b_f) && \text{(forget gate)} \\
+i_t &= \sigma(W_i [h_{t-1}, r_t] + b_i), \quad \tilde{c}_t = \tanh(W_c [h_{t-1}, r_t] + b_c) && \text{(input gate)} \\
+c_t &= f_t \odot c_{t-1} + i_t \odot \tilde{c}_t && \text{(cell update)} \\
+o_t &= \sigma(W_o [h_{t-1}, r_t] + b_o), \quad h_t = o_t \odot \tanh(c_t) && \text{(output gate)}
+\end{aligned}
+```
+
+Finally, the one-step forecast is obtained from the hidden state added with random shock $\epsilon^{(n)}_{t+1}$:
+```math
+\hat{r}_{t+1} = W_y h_t + b_y + \epsilon^{(n)}_{t+1} =  f_{\theta}(r_t, r_{t-1}, r_{t-2}, \dots, r_{t-L+1}) + \epsilon^{(n)}_{t+1}
+```
+
+The above is repeated $N$ times to generate the required ensembles.
+
+**Using ensembles to backcalculate portfolio pricing and per-ticker pricing:**
+
+After all ensembles are generated (using any of the four aforementioned procedures), we aggregate the forecasted portfolio log-returns as follows:
+```math
+\bar{r}_{t+h} = \frac{1}{N} \sum_{n=1}^{N} \hat{r}^{(n)}_{t+h}, \quad CI_{95\%}(r_{t+h}) = \bigg[Q_{2.5\%}\bigg\{\hat{r}^{(n)}_{t+h}\bigg\}_{n=1}^{N}, Q_{97.5\%}\bigg\{\hat{r}^{(n)}_{t+h}\bigg\}_{n=1}^{N}\bigg]
+```
+where $Q_{p}$ is the p-th quantile from ensemble distribution.
+
+Then, we re-construct all $N$ ensemble portfolio prices by taking exponential cumulative sums of portfolio log-returns:
+```math
+\hat{P}^{(n)}_{t+h} = P_t \cdot \text{exp}\bigg( \sum_{l=1}^{h} \hat{r}^{(n)}_{t+l} \bigg)
+```
+
+The ensemble prices then give us the mean estimate and 95% confidence as follows:
+```math
+\bar{P}_{t+h} = \frac{1}{N} \sum_{n=1}^{N} \hat{P}^{(n)}_{t+h}, \quad CI_{95\%}(P_{t+h}) = \bigg[Q_{2.5\%}\bigg\{\hat{P}^{(n)}_{t+h}\bigg\}_{n=1}^{N}, Q_{97.5\%}\bigg\{\hat{P}^{(n)}_{t+h}\bigg\}_{n=1}^{N}\bigg]
+```
+
+Thus, for each ticker corresponding to asset $A_j$ with weight $w_j$, we can compute mean estimate of asset prices and asset log-returns as:
+```math
+\bar{P}^{(A_j)}_{t+h} = \bar{P}_{t+h} * w_j, \quad \bar{r}^{(A_j)}_{t+h} = \bar{r}_{t+h} * w_j
+```
+
+Finally, the 95% confidence of asset prices and asset log-returns is:
+```math
+\begin{align}
+CI_{95\%}(P^{(A_j)}_{t+h}) &= \bigg[Q_{2.5\%}\bigg\{\hat{P}^{(n)}_{t+h} \bigg\}_{n=1}^{N} \cdot w_j, \;\; Q_{97.5\%}\bigg\{\hat{P}^{(n)}_{t+h} \bigg\}_{n=1}^{N} \cdot w_j \bigg]\\
+CI_{95\%}(r^{(A_j)}_{t+h}) &= \bigg[Q_{2.5\%}\bigg\{\hat{r}^{(n)}_{t+h} \bigg\}_{n=1}^{N} \cdot w_j, \;\; Q_{97.5\%}\bigg\{\hat{r}^{(n)}_{t+h} \bigg\}_{n=1}^{N} \cdot w_j \bigg]
+\end{align}
+```
