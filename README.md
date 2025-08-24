@@ -8,7 +8,7 @@ This open-source project is built for mathematically inclined data-driven market
 
 2. Engineer smarter portfolios — apply Modern Portfolio Theory to your own combination of chosen tickers, plot efficient frontiers, and instantly compare optimal strategies (max Sharpe, min risk, max diversification, equal weights).
 
-3. Simulate ensembles to forecast prices and returns using Auto-Regressive Integrated Moving Averages (ARIMA), Generalized Autoregressive Conditional Heteroskedasticity (GARCH), Euler–Maruyama with Gradient Boosted parameters, or Long-Short Term Memory (LSTM) models, with 95% confidence bounds and performance tables for forecasts.
+3. Simulate ensembles to forecast prices and returns using Auto-Regressive Integrated Moving Averages (ARIMA), Generalized Autoregressive Conditional Heteroskedasticity (GARCH) with 95% confidence quantile bounds and performance tables for forecasts.
 
 Whether you’re a casual investor curious about market dynamics, a data science student exploring finance, or a quantitative researcher testing portfolio strategies, this repo gives you the tools to analyze, optimize, and simulate — all in one workflow.
 
@@ -24,7 +24,7 @@ This page allows users to:
 
 * Visualize historical performance of chosen asset:
   * Line chart of price trends over multiple ranges (1M, 3M, 6M, 1Y, 2Y).
-  * Line chart of daily log-returns overlayed with 95% confidence intervals.
+  * Line chart of daily log-returns overlaid with 95% confidence intervals.
   * Histogram of returns overlaid with a Gaussian distribution with estimated mean and variance.
 
 * Generate a statistical summary including mean, variance, skewness, kurtosis, hypothesis testing, and normality checks.
@@ -59,7 +59,7 @@ This page allows users to:
 
 * Visualize historical performance of the confirmed portfolio:
   * Line chart of price trends over multiple ranges (1M, 3M, 6M, 1Y, 2Y).
-  * Line chart of daily log-returns overlayed with 95% confidence intervals.
+  * Line chart of daily log-returns overlaid with 95% confidence intervals.
   * Histogram of returns overlaid with a Gaussian distribution with estimated mean and variance.
 
 * Choose a future date (upto 1 year from the latest date) for forecasting. Longer time implies more uncertainty and more compute.
@@ -203,7 +203,7 @@ To maximize diversification ratio, we plot the point that satisfies the followin
 
 ### Forecasting Models
 
-In general, for all four forecasting procedures, we generate $N$ ensembles up-to a future time-step $h$ and compute the mean and 95% confidence of portfolio log-returns (and subsequntly, the portfolio price). Using the weights, we can backtrack compute mean and 95% confidence in log-returns and prices for each of the $d$ tickers.
+In general, for all four forecasting procedures, we generate $N$ ensembles up-to a future time-step $h$ and compute the mean and confidence interval at level q of portfolio log-returns (and subsequently, the portfolio price). Using the weights, we can backtrack compute mean and confidence interval at level q in log-returns and prices for each of the $d$ tickers.
 
 **For Auto-Regressive Integrated Moving Averages (ARIMA):**
 
@@ -212,13 +212,13 @@ Let $L$ be the maximized likelihood of the fitted model, i.e., the joint probabi
 Let $p,q$ be AR and MA orders respectively, and $d$ be the order of differencing needed to make data stationary. Lastly, let $q$ be the chosen confidence interval. 
 
 Given below are the Information Criterions available to the user:
-1. Akaike Information Criterion (AIC) : $-2 \cdot \text{ln}(L) + 2 \cdot (p+q-1)$
-2. Bayesiam Information Criterion (BIC) : $-2 \cdot \text{ln}(L) + \text{ln}(T-1) \cdot (p+q-1)$
-3. LogLikelihood : $\text{ln}(L)$
+1. Akaike Information Criterion (`AIC`) : $-2 \cdot \text{ln}(L) + 2 \cdot (p+q-1)$
+2. Bayesian Information Criterion (`BIC`) : $-2 \cdot \text{ln}(L) + \text{ln}(T-1) \cdot (p+q-1)$
+3. `LogLikelihood` : $\text{ln}(L)$
 
 Given chosen criterion, a grid-search is performed over $p \in \{0,1,2,3\}$, $d \in \{0,1,2\}$, $q \in \{0,1,2,3\}$, selects the model with the best score under the chosen criterion (AIC/BIC minimized, LL maximized) for portfolio log-returns.
 
-The ARIMA(p, q) model is as follows, suppose $r_t$ is log-returns for the portfolio:
+The `ARIMA(p, q, d)` model is as follows, suppose $r_t$ is log-returns for the portfolio:
 ```math
 r_t = \bigg(r_0 + \sum_{i=1}^{p} \phi_i \; r_{t-i}\bigg) + \bigg(\epsilon_t + \sum_{j=1}^{q} \theta_j \; \epsilon_{t-j}\bigg)
 ```
@@ -242,17 +242,17 @@ Given chosen criterion, a grid-search is performed over the models \{GARCH, EGAR
 
 For each ensemble path $n \in \{1,\dots,N\}$ and forecast time-step $h$, we simulate log-returns as follows:
 
-* For Standard GARCH(p,q):
+* For `Standard GARCH(p, q, d)`:
 ```math
 \hat{\sigma}^{2, (n)}_{t+h} = \bigg( \alpha_0 + \sum_{i=1}^{q} \alpha_i \; \epsilon_{t+h-i}^{2, (n)} + \sum_{j=1}^{p} \beta_j \; \hat{\sigma}_{t+h-j}^{2,(n)} \bigg)
 ```
 
-* For Exponential GARCH(p,q):
+* For `Exponential GARCH(p, q, d)`:
 ```math
 \text{ln} \hat{\sigma}^{2,(n)}_{t+h} = \omega + \sum_{i=1}^{q} \big( \alpha_i |z^{(n)}_{t+h-i}| + \gamma_i z^{(n)}_{t+h-i} \big) + \sum_{j=1}^{p} \beta_j \ln \hat{\sigma}^{2,(n)}_{t+h-j}
 ```
 
-* For GJR-GARCH(p, q):
+* For `GJR-GARCH(p, q, d)`:
 ```math
 \hat{\sigma}_{t+h}^{2,(n)} = \alpha_0 + \sum_{i=1}^{q} \left(\alpha_i \, (\epsilon_{t+h-i}^{(n)})^2 + \gamma_i (\epsilon_{t+h-i}^{(n)})^2 \, \mathbf{1}_{\{\epsilon_{t+h-i}^{(n)}<0\}} \right) + \sum_{j=1}^{p} \beta_j \, \hat{\sigma}_{t+h-j}^{2,(n)}
 ```
@@ -306,5 +306,5 @@ A key assumption made by the above procedure, that often does not hold true in r
 
 There are some ways to fix the independence assumptions, these are not implemented in the application:
 1. Correlated $\epsilon$ draws: Estimate the historical correlation matrix of ticker log-returns. During ensemble simulation, draw **correlated** normal innovations (via Cholesky decomposition) instead of independent ones, and feed them into each asset’s ARIMA/GARCH simulator.
-2. Multivariate Approaches: Models like ARIMAX, DCC-GARCH, RNN, LSTM take into account conditional correlations and models cross-asset correlations as well. These require more compute but are thepretically sound.
+2. Multivariate Approaches: Models like ARIMAX, DCC-GARCH, RNN, LSTM take into account conditional correlations and models cross-asset correlations as well. These require more compute but are theoretically sound.
 3. Copula approaches: Joint dependencies among assets can be modelled using Copulas model to sample correlated shocks.
