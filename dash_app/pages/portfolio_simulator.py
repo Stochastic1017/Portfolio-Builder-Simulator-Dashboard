@@ -174,6 +174,8 @@ layout = html.Div(
                                     max=100,
                                     value=50,
                                     disabled=True,
+                                    step=1,
+                                    marks={i: str(i) for i in range(0, 101, 25)},
                                     tooltip={
                                         "placement": "bottom",
                                         "always_visible": False,
