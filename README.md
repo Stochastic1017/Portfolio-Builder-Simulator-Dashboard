@@ -22,7 +22,7 @@ This page allows users to:
 
 * Fetch company metadata, news articles (with sentiment tags), and financial details.
 
-* Visualize historical performance:
+* Visualize historical performance of chosen asset:
   * Line chart of price trends over multiple ranges (1M, 3M, 6M, 1Y, 2Y).
   * Line chart of daily log-returns overlayed with 95% confidence intervals.
   * Histogram of returns overlaid with a Gaussian distribution with estimated mean and variance.
@@ -52,6 +52,34 @@ The file for the dash html layout can be found [`dash_app/pages/portfolio_builde
 The helper functions used to call Polygon API, validate tickers, create the metadata layout, create historic plots, summary tables, and range selectors can all be found: [`dash_app/helpers/portfolio_builder.py`](https://github.com/Stochastic1017/Portfolio-Builder-Simulator-Dashboard/blob/main/dash_app/helpers/portfolio_builder.py).
 
 The callbacks for user interactivity within the app can be found [`dash_app/callbacks/portfolio_builder.py`](https://github.com/Stochastic1017/Portfolio-Builder-Simulator-Dashboard/blob/main/dash_app/callbacks/portfolio_builder.py).
+
+### Portfolio Simulator 
+
+This page allows users to:
+
+* Visualize historical performance of the confirmed portfolio:
+  * Line chart of price trends over multiple ranges (1M, 3M, 6M, 1Y, 2Y).
+  * Line chart of daily log-returns overlayed with 95% confidence intervals.
+  * Histogram of returns overlaid with a Gaussian distribution with estimated mean and variance.
+
+* Choose a future date (upto 1 year from the latest date) for forecasting. Longer time implies more uncertainty and more compute.
+
+* Choose number of ensembles to generate for forecasting (upto 100 ensembles). Larger ensemble implies more compute, but better estimates.
+
+* Choose information criterion upon which to grid-search and find appropriate ARIMA/GARCH models.
+
+* Choose confidence interval for quantiles which best represent variability (non-parametric) of log-returns and prices.
+
+* Choose forecasting model between ARIMA or GARCH.
+
+* Upon successful forecasting, a summary table is generated showing forecasts and confidence intervals for portfolio, as well as each ticker.
+
+The file for the dash html layout can be found [`dash_app/pages/portfolio_simulator.py`](https://github.com/Stochastic1017/Portfolio-Builder-Simulator-Dashboard/blob/main/dash_app/pages/portfolio_simulator.py). 
+
+The helper functions used to call Polygon API, validate tickers, create the metadata layout, create historic plots, summary tables, and range selectors can all be found: [`dash_app/helpers/portfolio_simulator.py`](https://github.com/Stochastic1017/Portfolio-Builder-Simulator-Dashboard/blob/main/dash_app/helpers/portfolio_simulator.py).
+
+The callbacks for user interactivity within the app can be found [`dash_app/callbacks/portfolio_simulator.py`](https://github.com/Stochastic1017/Portfolio-Builder-Simulator-Dashboard/blob/main/dash_app/callbacks/portfolio_simulator.py).
+
 
 ## Mathematics Overview of the key concepts
 
@@ -173,7 +201,7 @@ To maximize diversification ratio, we plot the point that satisfies the followin
 \max_{\mathbf{w}} \; \underbrace{ \bigg(\frac{ \mathbf{w}^T \sigma }{ \sqrt{\mathbf{w}^T \mathbf{\hat\Sigma} \mathbf{w}}}\bigg) }_{\hat{D}_P / \hat\sigma_P} \quad \text{s.t.} \| \mathbf{w} \|_1 = 1, \; \mathbf{w} > \mathbf{0}
 ```
 
-### Forecast and Simulation
+### Forecasting Models
 
 In general, for all four forecasting procedures, we generate $N$ ensembles up-to a future time-step $h$ and compute the mean and 95% confidence of portfolio log-returns (and subsequntly, the portfolio price). Using the weights, we can backtrack compute mean and 95% confidence in log-returns and prices for each of the $d$ tickers.
 
@@ -181,8 +209,9 @@ In general, for all four forecasting procedures, we generate $N$ ensembles up-to
 
 For the forecasting procedures, users can choose one of three information criterions upon which to optimize model parameters.
 Let $L$ be the maximized likelihood of the fitted model, i.e., the joint probability of observing the data under a given model, with parameters chosen to maximize that probability.
-Let $p,q$ be AR and MA orders respectively. Lastly, let $d$ be the order of differencing needed to make data stationary.
+Let $p,q$ be AR and MA orders respectively, and $d$ be the order of differencing needed to make data stationary. Lastly, let $q$ be the chosen confidence interval. 
 
+Given below are the Information Criterions available to the user:
 1. Akaike Information Criterion (AIC) : $-2 \cdot \text{ln}(L) + 2 \cdot (p+q-1)$
 2. Bayesiam Information Criterion (BIC) : $-2 \cdot \text{ln}(L) + \text{ln}(T-1) \cdot (p+q-1)$
 3. LogLikelihood : $\text{ln}(L)$
@@ -207,7 +236,7 @@ For each ensemble path $n \in \{1,\dots,N\}$ and forecast time-step $h$, we simu
 
 **For Generalized Autoregressive Conditional Heteroskedasticity (GARCH):** 
 
-Just like ARIMA, users can choose one of three information criterions (AIC, BIC, LogLikelihood) upon which to optimize model parameters. Let $p,q$ be the number of lags for conditional variance and squared residuals respectively.
+Just like ARIMA, users can choose one of three information criterions (AIC, BIC, LogLikelihood) upon which to optimize model parameters. Let $p,q$ be the number of lags for conditional variance and squared residuals respectively, and $d$ be the order of differencing needed to make data stationary. 
 
 Given chosen criterion, a grid-search is performed over the models \{GARCH, EGARCH, GJR-GARCH\}, distributions \{Gaussian, Student-t, Skew-t, GED\}, and $p,q \in \{1,2,3\}$.
 
@@ -234,92 +263,48 @@ For all of the above, we can compute $N$ ensembles of log-returns as follows:
 ```
 where, F is one of Gaussian, Student-t, Skew-t, GED distributions.
 
-**For Euler–Maruyama (Gradient Boosted - Estimated Parameters):**
+### Simulation Procedure:
 
-Unlike ARIMA and GARCH, we do not require information criterion information for this forecasting precedure. Instead, we use gradient boosting (with train/test/validation split) to estimate the parameters.
+Given all required inputs from the user, the portfolio log-returns and prices are forecasted in two key steps.
 
-Assume portfolio log-returns follows a stochastic differential equation:
+**Per-asset Ensemble Forecasting:** 
+
+For each asset ticker $A_j$ in the selected portfolio, where $j \in \{1,\dots,d\}$, we do the following:
+* The chosen model with inputs are fitted on historical log-returns of asset.
+* We generate $N$ ensemble paths of future log-returns, for each $n \in \{1,\dots,N\}$, we have $\hat{r}^{(n)}_{t+h}$.
+* From the $N$ ensemble log-return paths, we compute the following statistics. let $q$ be the chosen confidence interval:
 ```math
-dr_t = \underbrace{\mu(r_t, t)}_{\text{Drift Term}} \; dt + \underbrace{\sigma(r_t, t)}_{\text{Volatility Term}} \; dW_t
+\text{median}(r_{A_j, t+h}) = Q_{0.5} \bigg\{\hat{r}^{(n)}_{A_j, t+h}\bigg\}_{n=1}^{N}, \quad CI_{q}(r_{A_j, t+h}) = \bigg[Q_{(1-q)/2}\bigg\{\hat{r}^{(n)}_{A_j, t+h} \bigg\}_{n=1}^{N}, \;\; Q_{(1+q)/2}\bigg\{\hat{r}^{(n)}_{A_j, t+h} \bigg\}_{n=1}^{N} \bigg]
+```
+*  Asset prices are then forecasted using the ensembles by taking exponentiating cumulatively summing log-return forecasts:
+```math
+\hat{P}^{(n)}_{A_j, t+h} = P_t \cdot \text{exp}\bigg(\sum_{i=1}^{h} \hat{r}^{(n)}_{A_j, t+i}\bigg)
+```
+* From the $N$ ensemble price paths, we compute the same statistics as before:
+```math
+\text{median}(P_{A_j, t+h}) = Q_{0.5} \bigg\{\hat{P}^{(n)}_{A_j, t+h}\bigg\}_{n=1}^{N}, \quad CI_{q}(P_{A_j, t+h}) = \bigg[Q_{(1-q)/2}\bigg\{\hat{P}^{(n)}_{A_j, t+h} \bigg\}_{n=1}^{N}, \;\; Q_{(1+q)/2}\bigg\{\hat{P}^{(n)}_{A_j, t+h} \bigg\}_{n=1}^{N} \bigg]
 ```
 
-Gradient Boosted Regression is used to estimate drift and volatility terms as follows:
+**Portfolio Aggregation:**
+
+* Each asset $A_j$ price forecast is then weighted by portfolio weights $w_j$ and summed together to get the portfolio price, i.e., for price $\hat{P}^{(n)}_{A_j, t+h}$, we have:
 ```math
-\hat\mu(r_t, t) \approx \mathbb{E}[r_{t+1} | r_t, t], \quad 
-\hat\sigma(r_t, t) \approx \mathbb{V}[r_{t+1} | r_t, t]
+\hat{P}^{(n)}_{\text{port}, t+h} = \sum_{j=1}^{d} w_j \cdot P^{(n)}_{A_j, t+h}
+```
+* Log-Returns are then calculated as before:
+```math
+ \hat{r}^{(n)}_{\text{port}, t+h} = \text{log} \frac{\hat{P}^{(n)}_{\text{port}, t+h}}{\hat{P}^{(n)}_{\text{port}, t+h-1}}
+```
+* Same statistics as before are computed:
+```math
+\text{median}(P_{\text{port}, t+h}) = Q_{0.5} \bigg\{\hat{P}^{(n)}_{\text{port}, t+h}\bigg\}_{n=1}^{N}, \quad CI_{q}(P_{\text{port}, t+h}) = \bigg[Q_{(1-q)/2}\bigg\{\hat{P}^{(n)}_{\text{port}, t+h} \bigg\}_{n=1}^{N}, \;\; Q_{(1+q)/2}\bigg\{\hat{P}^{(n)}_{\text{port}, t+h} \bigg\}_{n=1}^{N} \bigg]
 ```
 
-In practice:
-- A gradient boosting regressor is trained on input features (past returns, lagged variables, time index) to predict the next return $r_{t+1}$.
-- The predicted mean becomes $\hat{\mu}(r_t, t)$.
-- The residual variance (squared error between predictions and observed returns) is used as an estimate of $\hat{\sigma}^2(r_t, t)$.
+### Issues and Assumptions
 
-Then, by Euler-Maruyama we can generate $N$ ensembles at forecast step $t+h$ as:
-```math
-\hat{r}^{(n)}_{t+h} = \hat{r^{(n)}_{t+h-1}} + \hat\mu(\hat{r^{(n)}_{t+h-1}}, t+h-1) \cdot \Delta t + \hat\sigma(\hat{r^{(n)}_{t+h-1}}, t+h-1) \cdot \sqrt{\Delta t} \cdot z^{(n)}_{t+h}
-```
-where $z^{(n)}_{t+h} \sim N(0,1)$ and $\Delta t = 1$ day.
+A key assumption made by the above procedure, that often does not hold true in real-world circumstances, is the idea that ticker movements are independent. This assumption simplifies portfolio aggregation and allows us to weight and sum each individual ticker forecast into one portfolio forecast. Assets are often correlated with each other, thus the independence assumption understates portfolio risk and confidence intervals are too-narrow as diversification is overly optimistic.
 
-**For Long-Short Term Memory Models (LSTM):**
-
-Let $L$ be the short-window over which we update parameters for the neural network model. Then, we initialize input sequence with last observed window as follows:
-```math
-(r_t, r_{t-1}, r_{t-2}, \dots, r_{t-L+1})
-```
-
-We model our log-returns as a non-linear sequencing program as follows:
-```math
-\hat{r_{t+1}} = f_{\theta}(r_t, r_{t-1}, r_{t-2}, \dots, r_{t-L+1})
-```
-
-The mapping can be learned using a 2-plus-2 layer LSTM neural network with the following architecture:
-- cell state $c_t$ (long-term memory)
-- hidden state $h_t$ (short-term memory / output)
-
-The update equations are:
-```math
-\begin{aligned}
-f_t &= \sigma(W_f [h_{t-1}, r_t] + b_f) && \text{(forget gate)} \\
-i_t &= \sigma(W_i [h_{t-1}, r_t] + b_i), \quad \tilde{c}_t = \tanh(W_c [h_{t-1}, r_t] + b_c) && \text{(input gate)} \\
-c_t &= f_t \odot c_{t-1} + i_t \odot \tilde{c}_t && \text{(cell update)} \\
-o_t &= \sigma(W_o [h_{t-1}, r_t] + b_o), \quad h_t = o_t \odot \tanh(c_t) && \text{(output gate)}
-\end{aligned}
-```
-
-Finally, the one-step forecast is obtained from the hidden state added with random shock $\epsilon^{(n)}_{t+1}$:
-```math
-\hat{r}_{t+1} = W_y h_t + b_y + \epsilon^{(n)}_{t+1} =  f_{\theta}(r_t, r_{t-1}, r_{t-2}, \dots, r_{t-L+1}) + \epsilon^{(n)}_{t+1}
-```
-
-The above is repeated $N$ times to generate the required ensembles.
-
-**Using ensembles to backcalculate portfolio pricing and per-ticker pricing:**
-
-After all ensembles are generated (using any of the four aforementioned procedures), we aggregate the forecasted portfolio log-returns as follows:
-```math
-\bar{r}_{t+h} = \frac{1}{N} \sum_{n=1}^{N} \hat{r}^{(n)}_{t+h}, \quad CI_{95\%}(r_{t+h}) = \bigg[Q_{2.5\%}\bigg\{\hat{r}^{(n)}_{t+h}\bigg\}_{n=1}^{N}, Q_{97.5\%}\bigg\{\hat{r}^{(n)}_{t+h}\bigg\}_{n=1}^{N}\bigg]
-```
-where $Q_{p}$ is the p-th quantile from ensemble distribution.
-
-Then, we re-construct all $N$ ensemble portfolio prices by taking exponential cumulative sums of portfolio log-returns:
-```math
-\hat{P}^{(n)}_{t+h} = P_t \cdot \text{exp}\bigg( \sum_{l=1}^{h} \hat{r}^{(n)}_{t+l} \bigg)
-```
-
-The ensemble prices then give us the mean estimate and 95% confidence as follows:
-```math
-\bar{P}_{t+h} = \frac{1}{N} \sum_{n=1}^{N} \hat{P}^{(n)}_{t+h}, \quad CI_{95\%}(P_{t+h}) = \bigg[Q_{2.5\%}\bigg\{\hat{P}^{(n)}_{t+h}\bigg\}_{n=1}^{N}, Q_{97.5\%}\bigg\{\hat{P}^{(n)}_{t+h}\bigg\}_{n=1}^{N}\bigg]
-```
-
-Thus, for each ticker corresponding to asset $A_j$ with weight $w_j$, we can compute mean estimate of asset prices and asset log-returns as:
-```math
-\bar{P}^{(A_j)}_{t+h} = \bar{P}_{t+h} * w_j, \quad \bar{r}^{(A_j)}_{t+h} = \bar{r}_{t+h} * w_j
-```
-
-Finally, the 95% confidence of asset prices and asset log-returns is:
-```math
-\begin{align}
-CI_{95\%}(P^{(A_j)}_{t+h}) &= \bigg[Q_{2.5\%}\bigg\{\hat{P}^{(n)}_{t+h} \bigg\}_{n=1}^{N} \cdot w_j, \;\; Q_{97.5\%}\bigg\{\hat{P}^{(n)}_{t+h} \bigg\}_{n=1}^{N} \cdot w_j \bigg]\\
-CI_{95\%}(r^{(A_j)}_{t+h}) &= \bigg[Q_{2.5\%}\bigg\{\hat{r}^{(n)}_{t+h} \bigg\}_{n=1}^{N} \cdot w_j, \;\; Q_{97.5\%}\bigg\{\hat{r}^{(n)}_{t+h} \bigg\}_{n=1}^{N} \cdot w_j \bigg]
-\end{align}
-```
+There are some ways to fix the independence assumptions, these are not implemented in the application:
+1. Correlated $\epsilon$ draws: Estimate the historical correlation matrix of ticker log-returns. During ensemble simulation, draw **correlated** normal innovations (via Cholesky decomposition) instead of independent ones, and feed them into each asset’s ARIMA/GARCH simulator.
+2. Multivariate Approaches: Models like ARIMAX, DCC-GARCH, RNN, LSTM take into account conditional correlations and models cross-asset correlations as well. These require more compute but are thepretically sound.
+3. Copula approaches: Joint dependencies among assets can be modelled using Copulas model to sample correlated shocks.
