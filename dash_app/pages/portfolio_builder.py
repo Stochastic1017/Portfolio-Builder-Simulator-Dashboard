@@ -1,13 +1,10 @@
 import os
 import sys
-import json
 import dash
 import dash_daq as daq
 import dash_bootstrap_components as dbc
 
-from datetime import datetime
-from scipy.special import comb
-from dash import html, Input, Output, State, ALL, MATCH, callback, ctx, dcc, no_update
+from dash import html, dcc
 
 
 # Append the current directory to the system path for imports

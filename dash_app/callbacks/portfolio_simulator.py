@@ -16,10 +16,6 @@ from helpers.portfolio_simulator import (
     simulate_arima_paths,
     grid_search_garch_models,
     simulate_garch_paths,
-    train_lstm_model,
-    simulate_lstm_paths,
-    train_gbm_sde_model,
-    simulate_gbm_sde_paths,
     simulation_plot,
     prediction_summary_table,
 )
@@ -36,6 +32,207 @@ from helpers.button_styles import (
     default_style_time_range,
     active_style_time_range,
 )
+
+
+def forecast_plot(
+    button_id,
+    portfolio_value_ts,
+    ts_map,
+    num_ensembles,
+    criterion_selector,
+    forecast_until,
+    chosen_quantile,
+):
+
+    # --- per-asset ensembles (price paths) ---
+    per_asset_price_paths = {}
+    per_asset_summaries = {}
+    forecast_index = None
+    E = int(num_ensembles)
+
+    for tkr, d in ts_map.items():
+
+        px = d["price"]
+        rets = np.log(px / px.shift(1)).dropna()
+
+        if button_id == "btn-arima-performance":
+            arima_model = grid_search_arima_model(rets, criterion=criterion_selector)
+            header_model_spec = f"Model: ARIMA{arima_model['order']} | Criterion: {criterion_selector} | Ensembles: {num_ensembles} | Forecast Date: {forecast_until} | Confidence: {chosen_quantile}"
+            fi, price_paths = simulate_arima_paths(
+                model_result=arima_model["result"],
+                last_price=float(px.iloc[-1]),
+                last_date=px.index[-1],
+                forecast_until=forecast_until,
+                num_ensembles=E,
+                inferred_freq="B",
+            )
+
+        if button_id == "btn-garch-performance":
+            garch_model = grid_search_garch_models(rets, criterion=criterion_selector)
+            header_model_spec = f"{garch_model['model_type']}({garch_model['order'][0]},{garch_model['order'][1]}) • {str(garch_model['distribution']).title()} | Criterion: {criterion_selector} | Ensembles: {num_ensembles} | Forecast Date: {forecast_until} | Confidence: {chosen_quantile}"
+            fi, price_paths = simulate_garch_paths(
+                model_result=garch_model["model"],
+                last_price=float(px.iloc[-1]),
+                last_date=px.index[-1],
+                forecast_until=forecast_until,
+                num_ensembles=E,
+                inferred_freq="B",
+                burn=250,
+            )
+
+        if forecast_index is None:
+            forecast_index = fi
+
+        per_asset_price_paths[tkr] = price_paths
+
+        # per-asset summaries for your table (median/CI of price; and returns derived from those prices)
+        asset_prices = summarize_price_paths(price_paths)  # dict of lists
+
+        # returns per ensemble for this asset
+        prev = float(px.iloc[-1])
+        prev_mat = np.full((E, 1), prev)
+        asset_ret_paths = np.log(
+            price_paths / np.concatenate([prev_mat, price_paths[:, :-1]], axis=1)
+        )
+        asset_returns = {
+            "median": np.median(asset_ret_paths, axis=0).tolist(),
+            "lower": np.quantile(asset_ret_paths, 0.025, axis=0).tolist(),
+            "upper": np.quantile(asset_ret_paths, 0.975, axis=0).tolist(),
+        }
+        per_asset_summaries[tkr] = {
+            "prices": asset_prices,
+            "returns": asset_returns,
+            "last_price": prev,
+            "shares": float(d["shares"]),
+            "weight": float(d["weight"]),
+        }
+
+    # --- aggregate to portfolio per ensemble ---
+    H = len(forecast_index)
+    port_price_paths = np.zeros((E, H), dtype=float)  # (E, H)
+
+    for tkr, data in per_asset_summaries.items():
+        sh = data["shares"]
+        port_price_paths += sh * per_asset_price_paths[tkr]  # broadcast ok: (E,H)
+
+    last_port_val = float(portfolio_value_ts.iloc[-1])
+    prev_port = np.full((E, 1), last_port_val)
+    port_ret_paths = np.log(
+        port_price_paths / np.concatenate([prev_port, port_price_paths[:, :-1]], axis=1)
+    )
+
+    # --- summarize portfolio prices & returns (accurate quantiles from ensembles) ---
+    port_prices = {
+        "median": np.median(port_price_paths, axis=0).tolist(),
+        "lower": np.quantile(
+            port_price_paths, (1 - chosen_quantile) / 2, axis=0
+        ).tolist(),
+        "upper": np.quantile(
+            port_price_paths, (1 + chosen_quantile) / 2, axis=0
+        ).tolist(),
+    }
+    port_returns = {
+        "median": np.median(port_ret_paths, axis=0).tolist(),
+        "lower": np.quantile(
+            port_ret_paths, (1 - chosen_quantile) / 2, axis=0
+        ).tolist(),
+        "upper": np.quantile(
+            port_ret_paths, (1 + chosen_quantile) / 2, axis=0
+        ).tolist(),
+    }
+
+    # (Optional) clear heavy arrays now to free RAM
+    per_asset_price_paths = None
+    port_price_paths = None
+    port_ret_paths = None
+
+    # --- build cum log-returns summaries from portfolio *price* summaries (for the price panel) ---
+    port_cum = {
+        "median": (np.log(np.array(port_prices["median"]) / last_port_val)).tolist(),
+        "lower": (
+            np.log(np.maximum(np.array(port_prices["lower"]), 1e-12) / last_port_val)
+        ).tolist(),
+        "upper": (
+            np.log(np.maximum(np.array(port_prices["upper"]), 1e-12) / last_port_val)
+        ).tolist(),
+    }
+
+    # --- plot: summary-only (CI for both price and returns, now accurate) ---
+    forecast_plot, _ = simulation_plot(
+        dates=portfolio_value_ts.index,
+        daily_prices=portfolio_value_ts.values,
+        returns_summary=port_returns,
+        cum_returns_summary=port_cum,
+        forecast_index=forecast_index,
+        COLORS=COLORS,
+    )
+
+    # --- payload for tables (portfolio + per-asset) ---
+    simulation_payload = {
+        "scope": "portfolio_and_assets",
+        "forecast_index": [str(d.date()) for d in forecast_index],
+        "portfolio": {
+            "median_price": float(np.array(port_prices["median"])[-1]),
+            "lower_price": float(np.array(port_prices["lower"])[-1]),
+            "upper_price": float(np.array(port_prices["upper"])[-1]),
+            "median_return": float(np.array(port_returns["median"])[-1]),
+            "lower_return": float(np.array(port_returns["lower"])[-1]),
+            "upper_return": float(np.array(port_returns["upper"])[-1]),
+        },
+        "assets": {
+            tkr: {
+                "last_price": data["last_price"],
+                "shares": data["shares"],
+                "weight": data["weight"],
+                "returns": data["returns"],
+                "prices": data["prices"],
+            }
+            for tkr, data in per_asset_summaries.items()
+        },
+    }
+
+    return (
+        html.Div(
+            id="portfolio-plot-container",
+            style={
+                "display": "flex",
+                "flexDirection": "column",
+                "flex": "1",
+                "overflow": "hidden",
+                "height": "100%",
+                "width": "100%",
+            },
+            children=[
+                html.Div(
+                    header_model_spec,
+                    style={
+                        "fontSize": "1.05rem",
+                        "fontWeight": 700,
+                        "color": COLORS["primary"],
+                    },
+                ),
+                forecast_plot,
+            ],
+        ),
+        simulation_payload,
+    )
+
+
+def step_log_returns(prev_level, path):
+    prev = np.concatenate([[prev_level], path[:-1]])
+    return np.log(np.array(path) / prev)
+
+
+def summarize_price_paths(price_paths):
+    """
+    price_paths: (E, H)
+    returns dict of arrays length H
+    """
+    return {
+        "median": np.median(price_paths, axis=0).tolist(),
+        "lower": np.quantile(price_paths, 0.025, axis=0).tolist(),
+        "upper": np.quantile(price_paths, 0.975, axis=0).tolist(),
+    }
 
 
 # Get next business day
@@ -72,6 +269,7 @@ def max_forecast_date(latest_date_str):
         Output("selected-range-simulation", "children"),
         Output("latest-date-simulation", "children"),
         Output("model-selection-criterion", "options"),
+        Output("ci-level-selector", "options"),
     ],
     [Input("latest-date", "data"), Input("confirmed-portfolio-details", "data")],
     State("portfolio-confirmed", "data"),
@@ -123,36 +321,12 @@ def change_states_upon_portfolio_confirmation(
                 "disabled": False,
             },
         ],
+        [
+            {"label": "90%", "value": 0.90, "disabled": False},
+            {"label": "95%", "value": 0.95, "disabled": False},
+            {"label": "99%", "value": 0.99, "disabled": False},
+        ],
     )
-
-
-# Activate LSTM button after user inputs date and a valid budget
-@callback(
-    [
-        Output("btn-lstm-performance", "disabled"),
-        Output("btn-lstm-performance", "style"),
-        Output("btn-lstm-performance", "className"),
-        Output("btn-gbm-performance", "disabled"),
-        Output("btn-gbm-performance", "style"),
-        Output("btn-gbm-performance", "className"),
-    ],
-    Input("date-chooser-simulation", "date"),
-    prevent_initial_call=True,
-)
-def activate_lstm_nnsde_button(selected_date):
-
-    if selected_date:
-        return (
-            False,
-            verified_button_style,
-            "simple",
-            False,
-            verified_button_style,
-            "simple",
-        )
-
-    else:
-        return (True, unverified_button_style, "", True, unverified_button_style, "")
 
 
 # Activate ARIMA and GARCH button after user inputs date, valid budget,
@@ -333,8 +507,6 @@ def Show_portfolio_performance(
     [
         Input("btn-arima-performance", "n_clicks"),
         Input("btn-garch-performance", "n_clicks"),
-        Input("btn-lstm-performance", "n_clicks"),
-        Input("btn-gbm-performance", "n_clicks"),
     ],
     [
         State("model-selection-criterion", "value"),
@@ -346,14 +518,13 @@ def Show_portfolio_performance(
         State("confirmed-portfolio-details", "data"),
         State("date-chooser-simulation", "date"),
         State("num-ensemble-slider", "value"),
+        State("ci-level-selector", "value"),
     ],
     prevent_initial_call=True,
 )
 def update_portfolio_simulator_main_plot(
     _,
     __,
-    ___,
-    ____,
     criterion_selector,
     confirmed_portfolio,
     portfolio_store,
@@ -363,6 +534,7 @@ def update_portfolio_simulator_main_plot(
     risk_return,
     forecast_until,
     num_ensembles,
+    chosen_quantile,
 ):
 
     if not confirmed_portfolio:
@@ -370,203 +542,21 @@ def update_portfolio_simulator_main_plot(
 
     button_id = ctx.triggered_id
 
-    _, portfolio_value_ts = parse_ts_map(
+    ts_map, portfolio_value_ts = parse_ts_map(
         selected_tickers=selected_tickers,
         portfolio_weights=weights,
         portfolio_store=portfolio_store,
         budget=budget,
     )
 
-    log_returns = (
-        np.log(portfolio_value_ts / portfolio_value_ts.shift(1)).shift(-1).dropna()
-    )
-
-    if button_id == "btn-arima-performance":
-        arima_model = grid_search_arima_model(log_returns, criterion=criterion_selector)
-
-        simulations, forecast_index, mean_ensembles, std_ensembles = (
-            simulate_arima_paths(
-                model_result=arima_model["result"],
-                last_date=portfolio_value_ts.index[-1],
-                forecast_until=forecast_until,
-                num_ensembles=num_ensembles,
-                inferred_freq="B",
-            )
-        )
-        arima_plot, simulation_data = simulation_plot(
-            model_used="ARIMA",
-            risk_return=risk_return,
-            dates=portfolio_value_ts.index,
-            daily_prices=portfolio_value_ts.values,
-            log_returns=log_returns,
-            simulations=simulations,
-            forecast_index=forecast_index,
-            mean_ensembles=mean_ensembles,
-            std_ensembles=std_ensembles,
-            COLORS=COLORS,
-        )
-        return (
-            (
-                html.Div(
-                    id="portfolio-plot-container",
-                    style={
-                        "display": "flex",
-                        "flexDirection": "column",
-                        "flex": "1",
-                        "overflow": "hidden",
-                        "height": "100%",
-                        "width": "100%",
-                    },
-                    children=[arima_plot],
-                )
-            ),
-            simulation_data,
-        )
-
-    elif button_id == "btn-garch-performance":
-
-        garch_model = grid_search_garch_models(
-            log_returns, criterion=criterion_selector
-        )
-
-        simulations, forecast_index, mean_ensembles, std_ensembles = (
-            simulate_garch_paths(
-                model_result=garch_model["model"],
-                last_date=portfolio_value_ts.index[-1],
-                forecast_until=forecast_until,
-                num_ensembles=num_ensembles,
-                inferred_freq="B",
-            )
-        )
-        garch_plot, simulation_data = simulation_plot(
-            model_used="GARCH",
-            risk_return=risk_return,
-            dates=portfolio_value_ts.index,
-            daily_prices=portfolio_value_ts.values,
-            log_returns=log_returns,
-            simulations=simulations,
-            forecast_index=forecast_index,
-            mean_ensembles=mean_ensembles,
-            std_ensembles=std_ensembles,
-            COLORS=COLORS,
-        )
-
-        return (
-            (
-                html.Div(
-                    id="portfolio-plot-container",
-                    style={
-                        "display": "flex",
-                        "flexDirection": "column",
-                        "flex": "1",
-                        "overflow": "hidden",
-                        "height": "100%",
-                        "width": "100%",
-                    },
-                    children=[garch_plot],
-                )
-            ),
-            simulation_data,
-        )
-
-    elif button_id == "btn-gbm-performance":
-
-        gbm_model = train_gbm_sde_model(log_returns, lookback=10)
-
-        simulations, forecast_index, mean_ensembles, std_ensembles = (
-            simulate_gbm_sde_paths(
-                model_result=gbm_model,
-                last_value=log_returns.iloc[-1],
-                last_date=portfolio_value_ts.index[-1],
-                forecast_until=forecast_until,
-                num_ensembles=num_ensembles,
-                historical_returns=log_returns,
-                inferred_freq="B",
-            )
-        )
-        gbm_plot, simulation_data = simulation_plot(
-            model_used="GBM",
-            risk_return=risk_return,
-            dates=portfolio_value_ts.index,
-            daily_prices=portfolio_value_ts.values,
-            log_returns=log_returns,
-            simulations=simulations,
-            forecast_index=forecast_index,
-            mean_ensembles=mean_ensembles,
-            std_ensembles=std_ensembles,
-            COLORS=COLORS,
-        )
-
-        return (
-            (
-                html.Div(
-                    id="portfolio-plot-container",
-                    style={
-                        "display": "flex",
-                        "flexDirection": "column",
-                        "flex": "1",
-                        "overflow": "hidden",
-                        "height": "100%",
-                        "width": "100%",
-                    },
-                    children=[gbm_plot],
-                )
-            ),
-            simulation_data,
-        )
-
-    elif button_id == "btn-lstm-performance":
-
-        lstm_model = train_lstm_model(log_returns)
-
-        simulations, forecast_index, mean_ensembles, std_ensembles = (
-            simulate_lstm_paths(
-                model_result=lstm_model,
-                last_date=portfolio_value_ts.index[-1],
-                forecast_until=forecast_until,
-                num_ensembles=num_ensembles,
-                historical_returns=log_returns,
-                inferred_freq="B",
-            )
-        )
-        lstm_plot, simulation_data = simulation_plot(
-            model_used="LSTM",
-            risk_return=risk_return,
-            dates=portfolio_value_ts.index,
-            daily_prices=portfolio_value_ts.values,
-            log_returns=log_returns,
-            simulations=simulations,
-            forecast_index=forecast_index,
-            mean_ensembles=mean_ensembles,
-            std_ensembles=std_ensembles,
-            COLORS=COLORS,
-        )
-
-        return (
-            (
-                html.Div(
-                    id="portfolio-plot-container",
-                    style={
-                        "display": "flex",
-                        "flexDirection": "column",
-                        "flex": "1",
-                        "overflow": "hidden",
-                        "height": "100%",
-                        "width": "100%",
-                    },
-                    children=[lstm_plot],
-                )
-            ),
-            simulation_data,
-        )
-
-    return (
-        no_update,
-        {
-            "mean_returns": float(mean_ensembles[-1]),
-            "std_returns": float(std_ensembles[-1]),
-            "forecast_date": str(forecast_index[-1].date()),
-        },
+    return forecast_plot(
+        button_id,
+        portfolio_value_ts,
+        ts_map,
+        num_ensembles,
+        criterion_selector,
+        forecast_until,
+        chosen_quantile,
     )
 
 

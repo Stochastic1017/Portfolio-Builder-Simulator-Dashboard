@@ -23,20 +23,16 @@ app = dash.Dash(
 )
 
 
-
 # App layout
 app.layout = html.Div(
     children=[
-
         ################
         ### Cache store
         ################
-
         ### Stock exploration dashboard page
         dcc.Store(id="verify-ticker", data={"verified": False}),
         dcc.Store(id="selected-range", data="range-2Y"),
         dcc.Store(id="portfolio-store", data=[]),
-
         ### Portfolio builder page
         dcc.Store(id="verify-budget", data={"verified": False}),
         dcc.Store(id="budget-value"),
@@ -50,24 +46,20 @@ app.layout = html.Div(
         dcc.Store(id="confirmed-portfolio-details"),
         dcc.Store(id="latest-date"),
         dcc.Store(id="portfolio-confirmed", data=False),
-
         ### Portfolio simulation page
         dcc.Store(
             id="portfolio-selected-range", data="portfolio-range-2Y"
         ),  # portfolio selected range
         dcc.Store(id="simulated-forecasts", data=None),
-
         #################
         ### Landing Page
         #################
-
         dcc.Location(id="url", refresh=True, pathname=f"/pages/landing-page"),
         dash.page_container,
-
     ]
 )
 
 server = app.server
 
 if __name__ == "__main__":
-    app.run_server(debug=False)
+    app.run_server(host="0.0.0.0", port=8050, debug=True, threaded=True)

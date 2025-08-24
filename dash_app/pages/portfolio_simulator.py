@@ -157,6 +157,7 @@ layout = html.Div(
                                     with_portal=True,
                                     display_format="MMM Do, YY",
                                 ),
+                                html.Br(),
                                 html.Label(
                                     "Number of ensembles to generate:",
                                     style={
@@ -169,9 +170,9 @@ layout = html.Div(
                                 # Slider to choose number of ensembles to generate
                                 dcc.Slider(
                                     id="num-ensemble-slider",
-                                    min=10,
-                                    max=500,
-                                    value=100,
+                                    min=1,
+                                    max=100,
+                                    value=50,
                                     disabled=True,
                                     tooltip={
                                         "placement": "bottom",
@@ -189,7 +190,7 @@ layout = html.Div(
                             },
                             children=[
                                 html.Label(
-                                    "Classical Forecasting:",
+                                    "Information Criterion:",
                                     style={
                                         "color": COLORS["primary"],
                                         "fontWeight": "bold",
@@ -215,10 +216,52 @@ layout = html.Div(
                                             "disabled": True,
                                         },
                                     ],
+                                    value="aic",
                                     labelStyle=active_labelStyle_radioitems,
                                     inputStyle=active_inputStyle_radioitems,
                                     style=active_style_radioitems,
                                 ),
+                                # CI level selector
+                                html.Label(
+                                    "Confidence Interval:",
+                                    style={
+                                        "color": COLORS["primary"],
+                                        "fontWeight": "bold",
+                                    },
+                                ),
+                                dcc.RadioItems(
+                                    id="ci-level-selector",
+                                    options=[
+                                        {
+                                            "label": "90%",
+                                            "value": 0.90,
+                                            "disabled": True,
+                                        },
+                                        {
+                                            "label": "95%",
+                                            "value": 0.95,
+                                            "disabled": True,
+                                        },
+                                        {
+                                            "label": "99%",
+                                            "value": 0.99,
+                                            "disabled": True,
+                                        },
+                                    ],
+                                    value=0.95,
+                                    labelStyle=active_labelStyle_radioitems,
+                                    inputStyle=active_inputStyle_radioitems,
+                                    style=active_style_radioitems,
+                                ),
+                                # Forecasting Models
+                                html.Label(
+                                    "Forecasting Models:",
+                                    style={
+                                        "color": COLORS["primary"],
+                                        "fontWeight": "bold",
+                                    },
+                                ),
+                                html.Br(),
                                 # ARIMA model
                                 html.Button(
                                     "ARIMA Forecast",
@@ -226,43 +269,11 @@ layout = html.Div(
                                     style=unverified_button_style,
                                     disabled=True,
                                 ),
+                                html.Br(),
                                 # GARCH model
                                 html.Button(
                                     "GARCH Forecast",
                                     id="btn-garch-performance",
-                                    style=unverified_button_style,
-                                    disabled=True,
-                                ),
-                                html.Br(),
-                            ],
-                        ),
-                        # Buttons to generate LSTM and GBM predictions
-                        html.Div(
-                            style={
-                                "display": "flex",
-                                "flexDirection": "column",
-                                "gap": "10px",
-                            },
-                            children=[
-                                html.Label(
-                                    "Machine Learning Forecasting:",
-                                    style={
-                                        "color": COLORS["primary"],
-                                        "fontWeight": "bold",
-                                        "fontSize": "1rem",
-                                    },
-                                ),
-                                # Button for user to start monte carlo exploration
-                                html.Button(
-                                    "Gradient Boosting Forecast",
-                                    id="btn-gbm-performance",
-                                    style=unverified_button_style,
-                                    disabled=True,
-                                ),
-                                # Button for user to start monte carlo exploration
-                                html.Button(
-                                    "LSTM Forecast",
-                                    id="btn-lstm-performance",
                                     style=unverified_button_style,
                                     disabled=True,
                                 ),
@@ -279,6 +290,14 @@ layout = html.Div(
                         "minHeight": 0,
                     },
                     children=[
+                        html.Div(
+                            id="progress-text",
+                            style={
+                                "fontSize": "12px",
+                                "opacity": 0.8,
+                                "marginBottom": "6px",
+                            },
+                        ),
                         dcc.Loading(
                             id="portfolio-exploration-loading",
                             type="cube",
@@ -310,7 +329,7 @@ layout = html.Div(
                                     },
                                 ),
                             ],
-                        )
+                        ),
                     ],
                 ),
             ],
@@ -318,6 +337,7 @@ layout = html.Div(
         ##################
         ### Summary Table
         ##################
+        html.Br(),
         html.Div(
             id="summary-forecast-simulator",
             style={

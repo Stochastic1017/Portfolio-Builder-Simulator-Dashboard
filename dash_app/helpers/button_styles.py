@@ -92,7 +92,6 @@ active_style_time_range = {
 
 active_labelStyle_radioitems = {
     "display": "block",
-    "marginBottom": "5px",
     "color": COLORS["primary"],
     "fontSize": "0.95rem",
 }
@@ -105,8 +104,5 @@ active_inputStyle_radioitems = {
 
 active_style_radioitems = {
     "backgroundColor": COLORS["card"],
-    "padding": "10px 15px",
-    "borderRadius": "8px",
-    "boxShadow": "0 1px 3px rgba(0,0,0,0.1)",
-    "marginTop": "5px",
+    "padding": "8px 12px",
 }
