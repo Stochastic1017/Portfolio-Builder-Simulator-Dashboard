@@ -35,6 +35,10 @@ The helper functions used to call Polygon API, validate tickers, create the meta
 
 The callbacks for user interactivity within the app can be found [`dash_app/callbacks/portfolio_exploration.py`](https://github.com/Stochastic1017/Portfolio-Builder-Simulator-Dashboard/blob/main/dash_app/callbacks/portfolio_exploration.py).
 
+Here is the demo of the page:
+
+https://github.com/user-attachments/assets/b26fecee-3741-4ebd-9b23-0ec93b8ac40d
+
 ### Portfolio Builder 
 
 This page allows users to:
