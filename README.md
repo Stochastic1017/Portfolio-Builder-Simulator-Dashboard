@@ -57,6 +57,10 @@ The helper functions used to call Polygon API, validate tickers, create the meta
 
 The callbacks for user interactivity within the app can be found [`dash_app/callbacks/portfolio_builder.py`](https://github.com/Stochastic1017/Portfolio-Builder-Simulator-Dashboard/blob/main/dash_app/callbacks/portfolio_builder.py).
 
+After adding 43 random tickers from S&P 500 and inputting a budget of $10000, the demo for the page can be found below:
+
+https://github.com/user-attachments/assets/b53fab19-39b3-4e66-b4e8-fbfbd532fc02
+
 ### Portfolio Simulator 
 
 This page allows users to:
