@@ -91,7 +91,7 @@ Consider the following definitions:
 
 * $T$ - Chosen time-range in days (one among 1M, 3M, 6M, 1Y, and 2Y).
 * $d$ - Number of subset tickers chosen.
-* $A_j$ - Arbitrary ticker $j$, where $j \in \{1, \dots, d\} are all tickers in the subset.
+* $A_j$ - Arbitrary ticker $j$, where $j \in \{1, \dots, d\}$ are all tickers in the subset.
 
 ### At a per-asset level:
 
