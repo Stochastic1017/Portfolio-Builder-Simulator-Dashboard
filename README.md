@@ -35,10 +35,6 @@ The helper functions used to call Polygon API, validate tickers, create the meta
 
 The callbacks for user interactivity within the app can be found [`dash_app/callbacks/portfolio_exploration.py`](https://github.com/Stochastic1017/Portfolio-Builder-Simulator-Dashboard/blob/main/dash_app/callbacks/portfolio_exploration.py).
 
-Here is the demo of the page:
-
-https://github.com/user-attachments/assets/b26fecee-3741-4ebd-9b23-0ec93b8ac40d
-
 ### Portfolio Builder 
 
 This page allows users to:
@@ -56,10 +52,6 @@ The file for the dash html layout can be found [`dash_app/pages/portfolio_builde
 The helper functions used to call Polygon API, validate tickers, create the metadata layout, create historic plots, summary tables, and range selectors can all be found: [`dash_app/helpers/portfolio_builder.py`](https://github.com/Stochastic1017/Portfolio-Builder-Simulator-Dashboard/blob/main/dash_app/helpers/portfolio_builder.py).
 
 The callbacks for user interactivity within the app can be found [`dash_app/callbacks/portfolio_builder.py`](https://github.com/Stochastic1017/Portfolio-Builder-Simulator-Dashboard/blob/main/dash_app/callbacks/portfolio_builder.py).
-
-After adding 43 random tickers from S&P 500 and inputting a budget of $10000, the demo for the page can be found below:
-
-https://github.com/user-attachments/assets/b53fab19-39b3-4e66-b4e8-fbfbd532fc02
 
 ### Portfolio Simulator 
 
@@ -88,6 +80,29 @@ The helper functions used to call Polygon API, validate tickers, create the meta
 
 The callbacks for user interactivity within the app can be found [`dash_app/callbacks/portfolio_simulator.py`](https://github.com/Stochastic1017/Portfolio-Builder-Simulator-Dashboard/blob/main/dash_app/callbacks/portfolio_simulator.py).
 
+## Demo the app
+
+### Portfolio Exploration 
+
+Given below is a demo of exploring and adding the `META` stock ticker.
+
+https://github.com/user-attachments/assets/a6f6eaa6-7023-4976-8132-dd73d625558e
+
+Going forward, assume all **MAANG** tickers are added **(`META`, `AAPL`, `AMZN`, `NVDA`, `GOOG`)**.
+
+### Portfolio Builder
+
+Given below is a demo of plotting efficient frontier and looking for portfolios.
+
+https://github.com/user-attachments/assets/d60ae5ab-5520-4c2d-81bb-3a58cb73508a
+
+Going forward, assume that the **Portfolio (Risk: 1.05% | Return: 0.34% | past 3 months)** is chosen.
+
+### Portfolio Simulator
+
+Given below is a demo of plotting the portfolio performance and plot GARCH forecasts for October 1st:
+
+https://github.com/user-attachments/assets/79e00c0b-df5a-41f9-ae9e-f9f58277b315
 
 ## Mathematics Overview of the key concepts
 
