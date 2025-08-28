@@ -668,7 +668,7 @@ def prediction_summary_table(
                     "color": "limegreen",
                     "fontWeight": "bold",
                 }
-                for col in ["Forecast (Median)", "95% Lower Bound", "95% Upper Bound"]
+                for col in ["Forecast (Median)", "Lower Bound", "Upper Bound"]
             ],
             *[
                 {
@@ -676,7 +676,7 @@ def prediction_summary_table(
                     "color": "red",
                     "fontWeight": "bold",
                 }
-                for col in ["Forecast (Median)", "95% Lower Bound", "95% Upper Bound"]
+                for col in ["Forecast (Median)", "Lower Bound", "Upper Bound"]
             ],
             *[
                 {
@@ -684,7 +684,7 @@ def prediction_summary_table(
                     "color": "gray",
                     "fontWeight": "bold",
                 }
-                for col in ["Forecast (Median)", "95% Lower Bound", "95% Upper Bound"]
+                for col in ["Forecast (Median)", "Lower Bound", "Upper Bound"]
             ],
             {
                 "if": {"filter_query": "{Ticker} = 'PORTFOLIO'"},
